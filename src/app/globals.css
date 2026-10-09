@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+/*
+ * Palette rule: colour means temperature. Cobalt is frozen, cyan is chilled,
+ * amber is ambient. Everything else is ink (dark) and frost (light).
+ */
+@theme {
+  --color-ink-950: #06131b;
+  --color-ink-900: #0a1c27;
+  --color-ink-800: #112a38;
+  --color-ink-700: #1c3b4b;
+  --color-ink-600: #36566a;
+  --color-ink-500: #55707f;
+  --color-ink-400: #8aa1ad;
+  --color-ink-300: #b4c5ce;
+
+  --color-frost-50: #f4f8f9;
+  --color-frost-100: #e8eff2;
+  --color-frost-200: #d6e1e6;
+  --color-frost-300: #b9c9d1;
+
+  --color-ice-300: #7fdcf5;
+  --color-ice-400: #3cc6ec;
+  --color-ice-700: #0a6a8a;
+
+  --color-frozen: #2f55e6;
+  --color-frozen-soft: #e9eeff;
+  --color-chilled: #0aa5c0;
+  --color-chilled-soft: #e2f6fa;
+  --color-ambient: #d98a0b;
+  --color-ambient-soft: #fdf2dc;
+
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-success: #0f7b53;
+  --color-success-soft: #e6f5ee;
+}
+
+@theme inline {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-frost-50);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ice-400);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-ice-300);
+    color: var(--color-ink-950);
+  }
+
+  /* Native date and search affordances pick up the ink colour instead of system blue. */
+  input,
+  select,
+  textarea {
+    accent-color: var(--color-ink-900);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Faint vertical ribs, like the wall of a reefer container. */
+@utility reefer-wall {
+  background-color: var(--color-ink-950);
+  background-image:
+    radial-gradient(60rem 30rem at 12% -10%, rgb(60 198 236 / 0.13), transparent 60%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 4.5rem);
+}
+
+/* Small uppercase label used for section markers and data captions. */
+@utility caption {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+@utility shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 76rem;
+  padding-inline: 1.25rem;
+
+  @media (width >= 40rem) {
+    padding-inline: 2rem;
+  }
+}

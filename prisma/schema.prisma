@@ -1,0 +1,155 @@
+// Prisma schema for Bharat Reefer.
+// The connection URL lives in prisma7.config.ts (CLI) and src/lib/db.ts (runtime).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Temperature band the cargo must be held at.
+enum Material {
+  FROZEN
+  CHILLED
+  AMBIENT
+
+  @@map("material")
+}
+
+/// Whether the consignment takes dedicated vehicles or shares one.
+enum LoadType {
+  FULL_LOAD
+  PART_LOAD
+
+  @@map("load_type")
+}
+
+/// Where a quote request sits in the dispatch pipeline.
+enum QuoteStatus {
+  NEW
+  CONTACTED
+  QUOTED
+  CONFIRMED
+  COMPLETED
+  LOST
+  SPAM
+
+  @@map("quote_status")
+}
+
+model QuoteRequest {
+  id        String      @id @default(cuid())
+  /// Short human-readable code shared with the customer, e.g. "BR-7K3Q9F".
+  reference String      @unique
+  status    QuoteStatus @default(NEW)
+
+  originState      String @map("origin_state")
+  originCity       String @map("origin_city")
+  destinationState String @map("destination_state")
+  destinationCity  String @map("destination_city")
+
+  material   Material
+  quantityKg Int       @map("quantity_kg")
+  loadType   LoadType  @map("load_type")
+  /// Vehicle plan suggested at submission time: [{ capacityKg, count }].
+  /// Stored as a snapshot because the fleet configuration can change later.
+  truckPlan  Json      @map("truck_plan")
+  pickupDate DateTime? @map("pickup_date") @db.Date
+  notes      String?
+
+  contactName String  @map("contact_name")
+  /// Normalised to E.164, e.g. "+919871094268".
+  phone       String
+  email       String?
+
+  /// Freight quoted to the customer, in whole rupees. Null until dispatch has quoted.
+  quotedAmount Int? @map("quoted_amount")
+
+  /// Salted SHA-256 of the submitter's IP. Used for rate limiting; the raw IP is never stored.
+  ipHash    String? @map("ip_hash")
+  userAgent String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  activities QuoteActivity[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([phone])
+  @@index([ipHash, createdAt])
+  @@map("quote_requests")
+}
+
+/// What kind of entry a row in a quote's timeline is.
+enum QuoteActivityType {
+  NOTE
+  STATUS_CHANGE
+  PRICE_CHANGE
+  NOTIFICATION
+
+  @@map("quote_activity_type")
+}
+
+/// Timeline of a quote request: internal notes, status and price changes, emails sent.
+model QuoteActivity {
+  id             String            @id @default(cuid())
+  quoteRequestId String            @map("quote_request_id")
+  quoteRequest   QuoteRequest      @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  /// Null for entries the system wrote, or when the author's account was removed.
+  authorId       String?           @map("author_id")
+  author         AdminUser?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  type           QuoteActivityType
+  /// The note text, or a one-line description of what changed.
+  body           String
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([quoteRequestId, createdAt(sort: Desc)])
+  @@map("quote_activities")
+}
+
+/// Someone who can sign in to the admin panel.
+model AdminUser {
+  id           String   @id @default(cuid())
+  /// Always stored lowercase.
+  email        String   @unique
+  name         String
+  /// scrypt hash, see src/lib/password.ts.
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions   Session[]
+  activities QuoteActivity[]
+
+  @@map("admin_users")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  /// SHA-256 of the token held in the browser cookie. The token itself is never stored.
+  tokenHash String    @unique @map("token_hash")
+  userId    String    @map("user_id")
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Failed sign-in attempts, kept briefly to slow down password guessing.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipHash    String?  @map("ip_hash")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([email, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("login_attempts")
+}

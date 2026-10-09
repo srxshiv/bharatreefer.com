@@ -1,0 +1,114 @@
+import { describe, expect, it } from "vitest";
+import {
+  customerConfirmationEmail,
+  dispatchNotificationEmail,
+  type QuoteEmailData,
+} from "./emails";
+import { customerWhatsappMessage, dispatchWhatsappMessage } from "./messages";
+import { whatsappLink } from "@/lib/whatsapp";
+
+const quote: QuoteEmailData = {
+  reference: "BR-7K3Q9F",
+  originCity: "Ludhiana",
+  originState: "Punjab",
+  destinationCity: "Mumbai",
+  destinationState: "Maharashtra",
+  material: "FROZEN",
+  quantityKg: 12_500,
+  loadType: "FULL_LOAD",
+  trucks: [{ capacityKg: 16_000, count: 1 }],
+  pickupDate: "2026-10-12",
+  notes: "Ice cream, 600 cartons.\nLoading after 6 PM.",
+  contactName: "Asha Verma",
+  phone: "+919871094268",
+  email: "asha@example.com",
+};
+
+const ADMIN_URL = "https://bharatreefer.com/admin/quotes/abc123";
+
+describe("dispatchNotificationEmail", () => {
+  const email = dispatchNotificationEmail(quote, ADMIN_URL);
+
+  it("puts the essentials in the subject line", () => {
+    expect(email.subject).toBe(
+      "New quote request BR-7K3Q9F: Ludhiana to Mumbai, 12,500 kg frozen",
+    );
+  });
+
+  it("includes the customer, the load and the admin link in both versions", () => {
+    for (const body of [email.html, email.text]) {
+      expect(body).toContain("Asha Verma");
+      expect(body).toContain("+91 98710 94268");
+      expect(body).toContain("asha@example.com");
+      expect(body).toContain("Ludhiana, Punjab");
+      expect(body).toContain("12,500 kg");
+      expect(body).toContain("1 × 16 t, full load");
+      expect(body).toContain("12 Oct 2026");
+      expect(body).toContain(ADMIN_URL);
+    }
+  });
+
+  it("keeps line breaks in the customer's notes", () => {
+    expect(email.html).toContain("Ice cream, 600 cartons.<br>Loading after 6 PM.");
+  });
+
+  it("says how to reach a customer who left no email", () => {
+    const withoutEmail = dispatchNotificationEmail({ ...quote, email: null }, ADMIN_URL);
+    expect(withoutEmail.text).not.toContain("Email:");
+    expect(withoutEmail.text).toContain("did not leave an email address");
+  });
+
+  it("escapes anything the customer typed", () => {
+    const hostile = dispatchNotificationEmail(
+      {
+        ...quote,
+        contactName: '<img src=x onerror="alert(1)">',
+        notes: "</td><script>alert(2)</script>",
+      },
+      ADMIN_URL,
+    );
+    expect(hostile.html).not.toContain("<img");
+    expect(hostile.html).not.toContain("<script");
+    expect(hostile.html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+  });
+});
+
+describe("customerConfirmationEmail", () => {
+  const email = customerConfirmationEmail(quote);
+
+  it("confirms the reference and what happens next", () => {
+    expect(email.subject).toBe("We received your quote request BR-7K3Q9F");
+    expect(email.text).toContain("Reference: BR-7K3Q9F");
+    expect(email.text).toContain("within 24 hours");
+    expect(email.text).toContain("98710 94268");
+  });
+
+  it("does not expose the admin panel or repeat the customer's own contact details", () => {
+    expect(email.html).not.toContain("/admin");
+    expect(email.text).not.toContain("asha@example.com");
+  });
+});
+
+describe("WhatsApp messages", () => {
+  it("lets a customer open a chat that already names their request", () => {
+    expect(customerWhatsappMessage(quote)).toBe(
+      "Hello, I sent quote request BR-7K3Q9F on your website (Ludhiana to Mumbai, 12,500 kg frozen).",
+    );
+  });
+
+  it("includes the quote once dispatch has entered one", () => {
+    const base = { ...quote, quotedAmount: null };
+    expect(dispatchWhatsappMessage(base)).toBe(
+      "Hello Asha Verma, this is Bharat Reefer about your quote request BR-7K3Q9F (Ludhiana to Mumbai, 12,500 kg frozen).",
+    );
+    expect(dispatchWhatsappMessage({ ...base, quotedAmount: 148_500 })).toContain(
+      "Our quote for this load is ₹1,48,500.",
+    );
+  });
+
+  it("builds a wa.me link with the number and an encoded message", () => {
+    expect(whatsappLink("+91 98710 94268", "Hello & welcome")).toBe(
+      "https://wa.me/919871094268?text=Hello%20%26%20welcome",
+    );
+  });
+});
