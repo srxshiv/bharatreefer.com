@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_BANDS } from "@/config/materials";
+import { DEFAULT_BUSINESS } from "@/config/site";
+import { whatsappLink } from "@/lib/whatsapp";
 import {
   customerConfirmationEmail,
   dispatchNotificationEmail,
   type QuoteEmailData,
 } from "./emails";
 import { customerWhatsappMessage, dispatchWhatsappMessage } from "./messages";
-import { whatsappLink } from "@/lib/whatsapp";
+
+const context = { business: DEFAULT_BUSINESS, bands: DEFAULT_BANDS };
+const labels = { FROZEN: "Frozen", CHILLED: "Chilled", AMBIENT: "Normal" };
 
 const quote: QuoteEmailData = {
   reference: "BR-7K3Q9F",
@@ -27,7 +32,7 @@ const quote: QuoteEmailData = {
 const ADMIN_URL = "https://bharatreefer.com/admin/quotes/abc123";
 
 describe("dispatchNotificationEmail", () => {
-  const email = dispatchNotificationEmail(quote, ADMIN_URL);
+  const email = dispatchNotificationEmail(quote, context, ADMIN_URL);
 
   it("puts the essentials in the subject line", () => {
     expect(email.subject).toBe(
@@ -53,7 +58,7 @@ describe("dispatchNotificationEmail", () => {
   });
 
   it("says how to reach a customer who left no email", () => {
-    const withoutEmail = dispatchNotificationEmail({ ...quote, email: null }, ADMIN_URL);
+    const withoutEmail = dispatchNotificationEmail({ ...quote, email: null }, context, ADMIN_URL);
     expect(withoutEmail.text).not.toContain("Email:");
     expect(withoutEmail.text).toContain("did not leave an email address");
   });
@@ -65,6 +70,7 @@ describe("dispatchNotificationEmail", () => {
         contactName: '<img src=x onerror="alert(1)">',
         notes: "</td><script>alert(2)</script>",
       },
+      context,
       ADMIN_URL,
     );
     expect(hostile.html).not.toContain("<img");
@@ -74,13 +80,22 @@ describe("dispatchNotificationEmail", () => {
 });
 
 describe("customerConfirmationEmail", () => {
-  const email = customerConfirmationEmail(quote);
+  const email = customerConfirmationEmail(quote, context);
 
   it("confirms the reference and what happens next", () => {
     expect(email.subject).toBe("We received your quote request BR-7K3Q9F");
     expect(email.text).toContain("Reference: BR-7K3Q9F");
     expect(email.text).toContain("within 24 hours");
     expect(email.text).toContain("98710 94268");
+    expect(email.text).toContain("Mon to Sat, 8:00 AM to 8:00 PM");
+  });
+
+  it("uses the business name the admin set", () => {
+    const renamed = customerConfirmationEmail(quote, {
+      ...context,
+      business: { ...DEFAULT_BUSINESS, name: "Arctic Lines" },
+    });
+    expect(renamed.html).toContain("Arctic Lines");
   });
 
   it("does not expose the admin panel or repeat the customer's own contact details", () => {
@@ -91,17 +106,17 @@ describe("customerConfirmationEmail", () => {
 
 describe("WhatsApp messages", () => {
   it("lets a customer open a chat that already names their request", () => {
-    expect(customerWhatsappMessage(quote)).toBe(
+    expect(customerWhatsappMessage(quote, labels)).toBe(
       "Hello, I sent quote request BR-7K3Q9F on your website (Ludhiana to Mumbai, 12,500 kg frozen).",
     );
   });
 
   it("includes the quote once dispatch has entered one", () => {
     const base = { ...quote, quotedAmount: null };
-    expect(dispatchWhatsappMessage(base)).toBe(
+    expect(dispatchWhatsappMessage(base, "Bharat Reefer", labels)).toBe(
       "Hello Asha Verma, this is Bharat Reefer about your quote request BR-7K3Q9F (Ludhiana to Mumbai, 12,500 kg frozen).",
     );
-    expect(dispatchWhatsappMessage({ ...base, quotedAmount: 148_500 })).toContain(
+    expect(dispatchWhatsappMessage({ ...base, quotedAmount: 148_500 }, "Bharat Reefer", labels)).toContain(
       "Our quote for this load is ₹1,48,500.",
     );
   });

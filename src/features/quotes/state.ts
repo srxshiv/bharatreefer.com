@@ -5,16 +5,18 @@ import type { QuoteFieldErrors } from "./schema";
 /** What the customer sees on the confirmation screen. */
 export type QuoteConfirmation = {
   reference: string;
-  /** "City, State" */
-  origin: string;
-  destination: string;
   originCity: string;
+  originState: string;
   destinationCity: string;
+  destinationState: string;
   material: MaterialId;
   quantityKg: number;
   loadType: LoadTypeId;
   trucks: TruckAllocation[];
   pickupDate: string | null;
+  contactName: string;
+  /** E.164 */
+  phone: string;
 };
 
 export type QuoteFormState =

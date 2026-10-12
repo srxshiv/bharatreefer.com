@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FLEET } from "@/config/fleet";
 import { dateInIndia } from "@/lib/dates";
 import {
   EMPTY_QUOTE_FORM,
+  createQuoteRequestSchema,
   parseQuantityKg,
-  quoteRequestSchema,
   toFieldErrors,
   type QuoteFormValues,
 } from "./schema";
+
+const quoteRequestSchema = createQuoteRequestSchema(DEFAULT_FLEET);
 
 const valid: QuoteFormValues = {
   originState: "Punjab",
@@ -77,6 +80,16 @@ describe("quoteRequestSchema", () => {
 
   it("rejects markup in the city fields", () => {
     expect(errorsFor({ originCity: "<script>" }).originCity).toBeDefined();
+  });
+
+  it("reads the weight limits from the fleet settings", () => {
+    const narrow = createQuoteRequestSchema({ minQuantityKg: 500, maxQuantityKg: 2000 });
+    const result = narrow.safeParse({ ...valid, quantityKg: "100" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(toFieldErrors(result.error).quantityKg).toBe("Enter a weight between 500 kg and 2,000 kg");
+    }
+    expect(narrow.safeParse({ ...valid, quantityKg: "1,500" }).success).toBe(true);
   });
 
   it("keeps the weight inside the accepted range", () => {

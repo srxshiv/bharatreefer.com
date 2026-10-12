@@ -5,6 +5,7 @@ import { LoginForm } from "@/components/admin/login-form";
 import { Logo } from "@/components/site/logo";
 import { ADMIN_HOME } from "@/features/auth/cookie";
 import { getAdmin } from "@/features/auth/session";
+import { getSiteContent } from "@/features/content/data";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -16,7 +17,9 @@ async function RedirectIfSignedIn() {
   return null;
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const { business } = await getSiteContent();
+
   return (
     <main className="reefer-wall flex flex-1 flex-col items-center justify-center px-5 py-12">
       <Suspense fallback={null}>
@@ -24,9 +27,9 @@ export default function LoginPage() {
       </Suspense>
 
       <div className="w-full max-w-sm">
-        <Logo />
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow-2xl shadow-ink-950/40 sm:p-7">
-          <h1 className="text-xl font-bold tracking-tight text-ink-950">Sign in to the admin panel</h1>
+        <div className="rounded-2xl bg-white p-6 shadow-2xl shadow-navy-950/40 sm:p-7">
+          <Logo name={business.name} priority className="h-14 lg:h-16" />
+          <h1 className="mt-6 text-xl font-bold tracking-tight text-navy-950">Sign in to the admin panel</h1>
           <p className="mt-1.5 mb-6 text-sm text-ink-500">Quote requests and customer details.</p>
           <LoginForm />
         </div>

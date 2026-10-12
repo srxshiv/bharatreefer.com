@@ -2,21 +2,28 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { ArrowRight, Download, Search } from "lucide-react";
+import { ArrowRight, Download, Search, SlidersHorizontal, X } from "lucide-react";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { card, input, primaryButton, secondaryButton } from "@/components/admin/ui";
+import { card, input, label, primaryButton, secondaryButton } from "@/components/admin/ui";
 import { BAND_STYLES } from "@/components/band-styles";
-import { MATERIAL_LIST, MATERIALS } from "@/config/materials";
+import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
+import { REGION_NAMES } from "@/data/india-locations";
+import { getSiteContent } from "@/features/content/data";
 import { listQuoteRequests, type InboxRow } from "@/features/quotes/admin";
 import {
+  DEFAULT_INBOX_FILTERS,
   INBOX_PAGE_SIZE,
+  SORT_IDS,
+  SORT_LABELS,
+  hasAdvancedFilters,
   inboxQuery,
+  isFiltered,
   parseInboxFilters,
   type InboxFilters,
 } from "@/features/quotes/filters";
 import { QUOTE_STATUSES, STATUS_LABELS } from "@/features/quotes/status";
 import { cn } from "@/lib/cn";
-import { formatDateTimeInIndia } from "@/lib/dates";
+import { formatDateTimeInIndia, formatIsoDate } from "@/lib/dates";
 import { LOAD_TYPE_LABELS, formatInr, formatKg, formatTrucks } from "@/lib/format";
 import { formatIndianMobile } from "@/lib/phone";
 import { parseTruckPlan } from "@/lib/truck-plan";
@@ -46,8 +53,8 @@ function InboxSkeleton() {
   );
 }
 
-function RequestRow({ row }: { row: InboxRow }) {
-  const band = MATERIALS[row.material];
+function RequestRow({ row, bands }: { row: InboxRow; bands: Record<MaterialId, TemperatureBandInfo> }) {
+  const band = bands[row.material];
   const cell = "lg:order-none lg:col-span-1 lg:justify-self-auto";
 
   return (
@@ -58,7 +65,7 @@ function RequestRow({ row }: { row: InboxRow }) {
           "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-frost-50 lg:items-center",
           COLUMNS,
           // A bar down the left edge marks requests nobody has picked up yet.
-          row.status === "NEW" && "shadow-[inset_3px_0_0_var(--color-ink-950)]",
+          row.status === "NEW" && "shadow-[inset_3px_0_0_var(--color-ice-500)]",
         )}
       >
         <div className={cn("order-1", cell)}>
@@ -93,6 +100,7 @@ function RequestRow({ row }: { row: InboxRow }) {
           <p className="mt-0.5 truncate text-xs text-ink-500">
             {formatTrucks(parseTruckPlan(row.truckPlan))},{" "}
             {LOAD_TYPE_LABELS[row.loadType].toLowerCase()}
+            {row.pickupDate ? ` · pickup ${formatIsoDate(row.pickupDate.toISOString().slice(0, 10))}` : ""}
           </p>
         </div>
 
@@ -120,8 +128,8 @@ function RequestRow({ row }: { row: InboxRow }) {
   );
 }
 
-function EmptyState({ filters, filtered }: { filters: InboxFilters; filtered: boolean }) {
-  if (filtered || filters.status !== "ALL" || filters.page > 1) {
+function EmptyState({ filters }: { filters: InboxFilters }) {
+  if (isFiltered(filters) || filters.status !== "ALL" || filters.page > 1) {
     return (
       <div className="px-5 py-16 text-center">
         <p className="font-medium text-ink-950">No requests match this view.</p>
@@ -141,11 +149,41 @@ function EmptyState({ filters, filtered }: { filters: InboxFilters; filtered: bo
   );
 }
 
+type Chip = { label: string; clear: Partial<InboxFilters> };
+
+/** The filters in force, each with the change that removes it. */
+function activeChips(filters: InboxFilters, bands: Record<MaterialId, TemperatureBandInfo>): Chip[] {
+  const chips: Chip[] = [];
+  if (filters.q) chips.push({ label: `“${filters.q}”`, clear: { q: "" } });
+  if (filters.material !== "ALL") chips.push({ label: bands[filters.material].label, clear: { material: "ALL" } });
+  if (filters.loadType !== "ALL") chips.push({ label: LOAD_TYPE_LABELS[filters.loadType], clear: { loadType: "ALL" } });
+  if (filters.quoted !== "ANY") chips.push({ label: filters.quoted === "YES" ? "Quoted" : "Not quoted", clear: { quoted: "ANY" } });
+  if (filters.originState) chips.push({ label: `From ${filters.originState}`, clear: { originState: "" } });
+  if (filters.destinationState) chips.push({ label: `To ${filters.destinationState}`, clear: { destinationState: "" } });
+  if (filters.from || filters.to) {
+    const range = [filters.from && formatIsoDate(filters.from), filters.to && formatIsoDate(filters.to)].filter(Boolean).join(" to ");
+    chips.push({ label: `Received ${filters.from && filters.to ? range : filters.from ? `from ${range}` : `until ${range}`}`, clear: { from: "", to: "" } });
+  }
+  if (filters.pickupFrom || filters.pickupTo) {
+    const range = [filters.pickupFrom && formatIsoDate(filters.pickupFrom), filters.pickupTo && formatIsoDate(filters.pickupTo)].filter(Boolean).join(" to ");
+    chips.push({ label: `Pickup ${filters.pickupFrom && filters.pickupTo ? range : filters.pickupFrom ? `from ${range}` : `until ${range}`}`, clear: { pickupFrom: "", pickupTo: "" } });
+  }
+  if (filters.sort !== "newest") chips.push({ label: SORT_LABELS[filters.sort], clear: { sort: "newest" } });
+  return chips;
+}
+
+const selectField = cn(input, "mt-1.5");
+const dateField = cn(input, "mt-1.5 font-mono");
+
 async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">) {
   const filters = parseInboxFilters(await searchParams);
-  const { rows, total, pageCount, counts } = await listQuoteRequests(filters);
+  const [{ rows, total, pageCount, counts }, { bands }] = await Promise.all([
+    listQuoteRequests(filters),
+    getSiteContent(),
+  ]);
 
-  const filtered = filters.q !== "" || filters.material !== "ALL";
+  const chips = activeChips(filters, bands);
+  const advanced = hasAdvancedFilters(filters);
   const firstShown = (filters.page - 1) * INBOX_PAGE_SIZE + 1;
   const page = (number: number) => `/admin${inboxQuery({ ...filters, page: number })}`;
 
@@ -172,7 +210,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
                   className={cn(
                     "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
                     active
-                      ? "border-ink-950 bg-ink-950 text-white"
+                      ? "border-navy-900 bg-navy-900 text-white"
                       : "border-frost-300 bg-white text-ink-700 hover:border-ink-400",
                   )}
                 >
@@ -188,55 +226,152 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
       </nav>
 
       {/* Keyed on the filters so the fields reset when a link changes them. */}
-      <Form
-        key={`${filters.status}|${filters.material}|${filters.q}`}
-        action="/admin"
-        className="flex flex-col gap-2 sm:flex-row"
-      >
+      <Form key={inboxQuery(filters)} action="/admin" className="space-y-3">
         {filters.status !== "ALL" ? (
           <input type="hidden" name="status" value={filters.status.toLowerCase()} />
         ) : null}
-        <div className="relative flex-1">
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-500"
-          />
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.q}
-            aria-label="Search requests"
-            placeholder="Search reference, name, phone or city"
-            maxLength={100}
-            className={cn(input, "pl-9")}
-          />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex-1">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-500"
+            />
+            <input
+              type="search"
+              name="q"
+              defaultValue={filters.q}
+              aria-label="Search requests"
+              placeholder="Search reference, name, phone or city"
+              maxLength={100}
+              className={cn(input, "pl-9")}
+            />
+          </div>
+          <select
+            name="material"
+            defaultValue={filters.material === "ALL" ? "" : filters.material.toLowerCase()}
+            aria-label="Temperature band"
+            className={cn(input, "sm:w-44")}
+          >
+            <option value="">All temperatures</option>
+            {MATERIAL_IDS.map((id) => (
+              <option key={id} value={id.toLowerCase()}>
+                {bands[id].label}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className={primaryButton}>
+            Search
+          </button>
+          {isFiltered(filters) ? (
+            <Link href={`/admin${inboxQuery({ status: filters.status })}`} className={secondaryButton}>
+              Clear
+            </Link>
+          ) : null}
         </div>
-        <select
-          name="material"
-          defaultValue={filters.material === "ALL" ? "" : filters.material.toLowerCase()}
-          aria-label="Temperature band"
-          className={cn(input, "sm:w-48")}
-        >
-          <option value="">All temperatures</option>
-          {MATERIAL_LIST.map((band) => (
-            <option key={band.id} value={band.id.toLowerCase()}>
-              {band.label}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className={primaryButton}>
-          Search
-        </button>
-        {filtered ? (
-          <Link href={`/admin${inboxQuery({ status: filters.status })}`} className={secondaryButton}>
-            Clear
-          </Link>
-        ) : null}
+
+        <details open={advanced} className="group">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md text-sm font-medium text-ink-700 hover:text-navy-900 [&::-webkit-details-marker]:hidden">
+            <SlidersHorizontal aria-hidden="true" className="size-4" />
+            More filters
+            <span className="text-ink-400 group-open:hidden">(dates, route, load type, sorting)</span>
+          </summary>
+          <div className={cn(card, "mt-3 grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4")}>
+            <div>
+              <label htmlFor="filter-from" className={label}>Received from</label>
+              <input id="filter-from" type="date" name="from" defaultValue={filters.from} className={dateField} />
+            </div>
+            <div>
+              <label htmlFor="filter-to" className={label}>Received to</label>
+              <input id="filter-to" type="date" name="to" defaultValue={filters.to} className={dateField} />
+            </div>
+            <div>
+              <label htmlFor="filter-pickup-from" className={label}>Pickup from</label>
+              <input id="filter-pickup-from" type="date" name="pickup_from" defaultValue={filters.pickupFrom} className={dateField} />
+            </div>
+            <div>
+              <label htmlFor="filter-pickup-to" className={label}>Pickup to</label>
+              <input id="filter-pickup-to" type="date" name="pickup_to" defaultValue={filters.pickupTo} className={dateField} />
+            </div>
+            <div>
+              <label htmlFor="filter-origin" className={label}>From state</label>
+              <select id="filter-origin" name="origin" defaultValue={filters.originState} className={selectField}>
+                <option value="">Any state</option>
+                {REGION_NAMES.map((region) => (
+                  <option key={region} value={region}>{region}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="filter-destination" className={label}>To state</label>
+              <select id="filter-destination" name="destination" defaultValue={filters.destinationState} className={selectField}>
+                <option value="">Any state</option>
+                {REGION_NAMES.map((region) => (
+                  <option key={region} value={region}>{region}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="filter-load" className={label}>Load type</label>
+              <select id="filter-load" name="load" defaultValue={filters.loadType === "ALL" ? "" : filters.loadType.toLowerCase()} className={selectField}>
+                <option value="">Full and part loads</option>
+                <option value="full_load">{LOAD_TYPE_LABELS.FULL_LOAD}</option>
+                <option value="part_load">{LOAD_TYPE_LABELS.PART_LOAD}</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="filter-quoted" className={label}>Price</label>
+              <select id="filter-quoted" name="quoted" defaultValue={filters.quoted === "ANY" ? "" : filters.quoted.toLowerCase()} className={selectField}>
+                <option value="">Quoted or not</option>
+                <option value="yes">Quoted</option>
+                <option value="no">Not quoted yet</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="filter-sort" className={label}>Sort by</label>
+              <select id="filter-sort" name="sort" defaultValue={filters.sort} className={selectField}>
+                {SORT_IDS.map((sort) => (
+                  <option key={sort} value={sort}>{SORT_LABELS[sort]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end sm:col-span-2 lg:col-span-3 lg:justify-end">
+              <button type="submit" className={primaryButton}>
+                Apply filters
+              </button>
+            </div>
+          </div>
+        </details>
       </Form>
+
+      {chips.length > 0 ? (
+        <ul className="flex flex-wrap gap-2" aria-label="Active filters">
+          {chips.map((chip) => (
+            <li key={chip.label}>
+              <Link
+                href={`/admin${inboxQuery({ ...filters, ...chip.clear, page: 1 })}`}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-frost-300 bg-white pr-2 pl-3 text-xs font-medium text-ink-700 hover:border-ink-400"
+              >
+                {chip.label}
+                <X aria-label={`Remove filter ${chip.label}`} className="size-3.5 text-ink-500" />
+              </Link>
+            </li>
+          ))}
+          {chips.length > 1 ? (
+            <li>
+              <Link
+                href={`/admin${inboxQuery({ ...DEFAULT_INBOX_FILTERS, status: filters.status })}`}
+                className="inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-ink-500 hover:text-navy-900"
+              >
+                Clear all
+              </Link>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
 
       <div className={cn(card, "overflow-hidden")}>
         {rows.length === 0 ? (
-          <EmptyState filters={filters} filtered={filtered} />
+          <EmptyState filters={filters} />
         ) : (
           <>
             <div
@@ -255,7 +390,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
             </div>
             <ul className="divide-y divide-frost-200">
               {rows.map((row) => (
-                <RequestRow key={row.id} row={row} />
+                <RequestRow key={row.id} row={row} bands={bands} />
               ))}
             </ul>
           </>

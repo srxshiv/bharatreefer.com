@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_QUANTITY_KG, MIN_QUANTITY_KG } from "@/config/fleet";
+import type { FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS } from "@/config/materials";
 import { isRegion } from "@/data/india-locations";
 import { dateInIndia, isIsoDate } from "@/lib/dates";
@@ -14,13 +14,13 @@ export const QUOTE_FIELDS = [
   "originCity",
   "destinationState",
   "destinationCity",
+  "pickupDate",
   "material",
   "quantityKg",
+  "notes",
   "contactName",
   "phone",
   "email",
-  "pickupDate",
-  "notes",
 ] as const;
 
 export type QuoteField = (typeof QUOTE_FIELDS)[number];
@@ -35,13 +35,13 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
   originCity: "",
   destinationState: "",
   destinationCity: "",
+  pickupDate: "",
   material: "CHILLED",
   quantityKg: "",
+  notes: "",
   contactName: "",
   phone: "",
   email: "",
-  pickupDate: "",
-  notes: "",
 };
 
 const state = (message: string) => z.string().refine(isRegion, message);
@@ -62,81 +62,86 @@ export function parseQuantityKg(raw: string): number | null {
   return /^\d{1,9}$/.test(digits) ? Number(digits) : null;
 }
 
-export const quoteRequestSchema = z.object({
-  originState: state("Select the loading state"),
-  originCity: city("Enter the loading city or town"),
-  destinationState: state("Select the unloading state"),
-  destinationCity: city("Enter the unloading city or town"),
+/** The quote form's validation. Built per request because the weight limits are editable. */
+export function createQuoteRequestSchema(limits: Pick<FleetConfig, "minQuantityKg" | "maxQuantityKg">) {
+  return z.object({
+    originState: state("Select the loading state"),
+    originCity: city("Enter the loading city or town"),
+    destinationState: state("Select the unloading state"),
+    destinationCity: city("Enter the unloading city or town"),
 
-  material: z.enum(MATERIAL_IDS, { error: "Choose a temperature band" }),
+    pickupDate: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || isIsoDate(value), "Enter a valid date")
+      .refine((value) => value === "" || value >= dateInIndia(), "Pickup date cannot be in the past")
+      .refine(
+        (value) => value === "" || value <= dateInIndia(MAX_PICKUP_DAYS_AHEAD),
+        "Pickup date must be within the next 12 months",
+      )
+      .transform((value) => (value === "" ? undefined : value)),
 
-  quantityKg: z.string().transform((raw, ctx) => {
-    const quantity = parseQuantityKg(raw);
-    if (quantity === null) {
-      ctx.issues.push({ code: "custom", message: "Enter the weight in kilograms", input: raw });
-      return z.NEVER;
-    }
-    if (quantity < MIN_QUANTITY_KG || quantity > MAX_QUANTITY_KG) {
-      ctx.issues.push({
-        code: "custom",
-        message: `Enter a weight between ${formatKg(MIN_QUANTITY_KG)} and ${formatKg(MAX_QUANTITY_KG)}`,
-        input: raw,
-      });
-      return z.NEVER;
-    }
-    return quantity;
-  }),
+    material: z.enum(MATERIAL_IDS, { error: "Choose a temperature band" }),
 
-  contactName: z
-    .string()
-    .trim()
-    .min(2, "Enter your name")
-    .max(80, "Keep the name under 80 characters"),
+    quantityKg: z.string().transform((raw, ctx) => {
+      const quantity = parseQuantityKg(raw);
+      if (quantity === null) {
+        ctx.issues.push({ code: "custom", message: "Enter the weight in kilograms", input: raw });
+        return z.NEVER;
+      }
+      if (quantity < limits.minQuantityKg || quantity > limits.maxQuantityKg) {
+        ctx.issues.push({
+          code: "custom",
+          message: `Enter a weight between ${formatKg(limits.minQuantityKg)} and ${formatKg(limits.maxQuantityKg)}`,
+          input: raw,
+        });
+        return z.NEVER;
+      }
+      return quantity;
+    }),
 
-  phone: z.string().transform((raw, ctx) => {
-    const normalised = normaliseIndianMobile(raw);
-    if (!normalised) {
-      ctx.issues.push({
-        code: "custom",
-        message: "Enter a 10-digit Indian mobile number",
-        input: raw,
-      });
-      return z.NEVER;
-    }
-    return normalised;
-  }),
+    notes: z
+      .string()
+      // Browsers submit textarea line breaks as CRLF; store plain newlines.
+      .transform((value) => value.replace(/\r\n?/g, "\n").trim())
+      .pipe(z.string().max(1000, "Keep the notes under 1,000 characters"))
+      .transform((value) => (value === "" ? undefined : value)),
 
-  email: z
-    .string()
-    .trim()
-    .max(254, "Keep the email under 254 characters")
-    .refine(
-      (value) => value === "" || email.safeParse(value).success,
-      "Enter a valid email address, or leave it empty",
-    )
-    .transform((value) => (value === "" ? undefined : value.toLowerCase())),
+    contactName: z
+      .string()
+      .trim()
+      .min(2, "Enter your name")
+      .max(80, "Keep the name under 80 characters"),
 
-  pickupDate: z
-    .string()
-    .trim()
-    .refine((value) => value === "" || isIsoDate(value), "Enter a valid date")
-    .refine((value) => value === "" || value >= dateInIndia(), "Pickup date cannot be in the past")
-    .refine(
-      (value) => value === "" || value <= dateInIndia(MAX_PICKUP_DAYS_AHEAD),
-      "Pickup date must be within the next 12 months",
-    )
-    .transform((value) => (value === "" ? undefined : value)),
+    phone: z.string().transform((raw, ctx) => {
+      const normalised = normaliseIndianMobile(raw);
+      if (!normalised) {
+        ctx.issues.push({
+          code: "custom",
+          message: "Enter a 10-digit Indian mobile number",
+          input: raw,
+        });
+        return z.NEVER;
+      }
+      return normalised;
+    }),
 
-  notes: z
-    .string()
-    // Browsers submit textarea line breaks as CRLF; store plain newlines.
-    .transform((value) => value.replace(/\r\n?/g, "\n").trim())
-    .pipe(z.string().max(1000, "Keep the notes under 1,000 characters"))
-    .transform((value) => (value === "" ? undefined : value)),
-});
+    email: z
+      .string()
+      .trim()
+      .max(254, "Keep the email under 254 characters")
+      .refine(
+        (value) => value === "" || email.safeParse(value).success,
+        "Enter a valid email address, or leave it empty",
+      )
+      .transform((value) => (value === "" ? undefined : value.toLowerCase())),
+  });
+}
+
+export type QuoteRequestSchema = ReturnType<typeof createQuoteRequestSchema>;
 
 /** A validated, normalised quote request. */
-export type QuoteRequestInput = z.infer<typeof quoteRequestSchema>;
+export type QuoteRequestInput = z.infer<QuoteRequestSchema>;
 
 /** First validation message per field, ready to show next to the inputs. */
 export function toFieldErrors(error: z.ZodError): QuoteFieldErrors {

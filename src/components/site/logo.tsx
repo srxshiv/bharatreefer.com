@@ -1,24 +1,28 @@
-import { site } from "@/config/site";
+import Image from "next/image";
+import { cn } from "@/lib/cn";
+import logo from "../../../public/brand/logo.webp";
 
-/** Three bars, one per temperature band: frozen, chilled, ambient. */
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * The brand logo: the tricolour map, the reefer truck and the wordmark. It has a
+ * transparent background and dark lettering, so it needs a light surface behind it.
+ */
+export function Logo({
+  name,
+  className,
+  priority = false,
+}: {
+  /** Accessible name; the image carries the wordmark. */
+  name: string;
+  className?: string;
+  priority?: boolean;
+}) {
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true" className={className}>
-      <rect width="32" height="32" rx="7" fill="#112a38" />
-      <rect x="7" y="8" width="18" height="4" rx="2" fill="#5b7cff" />
-      <rect x="7" y="14" width="13" height="4" rx="2" fill="#3cc6ec" />
-      <rect x="7" y="20" width="8" height="4" rx="2" fill="#f0a52b" />
-    </svg>
-  );
-}
-
-export function Logo() {
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      <LogoMark className="size-8 shrink-0" />
-      <span className="font-display text-[1.0625rem] font-bold tracking-tight text-white">
-        {site.name}
-      </span>
-    </span>
+    <Image
+      src={logo}
+      alt={name}
+      priority={priority}
+      sizes="(min-width: 1024px) 220px, 160px"
+      className={cn("h-12 w-auto lg:h-14", className)}
+    />
   );
 }

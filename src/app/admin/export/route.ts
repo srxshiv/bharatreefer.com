@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { MATERIALS } from "@/config/materials";
+import { getSiteContent } from "@/features/content/data";
 import { exportQuoteRequests } from "@/features/quotes/admin";
 import { parseInboxFilters } from "@/features/quotes/filters";
 import { STATUS_LABELS } from "@/features/quotes/status";
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   const filters = parseInboxFilters(Object.fromEntries(request.nextUrl.searchParams));
   // Checks the session itself and redirects to sign-in when there is none.
   const quotes = await exportQuoteRequests(filters);
+  const { bands } = await getSiteContent();
 
   const rows = quotes.map((quote) => [
     quote.reference,
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     quote.originState,
     quote.destinationCity,
     quote.destinationState,
-    MATERIALS[quote.material].label,
+    bands[quote.material].label,
     quote.quantityKg,
     LOAD_TYPE_LABELS[quote.loadType],
     formatTrucks(parseTruckPlan(quote.truckPlan)),

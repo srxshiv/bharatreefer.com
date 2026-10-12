@@ -14,7 +14,7 @@ export const input = cn(
 const button =
   "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:cursor-progress disabled:opacity-60";
 
-export const primaryButton = cn(button, "bg-ink-950 text-white hover:bg-ink-800");
+export const primaryButton = cn(button, "bg-navy-900 text-white hover:bg-navy-800");
 
 export const secondaryButton = cn(
   button,

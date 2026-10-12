@@ -1,65 +1,72 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from "next/font/google";
-import { site, siteUrl } from "@/config/site";
+import { DM_Mono, Instrument_Sans } from "next/font/google";
+import { SiteProvider } from "@/components/site/site-context";
+import { siteUrl } from "@/config/site";
+import { getSiteContent } from "@/features/content/data";
 import "./globals.css";
-
-const display = Bricolage_Grotesque({
-  variable: "--font-display-face",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 const body = Instrument_Sans({
   variable: "--font-body",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
-const mono = JetBrains_Mono({
+const mono = DM_Mono({
   variable: "--font-mono-face",
   subsets: ["latin"],
+  weight: ["400", "500"],
   display: "swap",
 });
 
-const title = `${site.name} | Refrigerated truck transport across India`;
+export async function generateMetadata(): Promise<Metadata> {
+  const { business, copy } = await getSiteContent();
+  const title = `${business.name} | ${copy.heroHeading.replace(/\.$/, "")}`;
+  const description = `${copy.heroIntro} Reply within ${business.responseTime}.`;
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: {
-    default: title,
-    template: `%s | ${site.name}`,
-  },
-  description: site.description,
-  applicationName: site.name,
-  alternates: { canonical: "/" },
-  openGraph: {
-    type: "website",
-    siteName: site.name,
-    locale: "en_IN",
-    url: "/",
-    title,
-    description: site.description,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title,
-    description: site.description,
-  },
-};
+  return {
+    metadataBase: new URL(siteUrl),
+    title: {
+      default: title,
+      template: `%s | ${business.name}`,
+    },
+    description,
+    applicationName: business.name,
+    alternates: { canonical: "/" },
+    openGraph: {
+      type: "website",
+      siteName: business.name,
+      locale: "en_IN",
+      url: "/",
+      title,
+      description,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+}
 
 export const viewport: Viewport = {
-  themeColor: "#06131b",
+  themeColor: "#fafbfc",
+  viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const { business } = await getSiteContent();
+
   return (
     <html
       lang="en-IN"
       // Tells Next.js to skip the CSS smooth scrolling when it changes route.
       data-scroll-behavior="smooth"
-      className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
+      className={`${body.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <SiteProvider business={business}>{children}</SiteProvider>
+      </body>
     </html>
   );
 }

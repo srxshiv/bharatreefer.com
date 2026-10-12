@@ -1,32 +1,36 @@
-import { Hero } from "@/components/site/hero";
-import { Contact, Faq, Fleet, TemperatureBands } from "@/components/site/sections";
-import { site, siteUrl } from "@/config/site";
+import { Home } from "@/components/console/home";
+import { siteUrl } from "@/config/site";
+import { getSiteContent } from "@/features/content/data";
 
-const structuredData = {
-  "@context": "https://schema.org",
-  "@type": "LocalBusiness",
-  name: site.name,
-  description: site.description,
-  url: siteUrl,
-  telephone: site.phone.e164,
-  email: site.email,
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: site.address.street,
-    addressLocality: site.address.city,
-    addressRegion: site.address.region,
-    addressCountry: site.address.country,
-  },
-  areaServed: { "@type": "Country", name: "India" },
-  openingHoursSpecification: {
-    "@type": "OpeningHoursSpecification",
-    dayOfWeek: site.hours.days,
-    opens: site.hours.opens,
-    closes: site.hours.closes,
-  },
-};
+export default async function HomePage() {
+  const content = await getSiteContent();
+  const { business, copy } = content;
 
-export default function HomePage() {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: business.name,
+    description: copy.heroIntro,
+    url: siteUrl,
+    logo: `${siteUrl}/brand/logo.webp`,
+    telephone: business.phone,
+    email: business.email,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: business.address.street,
+      addressLocality: business.address.city,
+      addressRegion: business.address.region,
+      addressCountry: "IN",
+    },
+    areaServed: { "@type": "Country", name: "India" },
+    openingHoursSpecification: {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: business.hours.days,
+      opens: business.hours.opens,
+      closes: business.hours.closes,
+    },
+  };
+
   return (
     <>
       <script
@@ -35,11 +39,7 @@ export default function HomePage() {
           __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
         }}
       />
-      <Hero />
-      <TemperatureBands />
-      <Fleet />
-      <Faq />
-      <Contact />
+      <Home content={content} />
     </>
   );
 }

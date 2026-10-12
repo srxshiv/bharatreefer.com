@@ -1,20 +1,13 @@
-import { Footer } from "@/components/site/footer";
-import { Header } from "@/components/site/header";
-
 export default function SiteLayout({ children }: LayoutProps<"/">) {
   return (
     <>
       <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-ink-950"
+        href="#quote"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-navy-900 focus:px-4 focus:py-2.5 focus:text-sm focus:font-medium focus:text-white"
       >
-        Skip to content
+        Skip to the quote form
       </a>
-      <Header />
-      <main id="main" className="flex-1">
-        {children}
-      </main>
-      <Footer />
+      {children}
     </>
   );
 }

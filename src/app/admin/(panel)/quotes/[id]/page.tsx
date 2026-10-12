@@ -8,7 +8,8 @@ import { QuoteUpdateForm } from "@/components/admin/quote-update-form";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { card, secondaryButton } from "@/components/admin/ui";
 import { BAND_STYLES } from "@/components/band-styles";
-import { MATERIALS } from "@/config/materials";
+import { MATERIAL_IDS } from "@/config/materials";
+import { getSiteContent } from "@/features/content/data";
 import { getQuoteRequest } from "@/features/quotes/admin";
 import { dispatchWhatsappMessage } from "@/features/quotes/messages";
 import { cn } from "@/lib/cn";
@@ -60,10 +61,14 @@ function DetailSkeleton() {
 
 async function QuoteView({ params }: Pick<PageProps<"/admin/quotes/[id]">, "params">) {
   const { id } = await params;
-  const quote = await getQuoteRequest(id);
+  const [quote, { business, bands }] = await Promise.all([getQuoteRequest(id), getSiteContent()]);
   if (!quote) notFound();
 
-  const band = MATERIALS[quote.material];
+  const band = bands[quote.material];
+  const bandLabels = Object.fromEntries(MATERIAL_IDS.map((key) => [key, bands[key].label])) as Record<
+    (typeof MATERIAL_IDS)[number],
+    string
+  >;
   const phone = formatIndianMobile(quote.phone);
 
   return (
@@ -105,7 +110,7 @@ async function QuoteView({ params }: Pick<PageProps<"/admin/quotes/[id]">, "para
                 Call
               </a>
               <a
-                href={whatsappLink(quote.phone, dispatchWhatsappMessage(quote))}
+                href={whatsappLink(quote.phone, dispatchWhatsappMessage(quote, business.name, bandLabels))}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={secondaryButton}

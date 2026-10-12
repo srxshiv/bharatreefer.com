@@ -1,8 +1,10 @@
 "use client";
 
-import { site } from "@/config/site";
+import { DEFAULT_BUSINESS } from "@/config/site";
+import { formatIndianMobile } from "@/lib/phone";
 
-// Replaces the root layout when it fails, so it cannot rely on the app's fonts or stylesheet.
+// Replaces the root layout when it fails, so it cannot rely on the app's fonts, stylesheet
+// or the content loaded from the database.
 export default function GlobalError({
   retry,
 }: {
@@ -19,17 +21,17 @@ export default function GlobalError({
           flexDirection: "column",
           justifyContent: "center",
           padding: "2rem",
-          background: "#06131b",
-          color: "#ffffff",
+          background: "#f5f9fc",
+          color: "#11161e",
           fontFamily: "system-ui, sans-serif",
         }}
       >
-        <title>{`Something went wrong | ${site.name}`}</title>
+        <title>{`Something went wrong | ${DEFAULT_BUSINESS.name}`}</title>
         <h1 style={{ margin: 0, fontSize: "2rem", lineHeight: 1.1 }}>Something went wrong.</h1>
-        <p style={{ maxWidth: "28rem", color: "#b4c5ce", lineHeight: 1.6 }}>
+        <p style={{ maxWidth: "28rem", color: "#5f6b7a", lineHeight: 1.6 }}>
           Please try again. If you need a truck now, call dispatch on{" "}
-          <a href={`tel:${site.phone.e164}`} style={{ color: "#ffffff" }}>
-            {site.phone.display}
+          <a href={`tel:${DEFAULT_BUSINESS.phone}`} style={{ color: "#11161e" }}>
+            {formatIndianMobile(DEFAULT_BUSINESS.phone)}
           </a>
           .
         </p>
@@ -41,11 +43,11 @@ export default function GlobalError({
               height: "3rem",
               padding: "0 1.25rem",
               border: 0,
-              borderRadius: "0.5rem",
-              background: "#ffffff",
-              color: "#06131b",
+              borderRadius: "8px",
+              background: "#0a2d57",
+              color: "#ffffff",
               fontSize: "1rem",
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: "pointer",
             }}
           >

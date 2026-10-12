@@ -2,7 +2,8 @@
 
 import { headers } from "next/headers";
 import { after } from "next/server";
-import { site } from "@/config/site";
+import { getSiteContent } from "@/features/content/data";
+import { formatIndianMobile } from "@/lib/phone";
 import { clientIp, hashIp } from "@/lib/request";
 import { generateReference } from "@/lib/reference";
 import { planTrucks, type TruckPlan } from "@/lib/truck-plan";
@@ -10,7 +11,7 @@ import { countQuoteRequestsFrom, createQuoteRequest } from "./data";
 import { notifyNewQuoteRequest } from "./notify";
 import {
   QUOTE_FIELDS,
-  quoteRequestSchema,
+  createQuoteRequestSchema,
   toFieldErrors,
   type QuoteFormValues,
   type QuoteRequestInput,
@@ -23,8 +24,6 @@ const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 /** Hidden field real visitors never fill in. */
 const HONEYPOT_FIELD = "website";
-
-const CALL_US = `Please call us on ${site.phone.display}.`;
 
 function readValues(formData: FormData): QuoteFormValues {
   const values = {} as QuoteFormValues;
@@ -42,20 +41,25 @@ function confirmationFor(
 ): QuoteConfirmation {
   return {
     reference,
-    origin: `${input.originCity}, ${input.originState}`,
-    destination: `${input.destinationCity}, ${input.destinationState}`,
     originCity: input.originCity,
+    originState: input.originState,
     destinationCity: input.destinationCity,
+    destinationState: input.destinationState,
     material: input.material,
     quantityKg: input.quantityKg,
     loadType: plan.loadType,
     trucks: plan.trucks,
     pickupDate: input.pickupDate ?? null,
+    contactName: input.contactName,
+    phone: input.phone,
   };
 }
 
 export async function submitQuoteRequest(formData: FormData): Promise<QuoteFormState> {
-  const parsed = quoteRequestSchema.safeParse(readValues(formData));
+  const { fleet, business } = await getSiteContent();
+  const callUs = `Please call us on ${formatIndianMobile(business.phone)}.`;
+
+  const parsed = createQuoteRequestSchema(fleet).safeParse(readValues(formData));
   if (!parsed.success) {
     return {
       status: "error",
@@ -65,7 +69,7 @@ export async function submitQuoteRequest(formData: FormData): Promise<QuoteFormS
   }
 
   const input = parsed.data;
-  const plan = planTrucks(input.quantityKg);
+  const plan = planTrucks(input.quantityKg, fleet);
   if (!plan) {
     return { status: "error", fieldErrors: { quantityKg: "Enter the weight in kilograms" } };
   }
@@ -85,7 +89,7 @@ export async function submitQuoteRequest(formData: FormData): Promise<QuoteFormS
       if ((await countQuoteRequestsFrom(ipHash, since)) >= RATE_LIMIT_MAX) {
         return {
           status: "error",
-          message: `We have received several requests from you in the last hour. ${CALL_US}`,
+          message: `We have received several requests from you in the last hour. ${callUs}`,
         };
       }
     }
@@ -120,7 +124,7 @@ export async function submitQuoteRequest(formData: FormData): Promise<QuoteFormS
     console.error("Failed to store quote request", error);
     return {
       status: "error",
-      message: `We could not send your request just now. ${CALL_US}`,
+      message: `We could not send your request just now. ${callUs}`,
     };
   }
 }

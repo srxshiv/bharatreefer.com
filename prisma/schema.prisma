@@ -153,3 +153,91 @@ model LoginAttempt {
   @@index([ipHash, createdAt])
   @@map("login_attempts")
 }
+
+/// Everything the business can edit about the public site. A single row with id "default".
+/// Columns that may be null fall back to text generated from the other settings.
+model SiteSettings {
+  id String @id @default("default")
+
+  name    String
+  tagline String
+  /// E.164, e.g. "+919871094268".
+  phone   String
+  /// E.164. Null hides the WhatsApp links.
+  whatsapp String?
+  /// Public contact address shown on the site.
+  email   String
+  /// Where new-request alerts go. Null means the public email.
+  alertEmail String? @map("alert_email")
+
+  addressStreet String  @map("address_street")
+  addressCity   String  @map("address_city")
+  addressRegion String  @map("address_region")
+
+  /// Days the desk is open: ["Monday", ...].
+  hoursDays  Json   @map("hours_days")
+  /// "HH:MM", 24-hour, India time.
+  hoursOpen  String @map("hours_open")
+  hoursClose String @map("hours_close")
+  /// How quickly dispatch commits to replying, e.g. "24 hours".
+  responseTime String @map("response_time")
+
+  /// Null means the automatic heading built from the fleet, e.g. "Reefer trucks from 900 kg to 22 tonnes."
+  heroHeading String? @map("hero_heading")
+  heroIntro   String  @map("hero_intro")
+  /// [{ title, body }]. Null means the automatic three steps.
+  steps Json?
+  /// [{ question, answer }]. Null means the automatic questions.
+  faqs  Json?
+
+  /// Smallest and largest consignment accepted through the quote form, in kilograms.
+  minQuantityKg Int @map("min_quantity_kg")
+  maxQuantityKg Int @map("max_quantity_kg")
+  /// A load gets a dedicated truck when it fills at least this much of the smallest truck that fits it.
+  dedicatedFillPercent Int @map("dedicated_fill_percent")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("site_settings")
+}
+
+/// How each temperature band is presented. One row per Material; the bands themselves are fixed.
+model TemperatureBand {
+  id       Material @id
+  label    String
+  /// Set-point range as shown to customers, e.g. "−18 to −22 °C".
+  range    String
+  summary  String
+  /// string[]
+  examples Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("temperature_bands")
+}
+
+/// A truck size in the fleet. The quote form plans loads onto these.
+model TruckSize {
+  id         String  @id @default(cuid())
+  /// Payload in kilograms.
+  capacityKg Int     @unique @map("capacity_kg")
+  /// Optional model or body name shown next to the capacity, e.g. "Tata 407".
+  name       String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("truck_sizes")
+}
+
+/// A photo of the fleet shown on the public site. Stored resized, as WebP.
+model FleetPhoto {
+  id          String   @id @default(cuid())
+  caption     String
+  position    Int
+  width       Int
+  height      Int
+  contentType String   @map("content_type")
+  bytes       Bytes
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([position])
+  @@map("fleet_photos")
+}

@@ -17,7 +17,6 @@ const schema = z.object({
   // Email is optional. Without an API key the app runs normally and logs instead of sending.
   RESEND_API_KEY: optional(z.string()),
   EMAIL_FROM: optional(z.string()),
-  DISPATCH_EMAIL: optional(z.email("DISPATCH_EMAIL must be an email address")),
 });
 
 type ServerEnv = z.infer<typeof schema>;

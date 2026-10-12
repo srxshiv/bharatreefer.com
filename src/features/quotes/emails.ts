@@ -1,7 +1,8 @@
-import { MATERIALS, type MaterialId } from "@/config/materials";
-import { site } from "@/config/site";
+import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
+import type { BusinessInfo } from "@/config/site";
 import { formatIsoDate } from "@/lib/dates";
 import { LOAD_TYPE_LABELS, formatKg, formatTrucks } from "@/lib/format";
+import { formatHours } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
 import type { LoadTypeId, TruckAllocation } from "@/lib/truck-plan";
 
@@ -25,6 +26,12 @@ export type QuoteEmailData = {
   email: string | null;
 };
 
+/** The business details the emails mention. */
+export type EmailContext = {
+  business: BusinessInfo;
+  bands: Record<MaterialId, TemperatureBandInfo>;
+};
+
 export type RenderedEmail = {
   subject: string;
   html: string;
@@ -42,20 +49,16 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function cargo(quote: QuoteEmailData): string {
-  const band = MATERIALS[quote.material];
-  return `${band.label} (${band.range})`;
-}
-
 function vehicle(quote: QuoteEmailData): string {
   return `${formatTrucks(quote.trucks)}, ${LOAD_TYPE_LABELS[quote.loadType].toLowerCase()}`;
 }
 
-function loadRows(quote: QuoteEmailData): Row[] {
+function loadRows(quote: QuoteEmailData, context: EmailContext): Row[] {
+  const band = context.bands[quote.material];
   return [
     { label: "From", value: `${quote.originCity}, ${quote.originState}` },
     { label: "To", value: `${quote.destinationCity}, ${quote.destinationState}` },
-    { label: "Cargo", value: cargo(quote) },
+    { label: "Cargo", value: `${band.label} (${band.range})` },
     { label: "Weight", value: formatKg(quote.quantityKg) },
     { label: "Vehicle", value: vehicle(quote) },
     ...(quote.pickupDate ? [{ label: "Pickup", value: formatIsoDate(quote.pickupDate) }] : []),
@@ -65,6 +68,7 @@ function loadRows(quote: QuoteEmailData): Row[] {
 
 /** Wraps the content in the shared email layout. Every string is escaped here. */
 function render(parts: {
+  brand: string;
   subject: string;
   heading: string;
   intro: string;
@@ -76,8 +80,8 @@ function render(parts: {
     .map(
       (row) => `
             <tr>
-              <td style="padding:10px 16px 10px 0;border-top:1px solid #e8eff2;font-size:13px;color:#55707f;vertical-align:top;white-space:nowrap;">${escapeHtml(row.label)}</td>
-              <td style="padding:10px 0;border-top:1px solid #e8eff2;font-size:15px;font-weight:600;color:#06131b;">${escapeHtml(row.value).replace(/\r?\n/g, "<br>")}</td>
+              <td style="padding:10px 16px 10px 0;border-top:1px solid #e3e0d8;font-size:13px;color:#5b6675;vertical-align:top;white-space:nowrap;">${escapeHtml(row.label)}</td>
+              <td style="padding:10px 0;border-top:1px solid #e3e0d8;font-size:15px;font-weight:600;color:#0b0e12;">${escapeHtml(row.value).replace(/\r?\n/g, "<br>")}</td>
             </tr>`,
     )
     .join("");
@@ -85,30 +89,30 @@ function render(parts: {
   const action = parts.action
     ? `
           <p style="margin:24px 0 0;">
-            <a href="${escapeHtml(parts.action.url)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#06131b;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">${escapeHtml(parts.action.label)}</a>
+            <a href="${escapeHtml(parts.action.url)}" style="display:inline-block;padding:12px 20px;border-radius:3px;background:#0b0e12;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">${escapeHtml(parts.action.label)}</a>
           </p>`
     : "";
 
   const html = `<!doctype html>
 <html lang="en">
-  <body style="margin:0;padding:0;background:#f4f8f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0a1c27;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8f9;">
+  <body style="margin:0;padding:0;background:#ebe8e1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#12161c;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ebe8e1;">
       <tr>
         <td align="center" style="padding:24px 12px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #d6e1e6;border-radius:12px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#f7f5f0;border:1px solid #d9d5cb;border-radius:4px;">
             <tr>
-              <td style="padding:18px 24px;border-radius:12px 12px 0 0;background:#06131b;color:#ffffff;font-size:16px;font-weight:700;">${escapeHtml(site.name)}</td>
+              <td style="padding:18px 24px;border-radius:4px 4px 0 0;background:#0b0e12;color:#ffffff;font-size:16px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">${escapeHtml(parts.brand)}</td>
             </tr>
             <tr>
               <td style="padding:24px;">
-                <h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:#06131b;">${escapeHtml(parts.heading)}</h1>
-                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#55707f;">${escapeHtml(parts.intro)}</p>
+                <h1 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:#0b0e12;">${escapeHtml(parts.heading)}</h1>
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#5b6675;">${escapeHtml(parts.intro)}</p>
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
                 </table>${action}
               </td>
             </tr>
             <tr>
-              <td style="padding:16px 24px;border-top:1px solid #e8eff2;font-size:13px;line-height:1.6;color:#55707f;">${escapeHtml(parts.footer)}</td>
+              <td style="padding:16px 24px;border-top:1px solid #e3e0d8;font-size:13px;line-height:1.6;color:#5b6675;">${escapeHtml(parts.footer)}</td>
             </tr>
           </table>
         </td>
@@ -132,9 +136,14 @@ function render(parts: {
 }
 
 /** Tells dispatch a new request has arrived. `adminUrl` opens it in the admin panel. */
-export function dispatchNotificationEmail(quote: QuoteEmailData, adminUrl: string): RenderedEmail {
-  const band = MATERIALS[quote.material].label.toLowerCase();
+export function dispatchNotificationEmail(
+  quote: QuoteEmailData,
+  context: EmailContext,
+  adminUrl: string,
+): RenderedEmail {
+  const band = context.bands[quote.material].label.toLowerCase();
   return render({
+    brand: context.business.name,
     subject: `New quote request ${quote.reference}: ${quote.originCity} to ${quote.destinationCity}, ${formatKg(quote.quantityKg)} ${band}`,
     heading: `New quote request ${quote.reference}`,
     intro: `${quote.contactName} asked for a quote from the website.`,
@@ -142,7 +151,7 @@ export function dispatchNotificationEmail(quote: QuoteEmailData, adminUrl: strin
       { label: "Customer", value: quote.contactName },
       { label: "Phone", value: `+91 ${formatIndianMobile(quote.phone)}` },
       ...(quote.email ? [{ label: "Email", value: quote.email }] : []),
-      ...loadRows(quote),
+      ...loadRows(quote, context),
     ],
     action: { label: "Open in admin panel", url: adminUrl },
     footer: quote.email
@@ -152,12 +161,14 @@ export function dispatchNotificationEmail(quote: QuoteEmailData, adminUrl: strin
 }
 
 /** Confirms to the customer that the request arrived and what happens next. */
-export function customerConfirmationEmail(quote: QuoteEmailData): RenderedEmail {
+export function customerConfirmationEmail(quote: QuoteEmailData, context: EmailContext): RenderedEmail {
+  const { business } = context;
   return render({
+    brand: business.name,
     subject: `We received your quote request ${quote.reference}`,
     heading: "Your quote request is with dispatch",
-    intro: `Thank you, ${quote.contactName}. Our dispatch desk will contact you within ${site.responseTime} with a quote.`,
-    rows: [{ label: "Reference", value: quote.reference }, ...loadRows(quote)],
-    footer: `Need to change something, or in a hurry? Call ${site.phone.display} (${site.hours.display}) and quote your reference.`,
+    intro: `Thank you, ${quote.contactName}. Our dispatch desk will contact you within ${business.responseTime} with a quote.`,
+    rows: [{ label: "Reference", value: quote.reference }, ...loadRows(quote, context)],
+    footer: `Need to change something, or in a hurry? Call ${formatIndianMobile(business.phone)} (${formatHours(business.hours)}) and quote your reference.`,
   });
 }

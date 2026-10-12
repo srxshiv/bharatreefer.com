@@ -1,64 +1,93 @@
 @import "tailwindcss";
 
 /*
- * Palette rule: colour means temperature. Cobalt is frozen, cyan is chilled,
- * amber is ambient. Everything else is ink (dark) and frost (light).
+ * Palette. Navy from the logo for text and the main button, ice blue for the cold chain,
+ * saffron and green from the tricolour as accents, frost-blue surfaces. Colour otherwise
+ * means temperature: frozen is blue, chilled is cyan, ambient is saffron.
  */
 @theme {
-  --color-ink-950: #06131b;
-  --color-ink-900: #0a1c27;
-  --color-ink-800: #112a38;
-  --color-ink-700: #1c3b4b;
-  --color-ink-600: #36566a;
-  --color-ink-500: #55707f;
-  --color-ink-400: #8aa1ad;
-  --color-ink-300: #b4c5ce;
+  --color-navy-950: #061a30;
+  --color-navy-900: #0a2d57;
+  --color-navy-800: #0f3f78;
+  --color-navy-700: #175399;
 
-  --color-frost-50: #f4f8f9;
-  --color-frost-100: #e8eff2;
-  --color-frost-200: #d6e1e6;
-  --color-frost-300: #b9c9d1;
+  --color-ice-50: #eef6fc;
+  --color-ice-100: #dcedf9;
+  --color-ice-200: #bfe0f5;
+  --color-ice-300: #8fcdf3;
+  --color-ice-400: #3fb3f4;
+  --color-ice-500: #1e90e8;
+  --color-ice-600: #1273c4;
 
-  --color-ice-300: #7fdcf5;
-  --color-ice-400: #3cc6ec;
-  --color-ice-700: #0a6a8a;
+  --color-frost-50: #f5f9fc;
+  --color-frost-100: #eaf1f7;
+  --color-frost-200: #d9e4ee;
+  --color-frost-300: #c3d2e0;
+  --color-frost-400: #a3b6c9;
 
-  --color-frozen: #2f55e6;
-  --color-frozen-soft: #e9eeff;
-  --color-chilled: #0aa5c0;
-  --color-chilled-soft: #e2f6fa;
-  --color-ambient: #d98a0b;
-  --color-ambient-soft: #fdf2dc;
+  --color-saffron-50: #fff1e6;
+  --color-saffron-400: #ff9a3d;
+  --color-saffron-500: #ff7a00;
+  --color-saffron-600: #e06400;
 
-  --color-danger: #b42318;
-  --color-danger-soft: #fef3f2;
-  --color-success: #0f7b53;
-  --color-success-soft: #e6f5ee;
+  --color-leaf-50: #e8f5ec;
+  --color-leaf-600: #0a7a35;
+
+  --color-ink-950: #0b1a2b;
+  --color-ink-900: #14263b;
+  --color-ink-800: #1f3449;
+  --color-ink-700: #2b4059;
+  --color-ink-600: #3f5571;
+  --color-ink-500: #5a6f88;
+  --color-ink-400: #8597ad;
+  --color-ink-300: #aebccc;
+
+  --color-frozen: #1d5fd6;
+  --color-frozen-soft: #e4edff;
+  --color-chilled: #0ea5c9;
+  --color-chilled-soft: #dff5fa;
+  --color-ambient: #f28c28;
+  --color-ambient-soft: #fff0e0;
+
+  --color-danger: #c62828;
+  --color-danger-soft: #fdecec;
+  --color-success: #0a7a35;
+  --color-success-soft: #e8f5ec;
 }
 
+/* Laptops with little vertical room: the quote card tightens up so it stays on screen. */
+@custom-variant short (@media (min-width: 64rem) and (max-height: 50rem));
+
+/* Older names still used in a few places, kept as aliases of the palette above. */
 @theme inline {
+  --color-ice-700: var(--color-navy-800);
+  --color-amber-300: var(--color-saffron-400);
+  --color-amber-400: var(--color-saffron-500);
+  --color-amber-500: var(--color-saffron-500);
+  --color-amber-600: var(--color-saffron-600);
+
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
   html {
     color-scheme: light;
-    scroll-padding-top: 5rem;
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
     background: var(--color-frost-50);
     color: var(--color-ink-900);
     font-family: var(--font-sans);
+    font-feature-settings: "tnum" 1;
   }
 
   h1,
   h2,
   h3 {
-    font-family: var(--font-display);
     text-wrap: balance;
   }
 
@@ -67,29 +96,26 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-ice-400);
+    outline: 2px solid var(--color-ice-500);
     outline-offset: 2px;
   }
 
   ::selection {
-    background: var(--color-ice-300);
-    color: var(--color-ink-950);
+    background: var(--color-ice-200);
+    color: var(--color-navy-950);
   }
 
-  /* Native date and search affordances pick up the ink colour instead of system blue. */
   input,
   select,
   textarea {
-    accent-color: var(--color-ink-900);
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    html {
-      scroll-behavior: smooth;
-    }
+    accent-color: var(--color-navy-900);
   }
 
   @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
     *,
     *::before,
     *::after {
@@ -100,20 +126,35 @@
   }
 }
 
-/* Faint vertical ribs, like the wall of a reefer container. */
+/* Dark backdrop for the admin sign-in and the error pages. */
 @utility reefer-wall {
-  background-color: var(--color-ink-950);
-  background-image:
-    radial-gradient(60rem 30rem at 12% -10%, rgb(60 198 236 / 0.13), transparent 60%),
-    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 4.5rem);
+  background-color: var(--color-navy-950);
+  background-image: radial-gradient(60rem 30rem at 15% -10%, rgb(63 179 244 / 0.14), transparent 60%);
 }
 
-/* Small uppercase label used for section markers and data captions. */
+/* Cold glow behind the brand column. */
+@utility frost-glow {
+  background-image:
+    radial-gradient(50rem 28rem at 0% 0%, rgb(63 179 244 / 0.16), transparent 65%),
+    radial-gradient(40rem 24rem at 100% 10%, rgb(255 122 0 / 0.05), transparent 60%);
+}
+
+/* Saffron, white, green: the tricolour as a thin rule. */
+@utility tricolour {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-saffron-500) 0 33.33%,
+    #ffffff 33.33% 66.66%,
+    var(--color-leaf-600) 66.66% 100%
+  );
+}
+
+/* Small mono label for data captions. */
 @utility caption {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   line-height: 1rem;
   text-transform: uppercase;
 }

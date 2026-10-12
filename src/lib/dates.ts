@@ -41,3 +41,15 @@ export function formatDateTimeInIndia(date: Date): string {
 export function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+const INDIA_OFFSET = "+05:30";
+
+/** The moment a calendar day begins in India, for comparing with stored timestamps. */
+export function startOfDayInIndia(isoDate: string): Date {
+  return new Date(`${isoDate}T00:00:00${INDIA_OFFSET}`);
+}
+
+/** The moment the day after a calendar day begins in India (an exclusive upper bound). */
+export function startOfNextDayInIndia(isoDate: string): Date {
+  return new Date(startOfDayInIndia(isoDate).getTime() + 86_400_000);
+}

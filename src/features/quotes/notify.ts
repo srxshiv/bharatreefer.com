@@ -1,7 +1,7 @@
 import "server-only";
-import { site, siteUrl } from "@/config/site";
+import { siteUrl } from "@/config/site";
+import { getSiteContent } from "@/features/content/data";
 import { sendEmail, type EmailOutcome } from "@/lib/email";
-import { serverEnv } from "@/lib/env";
 import { recordNotification } from "./data";
 import {
   customerConfirmationEmail,
@@ -28,20 +28,22 @@ async function log(quoteId: string, what: string, to: string, outcome: EmailOutc
  */
 export async function notifyNewQuoteRequest(quoteId: string, quote: QuoteEmailData) {
   try {
-    const dispatchAddress = serverEnv().DISPATCH_EMAIL ?? site.email;
+    const { business, bands } = await getSiteContent();
+    const context = { business, bands };
+    const dispatchAddress = business.alertEmail ?? business.email;
     const adminUrl = `${siteUrl}/admin/quotes/${quoteId}`;
 
     const [toDispatch, toCustomer] = await Promise.all([
       sendEmail({
         to: dispatchAddress,
         replyTo: quote.email ?? undefined,
-        ...dispatchNotificationEmail(quote, adminUrl),
+        ...dispatchNotificationEmail(quote, context, adminUrl),
       }),
       quote.email
         ? sendEmail({
             to: quote.email,
             replyTo: dispatchAddress,
-            ...customerConfirmationEmail(quote),
+            ...customerConfirmationEmail(quote, context),
           })
         : null,
     ]);

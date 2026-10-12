@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireAdmin } from "@/features/auth/session";
+import { startOfDayInIndia, startOfNextDayInIndia } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatInr } from "@/lib/format";
 import { INBOX_PAGE_SIZE, type InboxFilters } from "./filters";
@@ -27,13 +28,13 @@ const inboxSelect = {
   contactName: true,
   phone: true,
   quotedAmount: true,
+  pickupDate: true,
   createdAt: true,
 } satisfies Prisma.QuoteRequestSelect;
 
 const exportSelect = {
   ...inboxSelect,
   email: true,
-  pickupDate: true,
   notes: true,
 } satisfies Prisma.QuoteRequestSelect;
 
@@ -58,10 +59,30 @@ export type QuoteDetail = Prisma.QuoteRequestGetPayload<{ select: typeof detailS
 
 export type StatusCounts = Record<QuoteStatusId | "ALL", number>;
 
-/** Search and material filters. The status filter is applied separately so tab counts ignore it. */
-function matching(filters: Pick<InboxFilters, "q" | "material">): Prisma.QuoteRequestWhereInput {
+/** Every filter except status, which is applied separately so the tab counts ignore it. */
+function matching(filters: Omit<InboxFilters, "status" | "sort" | "page">): Prisma.QuoteRequestWhereInput {
   const where: Prisma.QuoteRequestWhereInput = {};
   if (filters.material !== "ALL") where.material = filters.material;
+  if (filters.loadType !== "ALL") where.loadType = filters.loadType;
+  if (filters.quoted === "YES") where.quotedAmount = { not: null };
+  if (filters.quoted === "NO") where.quotedAmount = null;
+  if (filters.originState) where.originState = filters.originState;
+  if (filters.destinationState) where.destinationState = filters.destinationState;
+
+  // Received on calendar days in India time.
+  if (filters.from || filters.to) {
+    where.createdAt = {
+      ...(filters.from ? { gte: startOfDayInIndia(filters.from) } : {}),
+      ...(filters.to ? { lt: startOfNextDayInIndia(filters.to) } : {}),
+    };
+  }
+  // Pickup dates are stored as plain dates (midnight UTC).
+  if (filters.pickupFrom || filters.pickupTo) {
+    where.pickupDate = {
+      ...(filters.pickupFrom ? { gte: new Date(`${filters.pickupFrom}T00:00:00Z`) } : {}),
+      ...(filters.pickupTo ? { lte: new Date(`${filters.pickupTo}T00:00:00Z`) } : {}),
+    };
+  }
 
   if (filters.q) {
     const contains = { contains: filters.q, mode: "insensitive" } as const;
@@ -85,6 +106,17 @@ function inStatus(status: InboxFilters["status"]): Prisma.QuoteRequestWhereInput
   return status === "ALL" ? { status: { not: "SPAM" } } : { status };
 }
 
+function ordering(sort: InboxFilters["sort"]): Prisma.QuoteRequestOrderByWithRelationInput[] {
+  switch (sort) {
+    case "oldest":
+      return [{ createdAt: "asc" }];
+    case "pickup":
+      return [{ pickupDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }];
+    default:
+      return [{ createdAt: "desc" }];
+  }
+}
+
 export async function listQuoteRequests(filters: InboxFilters): Promise<{
   rows: InboxRow[];
   total: number;
@@ -99,7 +131,7 @@ export async function listQuoteRequests(filters: InboxFilters): Promise<{
   const [rows, total, grouped] = await Promise.all([
     db().quoteRequest.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: ordering(filters.sort),
       skip: (filters.page - 1) * INBOX_PAGE_SIZE,
       take: INBOX_PAGE_SIZE,
       select: inboxSelect,
@@ -130,7 +162,7 @@ export async function exportQuoteRequests(filters: InboxFilters): Promise<Export
   await requireAdmin();
   return db().quoteRequest.findMany({
     where: { AND: [matching(filters), inStatus(filters.status)] },
-    orderBy: { createdAt: "desc" },
+    orderBy: ordering(filters.sort),
     take: EXPORT_LIMIT,
     select: exportSelect,
   });

@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_BANDS } from "@/config/materials";
+import { DEFAULT_BUSINESS } from "@/config/site";
 import type { EmailOutcome, OutgoingEmail } from "@/lib/email";
 import type { QuoteEmailData } from "./emails";
 
 const sendEmail = vi.fn<(email: OutgoingEmail) => Promise<EmailOutcome>>();
 const recordNotification = vi.fn<(quoteId: string, body: string) => Promise<void>>();
+const getSiteContent = vi.fn();
 
 vi.mock("@/lib/email", () => ({ sendEmail }));
 vi.mock("./data", () => ({ recordNotification }));
+vi.mock("@/features/content/data", () => ({ getSiteContent }));
 
 const quote: QuoteEmailData = {
   reference: "BR-7K3Q9F",
@@ -35,10 +39,13 @@ describe("notifyNewQuoteRequest", () => {
   beforeEach(() => {
     vi.stubEnv("DATABASE_URL", "postgresql://user@localhost:5432/test");
     vi.stubEnv("IP_HASH_SALT", "x".repeat(64));
-    vi.stubEnv("DISPATCH_EMAIL", "desk@bharatreefer.com");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://bharatreefer.com");
     vi.spyOn(console, "error").mockImplementation(() => {});
     recordNotification.mockResolvedValue();
+    getSiteContent.mockResolvedValue({
+      business: { ...DEFAULT_BUSINESS, alertEmail: "desk@bharatreefer.com" },
+      bands: DEFAULT_BANDS,
+    });
   });
 
   afterEach(() => {
@@ -46,6 +53,7 @@ describe("notifyNewQuoteRequest", () => {
     vi.restoreAllMocks();
     sendEmail.mockReset();
     recordNotification.mockReset();
+    getSiteContent.mockReset();
   });
 
   it("alerts dispatch and confirms to the customer, each able to reply to the other", async () => {
@@ -66,6 +74,14 @@ describe("notifyNewQuoteRequest", () => {
       ["quote-id-1", "New-request alert emailed to desk@bharatreefer.com"],
       ["quote-id-1", "Confirmation emailed to asha@example.com"],
     ]);
+  });
+
+  it("falls back to the public email when no alert address is set", async () => {
+    getSiteContent.mockResolvedValue({ business: DEFAULT_BUSINESS, bands: DEFAULT_BANDS });
+    sendEmail.mockResolvedValue({ status: "sent" });
+    await notify({ ...quote, email: null });
+
+    expect(sendEmail.mock.calls[0][0].to).toBe(DEFAULT_BUSINESS.email);
   });
 
   it("only alerts dispatch when the customer left no email", async () => {

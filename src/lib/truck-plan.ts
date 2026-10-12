@@ -1,9 +1,4 @@
-import {
-  DEDICATED_TRUCK_MIN_FILL,
-  FLEET_CAPACITIES_KG,
-  MAX_QUANTITY_KG,
-  MIN_QUANTITY_KG,
-} from "@/config/fleet";
+import { largestTruckKg, type FleetConfig } from "@/config/fleet";
 
 export type LoadTypeId = "FULL_LOAD" | "PART_LOAD";
 
@@ -21,10 +16,8 @@ export type TruckPlan = {
   fill: number;
 };
 
-const LARGEST_KG = FLEET_CAPACITIES_KG[FLEET_CAPACITIES_KG.length - 1];
-
-function smallestTruckFor(quantityKg: number): number {
-  return FLEET_CAPACITIES_KG.find((capacity) => capacity >= quantityKg) ?? LARGEST_KG;
+function smallestTruckFor(quantityKg: number, fleet: FleetConfig): number {
+  return fleet.capacitiesKg.find((capacity) => capacity >= quantityKg) ?? largestTruckKg(fleet);
 }
 
 /**
@@ -33,20 +26,22 @@ function smallestTruckFor(quantityKg: number): number {
  *
  * Returns null when the quantity is not a whole number inside the accepted range.
  */
-export function planTrucks(quantityKg: number): TruckPlan | null {
+export function planTrucks(quantityKg: number, fleet: FleetConfig): TruckPlan | null {
   if (
     !Number.isInteger(quantityKg) ||
-    quantityKg < MIN_QUANTITY_KG ||
-    quantityKg > MAX_QUANTITY_KG
+    quantityKg < fleet.minQuantityKg ||
+    quantityKg > fleet.maxQuantityKg
   ) {
     return null;
   }
 
-  if (quantityKg <= LARGEST_KG) {
-    const capacityKg = smallestTruckFor(quantityKg);
+  const largestKg = largestTruckKg(fleet);
+
+  if (quantityKg <= largestKg) {
+    const capacityKg = smallestTruckFor(quantityKg, fleet);
     const fill = quantityKg / capacityKg;
     return {
-      loadType: fill >= DEDICATED_TRUCK_MIN_FILL ? "FULL_LOAD" : "PART_LOAD",
+      loadType: fill >= fleet.dedicatedFill ? "FULL_LOAD" : "PART_LOAD",
       trucks: [{ capacityKg, count: 1 }],
       totalCapacityKg: capacityKg,
       fill,
@@ -54,18 +49,18 @@ export function planTrucks(quantityKg: number): TruckPlan | null {
   }
 
   // Heavier than one truck: fill the largest size, then cover what is left.
-  const largestCount = Math.floor(quantityKg / LARGEST_KG);
-  const remainderKg = quantityKg - largestCount * LARGEST_KG;
+  const largestCount = Math.floor(quantityKg / largestKg);
+  const remainderKg = quantityKg - largestCount * largestKg;
   const trucks: TruckAllocation[] = [];
 
   if (remainderKg === 0) {
-    trucks.push({ capacityKg: LARGEST_KG, count: largestCount });
+    trucks.push({ capacityKg: largestKg, count: largestCount });
   } else {
-    const remainderTruckKg = smallestTruckFor(remainderKg);
-    if (remainderTruckKg === LARGEST_KG) {
-      trucks.push({ capacityKg: LARGEST_KG, count: largestCount + 1 });
+    const remainderTruckKg = smallestTruckFor(remainderKg, fleet);
+    if (remainderTruckKg === largestKg) {
+      trucks.push({ capacityKg: largestKg, count: largestCount + 1 });
     } else {
-      trucks.push({ capacityKg: LARGEST_KG, count: largestCount });
+      trucks.push({ capacityKg: largestKg, count: largestCount });
       trucks.push({ capacityKg: remainderTruckKg, count: 1 });
     }
   }

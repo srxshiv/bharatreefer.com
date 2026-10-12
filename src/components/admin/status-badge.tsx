@@ -2,7 +2,7 @@ import { STATUS_LABELS, type QuoteStatusId } from "@/features/quotes/status";
 import { cn } from "@/lib/cn";
 
 const STYLES: Record<QuoteStatusId, string> = {
-  NEW: "bg-ink-950 text-white",
+  NEW: "bg-navy-900 text-white",
   CONTACTED: "bg-frost-200 text-ink-900",
   QUOTED: "bg-chilled-soft text-ice-700",
   CONFIRMED: "bg-success-soft text-success",
