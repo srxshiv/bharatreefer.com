@@ -7,7 +7,7 @@ export const fieldLabel = "block text-sm font-medium text-ink-900";
 export const fieldHint = "mt-1.5 text-xs leading-5 text-ink-500";
 
 export const fieldInput = cn(
-  "h-11 w-full rounded-lg border border-frost-300 bg-white px-3.5 text-[15px] text-ink-950 short:h-10",
+  "h-11 w-full rounded-lg border border-frost-300 bg-white px-3 text-[15px] text-ink-950 lg:h-10 short:h-9 short:text-sm",
   "transition-[border-color,box-shadow] placeholder:text-ink-400 hover:border-frost-400",
   "focus:border-ice-500 focus:ring-4 focus:ring-ice-500/15 focus:outline-none",
   "aria-invalid:border-danger aria-invalid:focus:ring-danger/15",

@@ -95,11 +95,13 @@ One page in two columns:
 - **The brand column** carries the logo, the headline and introduction, three facts
   (fleet range, temperature bands, reply time), the temperature bands, the fleet table and
   photos, how it works, contact details with live desk status, and the questions.
-- **The quote card** sits beside it: a single form in one card. On large screens it stays
-  in view while the column scrolls (scrolling inside the card if the screen is short); on
-  phones it sits right under the introduction, and the header's "Get a quote" button jumps
-  to it. Under the weight field a strip of the fleet lights up the truck the load is
-  planned on.
+- **The quote card** sits beside it: a single form in one card, sized to fit a laptop
+  screen whole (down to 1280×720) and pinned in place while the column scrolls. Nothing in
+  it scrolls, and its height does not change: validation shows as red field borders plus
+  a short summary in the fixed box under the weight, and notes open as one compact line on
+  short screens. On phones it sits right under the introduction, and the header's "Get a
+  quote" button jumps to it. Under the weight field a strip of the fleet lights up the
+  truck the load is planned on.
 
 The palette follows the logo: navy for text and buttons, ice blue for the cold-chain feel,
 saffron and green from the tricolour as accents. Temperature keeps its own colours (frozen
@@ -237,7 +239,9 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   that mirror server data, submit from `onSubmit` instead (see `ActionForm` and the quote
   form).
 - Design tokens live in `src/app/globals.css`. The `short` variant applies on wide screens
-  under 800px tall, where the quote card tightens its spacing.
+  under 800px tall, where the quote card tightens its spacing. If you add a field to the
+  card, re-check that it still fits at 1280×720 (the browser checks in the scratch scripts
+  measured the card at four sizes).
 - Date filters in the admin panel are calendar days in India time; `startOfDayInIndia` in
   `src/lib/dates.ts` turns them into the UTC instants the database compares against.
 

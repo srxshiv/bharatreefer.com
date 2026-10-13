@@ -56,13 +56,14 @@ export function Home({ content }: { content: SiteContent }) {
       </header>
 
       <main className="frost-glow flex-1">
-        <div className="shell grid gap-x-12 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:py-12 xl:gap-x-16">
-          <div className="lg:col-start-1">
+        <div className="shell grid grid-cols-1 gap-x-10 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:pt-6 lg:pb-10 xl:gap-x-14">
+          <div className="lg:col-start-1 lg:pt-4">
             <Hero business={business} copy={copy} fleet={fleet} bands={bands} />
           </div>
 
-          <div className="mt-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-start lg:sticky lg:top-24">
-            <QuoteCard business={business} fleet={fleet} bands={bands} className="lg:max-h-[calc(100dvh-7.5rem)]" />
+          {/* Pinned while the brand column scrolls. Sized to fit a laptop screen whole, nothing to scroll. */}
+          <div className="mt-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-start lg:sticky lg:top-26">
+            <QuoteCard business={business} fleet={fleet} bands={bands} />
           </div>
 
           <div className="mt-14 space-y-14 lg:col-start-1 lg:row-start-2 lg:mt-16">

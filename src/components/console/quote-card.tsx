@@ -131,20 +131,15 @@ export function QuoteCard({
       aria-labelledby={`${id}-title`}
       className={cn(card, "flex scroll-mt-20 flex-col overflow-hidden lg:scroll-mt-24 shadow-[0_30px_60px_-30px_rgb(10_45_87/0.45)]", className)}
     >
-      <div className="flex shrink-0 items-center justify-between gap-4 bg-navy-900 px-6 py-4 text-white short:py-3">
-        <div>
-          <h2 id={`${id}-title`} className="text-lg font-semibold">
-            Request a quote
-          </h2>
-          <p className="mt-0.5 text-sm text-ice-200">
-            Reply within {business.responseTime}. No account needed.
-          </p>
-        </div>
-        <Snowflake aria-hidden="true" className="size-7 shrink-0 text-ice-300" strokeWidth={1.5} />
+      <div className="flex shrink-0 items-center justify-between gap-4 bg-navy-900 px-5 py-3 text-white">
+        <h2 id={`${id}-title`} className="flex items-center gap-2 text-base font-semibold">
+          <Snowflake aria-hidden="true" className="size-4.5 text-ice-300" strokeWidth={1.75} />
+          Request a quote
+        </h2>
+        <p className="text-sm text-ice-200">Reply within {business.responseTime}</p>
       </div>
 
-      {/* Taller than a laptop screen, so the body scrolls inside the card while the card stays put. */}
-      <div className="min-h-0 overflow-y-auto overscroll-contain px-6 py-6 [scrollbar-color:var(--color-frost-300)_transparent] [scrollbar-width:thin] short:py-5">
+      <div className="px-5 py-5 short:py-4">
         {confirmation ? (
           <Confirmation confirmation={confirmation} business={business} bands={bands} onReset={reset} />
         ) : (
@@ -173,14 +168,14 @@ export function QuoteCard({
             {result.status === "error" && result.message ? (
               <p
                 role="alert"
-                className="mt-5 flex items-start gap-2 rounded-lg border border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger"
+                className="mt-4 flex items-start gap-2 rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-xs text-danger"
               >
                 <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                 {result.message}
               </p>
             ) : null}
 
-            <button type="submit" disabled={pending} className={cn(primaryButton, "mt-6 w-full short:mt-5")}>
+            <button type="submit" disabled={pending} className={cn(primaryButton, "mt-5 h-11 w-full short:mt-4 short:h-10")}>
               {pending ? (
                 <>
                   <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
@@ -193,9 +188,6 @@ export function QuoteCard({
                 </>
               )}
             </button>
-            <p className="mt-3 text-center text-xs text-ink-500">
-              Dispatch uses these details only to answer this request.
-            </p>
           </form>
         )}
       </div>

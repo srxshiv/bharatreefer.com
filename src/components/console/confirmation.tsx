@@ -10,6 +10,7 @@ import { formatIsoDate } from "@/lib/dates";
 import { LOAD_TYPE_LABELS, formatKg, formatTrucks } from "@/lib/format";
 import { formatHours } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
+import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/whatsapp";
 import { primaryButton, secondaryButton } from "./ui";
 
@@ -48,15 +49,15 @@ export function Confirmation({
   ];
 
   return (
-    <section aria-labelledby="quote-confirmation-title" className="flex flex-col gap-5">
+    <section aria-labelledby="quote-confirmation-title" className="flex flex-col gap-4">
       <div>
-        <CircleCheck aria-hidden="true" className="size-10 text-success" strokeWidth={1.5} />
         <h3
           id="quote-confirmation-title"
           ref={headingRef}
           tabIndex={-1}
-          className="mt-4 text-2xl/tight font-semibold tracking-tight text-navy-950 focus:outline-none"
+          className="flex items-center gap-2 text-xl/tight font-semibold tracking-tight text-navy-950 focus:outline-none"
         >
+          <CircleCheck aria-hidden="true" className="size-6 shrink-0 text-success" strokeWidth={1.75} />
           Request received.
         </h3>
         <p className="mt-2 text-sm leading-6 text-ink-500">
@@ -65,15 +66,17 @@ export function Confirmation({
         </p>
       </div>
 
-      <div className="rounded-xl bg-navy-900 px-5 py-4 text-white">
-        <p className="caption text-ice-300">Your reference</p>
-        <p className="mt-1.5 font-mono text-2xl tracking-wider">{confirmation.reference}</p>
-        <p className="mt-1.5 text-xs text-ice-200">Quote it if you call or message us about this load.</p>
+      <div className="flex items-center justify-between gap-4 rounded-xl bg-navy-900 px-4 py-3 text-white">
+        <div>
+          <p className="caption text-ice-300">Your reference</p>
+          <p className="mt-1 font-mono text-xl tracking-wider">{confirmation.reference}</p>
+        </div>
+        <p className="max-w-40 text-right text-xs leading-4 text-ice-200">Quote it if you call or message us about this load.</p>
       </div>
 
       <dl className="divide-y divide-frost-200 rounded-xl border border-frost-200 px-4">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-baseline justify-between gap-6 py-2.5 text-sm">
+          <div key={row.label} className="flex items-baseline justify-between gap-6 py-2 text-sm">
             <dt className="text-ink-500">{row.label}</dt>
             <dd className="text-right font-medium text-ink-950">{row.value}</dd>
           </div>
@@ -81,7 +84,7 @@ export function Confirmation({
       </dl>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <a href={`tel:${business.phone}`} className={primaryButton}>
+        <a href={`tel:${business.phone}`} className={cn(primaryButton, "h-11")}>
           <Phone aria-hidden="true" className="size-4" />
           Call {formatIndianMobile(business.phone)}
         </a>
@@ -90,23 +93,20 @@ export function Confirmation({
             href={whatsappLink(business.whatsapp, customerWhatsappMessage(confirmation, bandLabels))}
             target="_blank"
             rel="noopener noreferrer"
-            className={secondaryButton}
+            className={cn(secondaryButton, "h-11")}
           >
             <MessageCircle aria-hidden="true" className="size-4" />
             WhatsApp
           </a>
         ) : null}
-      </div>
-
-      <p>
         <button
           type="button"
           onClick={onReset}
-          className="rounded-md text-sm font-medium text-ink-500 underline decoration-frost-400 underline-offset-4 transition-colors hover:text-navy-900"
+          className="inline-flex h-11 items-center justify-center rounded-md px-2 text-sm font-medium text-ink-500 underline decoration-frost-400 underline-offset-4 transition-colors hover:text-navy-900 sm:ml-auto"
         >
-          Send another request
+          Send another
         </button>
-      </p>
+      </div>
     </section>
   );
 }
