@@ -35,3 +35,15 @@ const inrFormatter = new Intl.NumberFormat("en-IN", {
 export function formatInr(rupees: number): string {
   return inrFormatter.format(rupees);
 }
+
+const inrShortFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  notation: "compact",
+  maximumSignificantDigits: 3,
+});
+
+/** Rupees for totals: exact below a lakh, then in lakh and crore: 485000 -> "₹4.85L". */
+export function formatInrShort(rupees: number): string {
+  return rupees < 100_000 ? formatInr(rupees) : inrShortFormatter.format(rupees);
+}

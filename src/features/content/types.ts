@@ -1,6 +1,7 @@
 import type { FleetConfig } from "@/config/fleet";
 import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
 import type { BusinessInfo } from "@/config/site";
+import type { Announcement, PageSection, SectionsSetting } from "./sections";
 
 export type Step = { title: string; body: string };
 export type Faq = { question: string; answer: string };
@@ -16,6 +17,16 @@ export type FleetPhotoInfo = {
   caption: string;
   width: number;
   height: number;
+};
+
+/** A lane shown in the Popular routes section (beta). */
+export type RouteInfo = {
+  originState: string;
+  originCity: string;
+  destinationState: string;
+  destinationCity: string;
+  transitTime: string | null;
+  frequency: string | null;
 };
 
 /** Page copy with every automatic fallback already resolved. */
@@ -34,6 +45,19 @@ export type SiteContent = {
   bands: Record<MaterialId, TemperatureBandInfo>;
   copy: SiteCopy;
   photos: FleetPhotoInfo[];
+  /** Sections below the headline, in page order, including hidden ones. */
+  sections: PageSection[];
+  /** The three key facts under the headline. */
+  showFacts: boolean;
+  /** Null when switched off. */
+  announcement: Announcement | null;
+  routes: RouteInfo[];
+};
+
+/** Settings exactly as stored, for the admin forms. */
+export type EditableSettings = {
+  sections: SectionsSetting;
+  announcement: Announcement;
 };
 
 /** Which copy fields hold text the business typed, as opposed to the automatic text. */

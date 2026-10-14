@@ -169,3 +169,36 @@
     padding-inline: 2rem;
   }
 }
+
+/* The brand side of the admin sign-in page: deep navy with a cold glow and a fine dot grid. */
+@utility login-panel {
+  background-color: var(--color-navy-950);
+  background-image:
+    radial-gradient(36rem 28rem at 85% 0%, rgb(63 179 244 / 0.28), transparent 65%),
+    radial-gradient(30rem 22rem at 0% 100%, rgb(255 122 0 / 0.1), transparent 60%),
+    linear-gradient(160deg, var(--color-navy-900) 0%, var(--color-navy-950) 70%);
+}
+
+@utility dot-grid {
+  background-image: radial-gradient(rgb(255 255 255 / 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, black 0%, transparent 85%);
+}
+
+/* Admin navigation bar: runs towards 90% while a page loads, then is hidden. */
+@keyframes nav-progress {
+  0% {
+    transform: scaleX(0);
+  }
+  40% {
+    transform: scaleX(0.55);
+  }
+  100% {
+    transform: scaleX(0.9);
+  }
+}
+
+/* The page behind an open sheet or dialog does not scroll. */
+html:has(dialog[open]:modal) {
+  overflow: hidden;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { ArrowRight, CircleAlert, LoaderCircle, Snowflake } from "lucide-react";
 import type { FleetConfig } from "@/config/fleet";
 import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
@@ -23,6 +23,7 @@ import { formatIndianMobile } from "@/lib/phone";
 import { planTrucks } from "@/lib/truck-plan";
 import { Confirmation } from "./confirmation";
 import { QuoteFields, type ControlProps } from "./quote-fields";
+import { ROUTE_EVENT, type RoutePrefill } from "./route-prefill";
 import { card, primaryButton } from "./ui";
 
 /** The one thing a visitor does here: the quote form, in a single card. */
@@ -43,6 +44,7 @@ export function QuoteCard({
   const [result, setResult] = useState<QuoteFormState>(INITIAL_QUOTE_FORM_STATE);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const schema = useMemo(() => createQuoteRequestSchema(fleet), [fleet]);
   const quantityKg = parseQuantityKg(values.quantityKg);
@@ -119,6 +121,44 @@ export function QuoteCard({
     });
   }
 
+  // A route card elsewhere on the page fills in the route, then the visitor carries on
+  // from the first field still empty.
+  useEffect(() => {
+    function onRoute(event: Event) {
+      const route = (event as CustomEvent<RoutePrefill>).detail;
+      setResult((current) => (current.status === "success" ? INITIAL_QUOTE_FORM_STATE : current));
+      setValues((current) => ({ ...current, ...route }));
+      setErrors((current) => {
+        const next = { ...current };
+        for (const field of ["originState", "originCity", "destinationState", "destinationCity"] as const) delete next[field];
+        return next;
+      });
+      // On wide screens the card is pinned and already in view; only scroll when it is not.
+      const card = sectionRef.current;
+      const box = card?.getBoundingClientRect();
+      if (card && box && (box.top < 0 || box.bottom > window.innerHeight)) {
+        card.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+      // After React has shown the form with the new values.
+      setTimeout(() => {
+        const form = formRef.current;
+        if (!form) return;
+        const after = QUOTE_FIELDS.slice(QUOTE_FIELDS.indexOf("destinationCity") + 1);
+        for (const field of after) {
+          const element = form.elements.namedItem(field);
+          const target = element instanceof RadioNodeList ? (element.item(0) as HTMLElement | null) : element;
+          if (target instanceof HTMLInputElement && target.type !== "radio" && target.value) continue;
+          if (target instanceof HTMLElement) {
+            target.focus({ preventScroll: true });
+            break;
+          }
+        }
+      }, 350);
+    }
+    window.addEventListener(ROUTE_EVENT, onRoute);
+    return () => window.removeEventListener(ROUTE_EVENT, onRoute);
+  }, []);
+
   function reset() {
     setValues(EMPTY_QUOTE_FORM);
     setErrors({});
@@ -127,6 +167,7 @@ export function QuoteCard({
 
   return (
     <section
+      ref={sectionRef}
       id="quote"
       aria-labelledby={`${id}-title`}
       className={cn(card, "flex scroll-mt-20 flex-col overflow-hidden lg:scroll-mt-24 shadow-[0_30px_60px_-30px_rgb(10_45_87/0.45)]", className)}

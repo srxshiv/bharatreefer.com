@@ -55,3 +55,23 @@ export async function saveQuoteNote(id: string, formData: FormData): Promise<Adm
   refresh();
   return { success: "Note added." };
 }
+
+/**
+ * Moves a request to another stage from the pipeline board, optionally setting the price in
+ * the same step (moving to Quoted). Leaving the price out keeps the one already saved.
+ */
+export async function moveQuoteStage(id: string, status: string, quotedAmount?: number): Promise<AdminFormState> {
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { error: GONE };
+  if (!isQuoteStatus(status)) return { error: "Choose a status." };
+  if (
+    quotedAmount !== undefined &&
+    !(Number.isInteger(quotedAmount) && quotedAmount >= 1 && quotedAmount <= MAX_QUOTE_INR)
+  ) {
+    return { error: `Enter a quote between ₹1 and ${formatInr(MAX_QUOTE_INR)}.` };
+  }
+
+  const outcome = await updateQuoteRequest(id, { status, quotedAmount });
+  if (outcome === "not-found") return { error: GONE };
+  if (outcome === "updated") refresh();
+  return { success: "Saved." };
+}

@@ -7,17 +7,22 @@ import { MATERIAL_IDS } from "@/config/materials";
 import { requireAdmin } from "@/features/auth/session";
 import {
   MAX_FLEET_PHOTOS,
+  MAX_ROUTES,
   SITE_CONTENT_TAG,
   addFleetPhoto,
   countFleetPhotos,
   deleteFleetPhoto,
   moveFleetPhoto,
+  saveAnnouncement,
   saveBands,
   saveBusiness,
   saveCopy,
   saveFleet,
+  saveRoutes,
+  saveSections,
   updateFleetPhotoCaption,
 } from "./data";
+import { parseAnnouncementForm, parseRoutes, parseSectionsForm } from "./site-forms";
 import {
   bandsSchema,
   businessSchema,
@@ -210,4 +215,31 @@ export async function moveFleetPhotoAction(id: string, direction: "up" | "down")
   await requireAdmin();
   await moveFleetPhoto(id, direction);
   published();
+}
+
+export async function saveSectionsAction(formData: FormData): Promise<ContentFormState> {
+  await requireAdmin();
+  const parsed = parseSectionsForm(formData);
+  if (!parsed.ok) return { error: parsed.error };
+  await saveSections(parsed.value);
+  published();
+  return SAVED;
+}
+
+export async function saveAnnouncementAction(formData: FormData): Promise<ContentFormState> {
+  await requireAdmin();
+  const parsed = parseAnnouncementForm(formData);
+  if (!parsed.ok) return { error: parsed.error };
+  await saveAnnouncement(parsed.value);
+  published();
+  return parsed.value.enabled ? SAVED : { success: "Saved. The announcement is off." };
+}
+
+export async function saveRoutesAction(formData: FormData): Promise<ContentFormState> {
+  await requireAdmin();
+  const parsed = parseRoutes(readRows(formData, "routes"), MAX_ROUTES);
+  if (!parsed.ok) return { error: parsed.error };
+  await saveRoutes(parsed.value);
+  published();
+  return SAVED;
 }

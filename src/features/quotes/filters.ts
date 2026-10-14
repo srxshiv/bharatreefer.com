@@ -36,6 +36,8 @@ export type InboxFilters = {
   q: string;
   /** 1-based. */
   page: number;
+  /** A paged list, or the pipeline board with a column per open stage. */
+  view: "list" | "board";
 };
 
 export const DEFAULT_INBOX_FILTERS: InboxFilters = {
@@ -52,6 +54,7 @@ export const DEFAULT_INBOX_FILTERS: InboxFilters = {
   sort: "newest",
   q: "",
   page: 1,
+  view: "list",
 };
 
 type RawParams = Record<string, string | string[] | undefined>;
@@ -103,6 +106,7 @@ export function parseInboxFilters(params: RawParams): InboxFilters {
     sort: (SORT_IDS as readonly string[]).includes(sort) ? (sort as SortId) : "newest",
     q: first(params.q).trim().slice(0, 100),
     page: Number.isInteger(page) && page > 0 ? page : 1,
+    view: first(params.view).toLowerCase() === "board" ? "board" : "list",
   };
 }
 
@@ -124,6 +128,7 @@ export function inboxQuery(filters: Partial<InboxFilters>): string {
   if (filters.sort && filters.sort !== "newest") params.set("sort", filters.sort);
   if (filters.q) params.set("q", filters.q);
   if (filters.page && filters.page > 1) params.set("page", String(filters.page));
+  if (filters.view === "board") params.set("view", "board");
 
   const query = params.toString();
   return query ? `?${query}` : "";

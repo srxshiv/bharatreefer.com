@@ -1,15 +1,17 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { ArrowRight, Download, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowRight, Columns3, Download, List, Search, SlidersHorizontal, X } from "lucide-react";
+import { PendingHint } from "@/components/admin/pending-hint";
+import { PipelineBoard } from "@/components/admin/requests/board";
+import { Pipeline } from "@/components/admin/requests/pipeline";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { card, input, label, primaryButton, secondaryButton } from "@/components/admin/ui";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import { REGION_NAMES } from "@/data/india-locations";
 import { getSiteContent } from "@/features/content/data";
-import { listQuoteRequests, type InboxRow } from "@/features/quotes/admin";
+import { BOARD_STAGES, listBoard, listQuoteRequests, type BoardStage, type InboxRow } from "@/features/quotes/admin";
 import {
   DEFAULT_INBOX_FILTERS,
   INBOX_PAGE_SIZE,
@@ -21,7 +23,6 @@ import {
   parseInboxFilters,
   type InboxFilters,
 } from "@/features/quotes/filters";
-import { QUOTE_STATUSES, STATUS_LABELS } from "@/features/quotes/status";
 import { cn } from "@/lib/cn";
 import { formatDateTimeInIndia, formatIsoDate } from "@/lib/dates";
 import { LOAD_TYPE_LABELS, formatInr, formatKg, formatTrucks } from "@/lib/format";
@@ -32,23 +33,52 @@ export const metadata: Metadata = {
   title: "Quote requests",
 };
 
-const TABS = ["ALL", ...QUOTE_STATUSES] as const;
+// Renders complete on the server (one round trip, about 0.2 s): no skeleton flash. The
+// progress bar at the top of the panel shows a click was registered.
+export const instant = false;
 
 /** Column widths shared by the header row and every request row on wide screens. */
 const COLUMNS =
   "lg:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_6rem_6.5rem] lg:gap-x-5";
 
-function Heading() {
-  return <h1 className="text-2xl font-bold tracking-tight text-ink-950">Quote requests</h1>;
-}
+function Header({ filters }: { filters: InboxFilters }) {
+  const views = [
+    { id: "list", label: "List", icon: List, href: `/admin${inboxQuery({ ...filters, view: "list" })}` },
+    { id: "board", label: "Board", icon: Columns3, href: `/admin${inboxQuery({ ...filters, view: "board", status: "ALL", page: 1 })}` },
+  ] as const;
 
-function InboxSkeleton() {
   return (
-    <div className="space-y-6">
-      <Heading />
-      <div className="h-9 animate-pulse rounded-lg bg-frost-100" />
-      <div className="h-11 animate-pulse rounded-lg bg-frost-100" />
-      <div className="h-96 animate-pulse rounded-xl bg-frost-100" />
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-2xl font-bold tracking-tight text-ink-950">Quote requests</h1>
+      <div className="flex items-center gap-2">
+        <nav aria-label="View" className="flex rounded-lg bg-frost-100 p-1">
+          {views.map((view) => {
+            const active = filters.view === view.id;
+            const Icon = view.icon;
+            return (
+              <Link
+                key={view.id}
+                href={view.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-all",
+                  active ? "bg-white text-ink-950 shadow-sm" : "text-ink-500 hover:text-ink-950",
+                )}
+              >
+                <Icon aria-hidden="true" className="size-4" />
+                {view.label}
+                <PendingHint />
+              </Link>
+            );
+          })}
+        </nav>
+        {/* A plain link: the browser downloads the file instead of navigating to it. */}
+        <a href={`/admin/export${inboxQuery({ ...filters, view: "list", page: 1 })}`} className={secondaryButton}>
+          <Download aria-hidden="true" className="size-4" />
+          <span className="hidden sm:inline">Export CSV</span>
+          <span className="sr-only sm:hidden">Export CSV</span>
+        </a>
+      </div>
     </div>
   );
 }
@@ -175,61 +205,18 @@ function activeChips(filters: InboxFilters, bands: Record<MaterialId, Temperatur
 const selectField = cn(input, "mt-1.5");
 const dateField = cn(input, "mt-1.5 font-mono");
 
-async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">) {
-  const filters = parseInboxFilters(await searchParams);
-  const [{ rows, total, pageCount, counts }, { bands }] = await Promise.all([
-    listQuoteRequests(filters),
-    getSiteContent(),
-  ]);
-
+function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<MaterialId, TemperatureBandInfo> }) {
   const chips = activeChips(filters, bands);
   const advanced = hasAdvancedFilters(filters);
-  const firstShown = (filters.page - 1) * INBOX_PAGE_SIZE + 1;
-  const page = (number: number) => `/admin${inboxQuery({ ...filters, page: number })}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Heading />
-        {/* A plain link: the browser downloads the file instead of navigating to it. */}
-        <a href={`/admin/export${inboxQuery({ ...filters, page: 1 })}`} className={secondaryButton}>
-          <Download aria-hidden="true" className="size-4" />
-          Export CSV
-        </a>
-      </div>
-
-      <nav aria-label="Filter by status" className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-        <ul className="flex gap-1.5 pb-1 whitespace-nowrap">
-          {TABS.map((status) => {
-            const active = filters.status === status;
-            return (
-              <li key={status}>
-                <Link
-                  href={`/admin${inboxQuery({ ...filters, status, page: 1 })}`}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
-                    active
-                      ? "border-navy-900 bg-navy-900 text-white"
-                      : "border-frost-300 bg-white text-ink-700 hover:border-ink-400",
-                  )}
-                >
-                  {status === "ALL" ? "All" : STATUS_LABELS[status]}
-                  <span className={cn("font-mono text-xs", active ? "text-ink-300" : "text-ink-500")}>
-                    {counts[status]}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
+    <>
       {/* Keyed on the filters so the fields reset when a link changes them. */}
       <Form key={inboxQuery(filters)} action="/admin" className="space-y-3">
-        {filters.status !== "ALL" ? (
+        {filters.status !== "ALL" && filters.view === "list" ? (
           <input type="hidden" name="status" value={filters.status.toLowerCase()} />
         ) : null}
+        {filters.view === "board" ? <input type="hidden" name="view" value="board" /> : null}
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
             <Search
@@ -263,7 +250,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
             Search
           </button>
           {isFiltered(filters) ? (
-            <Link href={`/admin${inboxQuery({ status: filters.status })}`} className={secondaryButton}>
+            <Link href={`/admin${inboxQuery({ status: filters.status, view: filters.view })}`} className={secondaryButton}>
               Clear
             </Link>
           ) : null}
@@ -359,7 +346,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
           {chips.length > 1 ? (
             <li>
               <Link
-                href={`/admin${inboxQuery({ ...DEFAULT_INBOX_FILTERS, status: filters.status })}`}
+                href={`/admin${inboxQuery({ ...DEFAULT_INBOX_FILTERS, status: filters.status, view: filters.view })}`}
                 className="inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-ink-500 hover:text-navy-900"
               >
                 Clear all
@@ -368,6 +355,27 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
           ) : null}
         </ul>
       ) : null}
+    </>
+  );
+}
+
+async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">) {
+  const filters = parseInboxFilters(await searchParams);
+  if (filters.view === "board") return <Board filters={filters} />;
+
+  const [{ rows, total, pageCount, counts, values }, { bands }] = await Promise.all([
+    listQuoteRequests(filters),
+    getSiteContent(),
+  ]);
+
+  const firstShown = (filters.page - 1) * INBOX_PAGE_SIZE + 1;
+  const page = (number: number) => `/admin${inboxQuery({ ...filters, page: number })}`;
+
+  return (
+    <div className="space-y-6">
+      <Header filters={filters} />
+      <Pipeline filters={filters} counts={counts} values={values} />
+      <Filters filters={filters} bands={bands} />
 
       <div className={cn(card, "overflow-hidden")}>
         {rows.length === 0 ? (
@@ -420,10 +428,34 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
   );
 }
 
-export default function InboxPage({ searchParams }: PageProps<"/admin">) {
+async function Board({ filters }: { filters: InboxFilters }) {
+  const [{ columns, counts, values, placedKg, readAt }, { bands }] = await Promise.all([listBoard(filters), getSiteContent()]);
+  const bandLabels = Object.fromEntries(MATERIAL_IDS.map((id) => [id, bands[id].label])) as Record<MaterialId, string>;
+  const listHref = Object.fromEntries(
+    BOARD_STAGES.map((stage) => [stage, `/admin${inboxQuery({ ...filters, view: "list", status: stage, page: 1 })}`]),
+  ) as Record<BoardStage, string>;
+
   return (
-    <Suspense fallback={<InboxSkeleton />}>
-      <Inbox searchParams={searchParams} />
-    </Suspense>
+    <div className="space-y-6">
+      <Header filters={filters} />
+      <Pipeline filters={filters} counts={counts} values={values} />
+      <Filters filters={filters} bands={bands} />
+      <PipelineBoard
+        // Fresh state whenever the server sends new data, e.g. after a filter changes.
+        key={inboxQuery(filters)}
+        stages={BOARD_STAGES}
+        columns={columns}
+        counts={counts}
+        values={values}
+        placedKg={placedKg}
+        bandLabels={bandLabels}
+        now={readAt}
+        listHref={listHref}
+      />
+    </div>
   );
+}
+
+export default function InboxPage({ searchParams }: PageProps<"/admin">) {
+  return <Inbox searchParams={searchParams} />;
 }

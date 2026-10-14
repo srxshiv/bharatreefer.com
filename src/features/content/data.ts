@@ -4,10 +4,27 @@ import { DEFAULT_FLEET, type FleetConfig } from "@/config/fleet";
 import { DEFAULT_BANDS, MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import { DEFAULT_BUSINESS, type BusinessInfo } from "@/config/site";
 import { Prisma } from "@/generated/prisma/client";
+import { requireAdmin } from "@/features/auth/session";
 import { db } from "@/lib/db";
 import { normaliseDays } from "@/lib/hours";
 import { DEFAULT_HERO_INTRO, automaticFaqs, automaticHeading, automaticSteps } from "./automatic";
-import type { CustomCopy, Faq, FleetPhotoInfo, SiteContent, Step, TruckSizeInfo } from "./types";
+import {
+  readAnnouncement,
+  readSectionsSetting,
+  resolveSections,
+  type Announcement,
+  type SectionsSetting,
+} from "./sections";
+import type {
+  CustomCopy,
+  EditableSettings,
+  Faq,
+  FleetPhotoInfo,
+  RouteInfo,
+  SiteContent,
+  Step,
+  TruckSizeInfo,
+} from "./types";
 
 /** Cache tag for everything on the public site. Admin saves expire it with `updateTag`. */
 export const SITE_CONTENT_TAG = "site-content";
@@ -35,6 +52,8 @@ const settingsSelect = {
   heroIntro: true,
   steps: true,
   faqs: true,
+  sections: true,
+  announcement: true,
   minQuantityKg: true,
   maxQuantityKg: true,
   dedicatedFillPercent: true,
@@ -47,6 +66,15 @@ const bandSelect = {
   summary: true,
   examples: true,
 } satisfies Prisma.TemperatureBandSelect;
+
+const routeSelect = {
+  originState: true,
+  originCity: true,
+  destinationState: true,
+  destinationCity: true,
+  transitTime: true,
+  frequency: true,
+} satisfies Prisma.RouteSelect;
 
 const photoSelect = {
   id: true,
@@ -128,7 +156,10 @@ function assemble(
   bandRows: BandRow[],
   truckRows: TruckSizeInfo[],
   photos: FleetPhotoInfo[],
-): { content: SiteContent; custom: CustomCopy } {
+  routes: RouteInfo[],
+): { content: SiteContent; custom: CustomCopy; editable: EditableSettings } {
+  const sectionsSetting = readSectionsSetting(row?.sections);
+  const announcement = readAnnouncement(row?.announcement);
   const business = businessFrom(row);
   const trucks = truckRows.length > 0
     ? truckRows
@@ -150,46 +181,77 @@ function assemble(
         faqs: faqs ?? automaticFaqs(business, fleet),
       },
       photos,
+      sections: resolveSections(sectionsSetting),
+      showFacts: sectionsSetting.showFacts,
+      announcement: announcement.enabled && announcement.text.trim() ? announcement : null,
+      routes,
     },
     custom: {
       heroHeading: row?.heroHeading != null,
       steps: steps !== null,
       faqs: faqs !== null,
     },
+    editable: { sections: sectionsSetting, announcement },
   };
 }
 
-async function load(): Promise<{ content: SiteContent; custom: CustomCopy }> {
-  const [row, bandRows, truckRows, photos] = await Promise.all([
+type LoadedContent = {
+  content: SiteContent;
+  custom: CustomCopy;
+  editable: EditableSettings;
+  /** True when the database could not be read and these are the built-in defaults. */
+  fromDefaults: boolean;
+};
+
+async function load(): Promise<LoadedContent> {
+  const [row, bandRows, truckRows, photos, routes] = await Promise.all([
     db().siteSettings.findUnique({ where: { id: SETTINGS_ID }, select: settingsSelect }),
     db().temperatureBand.findMany({ select: bandSelect }),
     db().truckSize.findMany({ orderBy: { capacityKg: "asc" }, select: { capacityKg: true, name: true } }),
     db().fleetPhoto.findMany({ orderBy: { position: "asc" }, select: photoSelect }),
+    db().route.findMany({ orderBy: { position: "asc" }, select: routeSelect }),
   ]);
-  return assemble(row, bandRows, truckRows, photos);
-}
-
-/** Current content straight from the database. Admin pages and background jobs use this. */
-export async function readSiteContent(): Promise<{ content: SiteContent; custom: CustomCopy }> {
-  return load();
+  return { ...assemble(row, bandRows, truckRows, photos, routes), fromDefaults: false };
 }
 
 /**
- * Content for the public site. Cached, so pages prerender with it and stay static until an
- * admin saves a change. Falls back to the defaults if the database cannot be reached, so a
- * database problem shows stale copy rather than an error page.
+ * Everything the site shows, cached until an admin saves a change (`updateTag`). If the
+ * database cannot be reached the defaults are cached for a minute only, so a short outage
+ * shows stale copy briefly rather than an error page or defaults for an hour.
  */
-export async function getSiteContent(): Promise<SiteContent> {
+async function loadCached(): Promise<LoadedContent> {
   "use cache";
-  cacheLife("hours");
   cacheTag(SITE_CONTENT_TAG);
-
   try {
-    return (await load()).content;
+    const loaded = await load();
+    cacheLife("hours");
+    return loaded;
   } catch (error) {
     console.error("Could not load site content, using the defaults", error);
-    return assemble(null, [], [], []).content;
+    cacheLife("minutes");
+    return { ...assemble(null, [], [], [], []), fromDefaults: true };
   }
+}
+
+/** Content for the public site. */
+export async function getSiteContent(): Promise<SiteContent> {
+  return (await loadCached()).content;
+}
+
+/**
+ * Content for the admin settings pages. Checks the session at the same time as it reads,
+ * and refuses to show the defaults, so nobody edits and saves them over the real content.
+ */
+export async function getSiteContentForAdmin(): Promise<{
+  content: SiteContent;
+  custom: CustomCopy;
+  editable: EditableSettings;
+}> {
+  const [, loaded] = await Promise.all([requireAdmin(), loadCached()]);
+  if (loaded.fromDefaults) {
+    throw new Error("The website settings could not be loaded from the database. Try again shortly.");
+  }
+  return loaded;
 }
 
 /** Columns for a brand-new settings row, before any of the admin's own values are applied. */
@@ -275,6 +337,24 @@ export async function saveBands(bands: Record<MaterialId, Omit<TemperatureBandIn
       }),
     ),
   );
+}
+
+export async function saveSections(setting: SectionsSetting): Promise<void> {
+  await patchSettings({ sections: setting });
+}
+
+export async function saveAnnouncement(announcement: Announcement): Promise<void> {
+  await patchSettings({ announcement });
+}
+
+/** Most routes the site lists. */
+export const MAX_ROUTES = 12;
+
+export async function saveRoutes(routes: RouteInfo[]): Promise<void> {
+  await db().$transaction(async (tx) => {
+    await tx.route.deleteMany();
+    await tx.route.createMany({ data: routes.map((route, index) => ({ ...route, position: index + 1 })) });
+  });
 }
 
 export type FleetInput = {

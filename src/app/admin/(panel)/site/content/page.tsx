@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ActionForm } from "@/components/admin/action-form";
 import { AutomaticToggle } from "@/components/admin/automatic-toggle";
@@ -6,17 +5,21 @@ import { ListEditor } from "@/components/admin/list-editor";
 import { card, input, label } from "@/components/admin/ui";
 import { saveCopyAction } from "@/features/content/actions";
 import { automaticFaqs, automaticHeading, automaticSteps } from "@/features/content/automatic";
-import { readSiteContent } from "@/features/content/data";
+import { getSiteContentForAdmin } from "@/features/content/data";
 import { MAX_FAQS, MAX_STEPS } from "@/features/content/schema";
 
 export const metadata: Metadata = {
   title: "Page text",
 };
 
+// Renders complete on the server (one round trip, about 0.2 s): no skeleton flash. The
+// progress bar at the top of the panel shows a click was registered.
+export const instant = false;
+
 const sectionTitle = "font-sans text-base font-semibold text-ink-950";
 
 async function CopyForm() {
-  const { content, custom } = await readSiteContent();
+  const { content, custom } = await getSiteContentForAdmin();
   const { copy, business, fleet } = content;
   const autoSteps = automaticSteps(business);
   const autoFaqs = automaticFaqs(business, fleet);
@@ -140,9 +143,5 @@ async function CopyForm() {
 }
 
 export default function ContentPage() {
-  return (
-    <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-frost-100" />}>
-      <CopyForm />
-    </Suspense>
-  );
+  return <CopyForm />;
 }

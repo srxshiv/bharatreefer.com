@@ -64,7 +64,7 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 | `pnpm db:migrate` | Create and apply a migration in development. |
 | `pnpm db:deploy` | Apply pending migrations in production. |
 | `pnpm db:studio` | Browse the database in Prisma Studio. |
-| `pnpm db:seed` | Local databases only: add a test admin (`admin@test.com`) and sample quote requests. |
+| `pnpm db:seed` | Replace the sample data: 62 quote requests across every stage, 15 trucks, and loads placed on them. Real requests are never touched. `pnpm db:seed --clear` removes the sample data only. |
 
 ## Project layout
 
@@ -72,19 +72,21 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 prisma/schema.prisma          Database schema; migrations live beside it
 prisma7.config.ts             Prisma CLI configuration
 scripts/create-admin.ts       Creates admin accounts and resets passwords
-scripts/seed-dev.ts           Test admin and sample quote requests for a local database
+prisma/seed.ts                Sample requests, trucks and truck loads (pnpm db:seed)
+scripts/seed-dev.ts           Older local-only seed that also creates a test admin (pnpm exec tsx scripts/seed-dev.ts)
 src/proxy.ts                  Sends signed-out visitors away from /admin
 src/app/(site)/               The public site (one page)
-src/app/admin/                Admin panel: sign-in, requests, website settings, account, CSV export
+src/app/admin/                Admin panel: sign-in, requests, fleet, website settings, account, CSV export
 src/app/media/fleet/[id]/     Serves uploaded fleet photos
 src/app/api/health/           Uptime probe that checks the database
 src/components/console/       The public screen: quote form, live summary, information tabs
-src/components/admin/         Admin forms and shared UI
+src/components/admin/         Admin forms and shared UI; fleet/ and requests/ hold the two boards
 src/config/                   Default business details, fleet and temperature bands
 src/data/india-locations.ts   States and city suggestions
 src/features/content/         Editable site content: loader, admin actions, automatic copy
 src/features/auth/            Sessions, sign-in, password change, login throttling
 src/features/quotes/          Validation, public and admin data access, emails, WhatsApp text
+src/features/fleet/           Trucks, loads and the placement rules (capacity.ts is pure and tested)
 src/lib/                      Truck planner, hours, formatting, CSV, email, password hashing, Prisma client
 ```
 
@@ -93,8 +95,10 @@ src/lib/                      Truck planner, hours, formatting, CSV, email, pass
 One page in two columns:
 
 - **The brand column** carries the logo, the headline and introduction, three facts
-  (fleet range, temperature bands, reply time), the temperature bands, the fleet table and
-  photos, how it works, contact details with live desk status, and the questions.
+  (fleet range, temperature bands, reply time), then the sections the business has switched
+  on, in its chosen order: temperature bands, the fleet table and photos, popular routes
+  (beta), how it works, contact details with live desk status, and the questions.
+- **An announcement bar** can run across the top for holiday hours or news.
 - **The quote card** sits beside it: a single form in one card, sized to fit a laptop
   screen whole (down to 1280×720) and pinned in place while the column scrolls. Nothing in
   it scrolls, and its height does not change: validation shows as red field borders plus
@@ -118,9 +122,11 @@ moment they are saved; no deploy is needed.
 | Page | What it controls |
 | --- | --- |
 | Business details | Name, tagline, phone, WhatsApp number, public email, where alerts go, address, desk days and hours, promised reply time. |
+| Sections | The announcement bar (message, optional link, colour, with a live preview), the key facts under the headline, and each section below it: on or off, its order, and its label, heading and introduction. |
 | Page text | Headline, introduction, "How it works" steps, questions and answers. |
 | Temperature bands | Name, temperature shown, description and example cargo for each of the three bands. |
 | Fleet and photos | Truck sizes with optional model names, weight limits, the part-load threshold, and photos. |
+| Routes (beta) | The lanes the business runs often, with transit time and frequency. Each becomes a card on the site that fills the route into the quote form. The section starts switched off. |
 
 The headline, the steps and the answers have an **automatic** mode that generates the text
 from the other settings, so their numbers stay correct when the fleet or the hours change.
@@ -158,14 +164,42 @@ stored. Raw IP addresses are never stored, only a keyed hash.
 `/admin` is for the business only. It is not linked from the public site and is excluded
 from search engines.
 
-- **Requests**: every quote request with tabs per status, search by reference, name, phone
-  or city, a temperature filter, and under "More filters": received date range, pickup date
-  range, from and to state, full or part load, quoted or not, and sorting (newest, oldest,
-  pickup date). Active filters show as removable chips; the CSV export uses the same
-  filters.
+- **Requests**: a pipeline strip across the top shows how many requests sit at each stage
+  (New, Contacted, Quoted, Confirmed, Completed), what the quoted ones are worth, and the
+  win rate. Two views:
+  - **List**: every request, filtered by stage, with search by reference, name, phone or
+    city, a temperature filter, and under "More filters": received date range, pickup date
+    range, from and to state, full or part load, quoted or not, and sorting (newest,
+    oldest, pickup date). Active filters show as removable chips; the CSV export uses the
+    same filters.
+  - **Board**: a column per open stage. Each card moves on with one button (Mark
+    contacted, Send quote, Confirmed, Delivered) or to any stage from its menu, and can be
+    dragged between columns on a computer. Moving to Quoted asks for the price in the card.
+    Confirmed cards show whether the load is on a truck yet.
 - **Request detail**: the load and the customer, one-tap call, WhatsApp and email, the
-  status and quoted amount, internal notes, and a timeline of every change and email.
+  status and quoted amount, the trucks a confirmed load is on, internal notes, and a
+  timeline of every change, email and truck placement.
+- **Fleet**: every truck by number plate, grouped by payload. Each truck is drawn with its
+  loads filling the box in their temperature band's colour. Confirmed requests waiting for
+  a truck are listed beside them: pick one and the board marks the best fit, shows how much
+  each truck would take, and dims the ones that cannot (in maintenance, full, or carrying
+  another temperature band). Tap a truck, drag the request onto it, or place it
+  automatically; a heavy load spreads over several trucks. Tapping a truck on its own opens
+  its details: loads with "Take off", status (available or in maintenance), driver, edit,
+  and remove.
 - **Website**: the editable content described above.
+
+How the fleet rules work:
+
+- Only Confirmed requests count towards what a truck carries. Marking a request Completed
+  frees its trucks and keeps them as a record; moving it back to an earlier stage, or to
+  Lost, takes it off them.
+- One temperature band per truck. A truck in maintenance takes no loads, and cannot be put
+  in maintenance or removed while it carries any.
+- Placing a load locks the request and the truck in the database, so two people placing
+  loads at once cannot overfill a truck or place more than the request weighs.
+- Plates are stored without spaces (`DL01LA4521`) and shown as printed (`DL 01 LA 4521`).
+  Bharat-series plates (`22 BH 1234 AA`) are accepted too.
 - **Account**: change your password. Doing so signs out your other devices.
 
 Accounts are created from the command line, not from the browser:
@@ -230,6 +264,11 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   release candidate. In 7.10 the CLI reads `prisma7.config.ts`, not `prisma.config.ts`.
 - The generated Prisma client (`src/generated/prisma`) is not committed. `pnpm install`
   regenerates it.
+- The database connection follows `DATABASE_URL`: when `next dev` reloads `.env` (for
+  example after switching from a local database to Neon) the next request uses the new
+  database, no restart needed. In development, a failed sign-in logs to the terminal
+  whether the account was missing or the password wrong, and which database was checked;
+  `pnpm admin:create` prints which database it wrote to.
 - Prisma's Postgres adapter reads and writes timestamps as UTC and is only correct when the
   database session time zone is UTC. A migration pins the database to UTC and
   `/api/health` fails if it is anything else. If you write raw SQL, do not `SET TIME ZONE`.
@@ -244,6 +283,18 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   measured the card at four sizes).
 - Date filters in the admin panel are calendar days in India time; `startOfDayInIndia` in
   `src/lib/dates.ts` turns them into the UTC instants the database compares against.
+- Admin pages set `export const instant = false` and render complete on the server, with
+  no skeletons. A thin bar at the top of the panel (`NavigationProgress`) and a line under
+  the clicked link (`PendingHint`) show the click registered. Measured against Neon from
+  India in a production build: feedback within 10 ms, the new page in 0.2 to 0.33 s.
+  Changes on the two boards show immediately (`useOptimistic`) and save in the background.
+- The database pool keeps connections for 10 minutes and opens six when the app starts:
+  a new connection to Neon costs about 650 ms, a query about 95 ms. Data functions run
+  their queries in parallel with the session check.
+- `sslmode=require` in a connection string is rewritten to `verify-full`, which is what the
+  pg driver already does, to stop its warning on every connection.
+- `next dev` keeps `use cache` results in memory across code changes. If you change the
+  shape of `SiteContent`, restart the dev server. A new build always starts fresh.
 
 ## Roadmap
 
@@ -256,5 +307,9 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   temperature bands, fleet and photos managed from the admin panel; the public site
   redesigned as a brand column beside a single quote card, in the logo's colours; date,
   route, load and price filters in the admin inbox.
+- **Operations update (done).** The fleet panel with trucks by number plate and load
+  placement, the pipeline strip and board for requests, section switches, ordering and
+  headings, the announcement bar, routes (beta), sample data (`pnpm db:seed`), and faster
+  page switches in the admin panel.
 - **Phase 5: launch.** Neon and Vercel production setup, the domain, error monitoring,
   analytics, CAPTCHA if spam appears, backups, and a pre-launch checklist.

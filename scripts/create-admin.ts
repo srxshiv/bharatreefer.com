@@ -9,6 +9,7 @@
 import "dotenv/config";
 import { parseArgs } from "node:util";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { withExplicitSslMode } from "../src/lib/connection-string";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { hashPassword } from "../src/lib/password";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../src/lib/password-policy";
@@ -77,7 +78,7 @@ async function main() {
     fail(`The password must be ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters long.`);
   }
 
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: withExplicitSslMode(connectionString) }) });
   try {
     const existing = await prisma.adminUser.findUnique({ where: { email } });
     if (!existing && !name) fail("A new account needs --name.");
@@ -91,8 +92,12 @@ async function main() {
     // A password reset signs the account out everywhere.
     if (existing) await prisma.session.deleteMany({ where: { userId: user.id } });
 
+    const url = new URL(connectionString);
+    const where = `${url.hostname}${url.pathname}`;
     console.log(
-      existing ? `Password reset for ${user.email}.` : `Admin account created for ${user.email}.`,
+      existing
+        ? `Password reset for ${user.email} in database ${where}.`
+        : `Admin account created for ${user.email} in database ${where}.`,
     );
   } finally {
     await prisma.$disconnect();

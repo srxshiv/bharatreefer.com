@@ -1,14 +1,16 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { input, label as labelClass, secondaryButton } from "./ui";
 
 export type ListField = {
   name: string;
   label: string;
-  kind?: "text" | "textarea" | "number";
+  kind?: "text" | "textarea" | "number" | "select";
+  /** Choices for a select. */
+  options?: string[];
   placeholder?: string;
   maxLength?: number;
   min?: number;
@@ -32,6 +34,7 @@ export function ListEditor({
   addLabel,
   emptyLabel,
   rowLabel,
+  sortable = false,
 }: {
   prefix: string;
   fields: ListField[];
@@ -41,6 +44,8 @@ export function ListEditor({
   emptyLabel: string;
   /** Singular noun for the screen-reader label of each row's remove button. */
   rowLabel: string;
+  /** Shows buttons to move rows up and down; the order is saved. */
+  sortable?: boolean;
 }) {
   const baseId = useId();
   const [rows, setRows] = useState(() => initial.map((row, index) => ({ key: index, row })));
@@ -56,6 +61,16 @@ export function ListEditor({
 
   function remove(key: number) {
     setRows((current) => current.filter((row) => row.key !== key));
+  }
+
+  function move(index: number, offset: -1 | 1) {
+    setRows((current) => {
+      const target = index + offset;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   }
 
   return (
@@ -77,7 +92,21 @@ export function ListEditor({
                     <label htmlFor={id} className={labelClass}>
                       {field.label}
                     </label>
-                    {field.kind === "textarea" ? (
+                    {field.kind === "select" ? (
+                      <select
+                        id={id}
+                        name={name}
+                        defaultValue={row[field.name] ?? ""}
+                        className={cn(input, "mt-1.5")}
+                      >
+                        <option value="">{field.placeholder ?? "Choose"}</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    ) : field.kind === "textarea" ? (
                       <textarea
                         id={id}
                         name={name}
@@ -105,14 +134,38 @@ export function ListEditor({
                 );
               })}
             </div>
-            <button
-              type="button"
-              onClick={() => remove(key)}
-              aria-label={`Remove ${rowLabel} ${index + 1}`}
-              className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-danger hover:text-danger sm:mt-6"
-            >
-              <Trash2 aria-hidden="true" className="size-4" />
-            </button>
+            <div className="flex gap-2 sm:mt-6 sm:flex-col">
+              {sortable ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => move(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`Move ${rowLabel} ${index + 1} up`}
+                    className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-40"
+                  >
+                    <ArrowUp aria-hidden="true" className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(index, 1)}
+                    disabled={index === rows.length - 1}
+                    aria-label={`Move ${rowLabel} ${index + 1} down`}
+                    className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-40"
+                  >
+                    <ArrowDown aria-hidden="true" className="size-4" />
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => remove(key)}
+                aria-label={`Remove ${rowLabel} ${index + 1}`}
+                className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-danger hover:text-danger"
+              >
+                <Trash2 aria-hidden="true" className="size-4" />
+              </button>
+            </div>
           </li>
         ))}
       </ol>

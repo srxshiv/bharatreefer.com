@@ -1,11 +1,10 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ActionForm } from "@/components/admin/action-form";
 import { card, input, label } from "@/components/admin/ui";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS } from "@/config/materials";
 import { saveBandsAction } from "@/features/content/actions";
-import { readSiteContent } from "@/features/content/data";
+import { getSiteContentForAdmin } from "@/features/content/data";
 import { MAX_EXAMPLES } from "@/features/content/schema";
 import { cn } from "@/lib/cn";
 
@@ -13,8 +12,12 @@ export const metadata: Metadata = {
   title: "Temperature bands",
 };
 
+// Renders complete on the server (one round trip, about 0.2 s): no skeleton flash. The
+// progress bar at the top of the panel shows a click was registered.
+export const instant = false;
+
 async function BandsForm() {
-  const { content } = await readSiteContent();
+  const { content } = await getSiteContentForAdmin();
 
   return (
     <ActionForm action={saveBandsAction} submitLabel="Save temperature bands">
@@ -91,9 +94,5 @@ async function BandsForm() {
 }
 
 export default function TemperaturePage() {
-  return (
-    <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-frost-100" />}>
-      <BandsForm />
-    </Suspense>
-  );
+  return <BandsForm />;
 }

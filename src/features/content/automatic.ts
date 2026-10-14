@@ -3,7 +3,7 @@ import type { BusinessInfo } from "@/config/site";
 import { formatCapacity, formatKg } from "@/lib/format";
 import { formatHours } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
-import type { Faq, Step } from "./types";
+import type { Faq, Step, TruckSizeInfo } from "./types";
 
 /**
  * Text generated from the other settings. Used until the business writes its own, so the
@@ -12,6 +12,14 @@ import type { Faq, Step } from "./types";
 
 export const DEFAULT_HERO_INTRO =
   "Frozen, chilled and normal-temperature cargo, as a full truck or a part load. Send the route and the weight, and dispatch replies with a quote.";
+
+/** "8 truck sizes, 900 kg to 22 tonnes": the fleet section's heading. */
+export function automaticFleetTitle(trucks: TruckSizeInfo[], fleet: FleetConfig): string {
+  const largest = largestTruckKg(fleet);
+  const largestText = largest >= 1000 ? `${largest / 1000} tonnes` : formatCapacity(largest);
+  const smallest = trucks[0]?.capacityKg ?? smallestTruckKg(fleet);
+  return `${trucks.length} truck sizes, ${formatCapacity(smallest)} to ${largestText}`;
+}
 
 /** "Reefer trucks from 900 kg to 22 tonnes." */
 export function automaticHeading(fleet: FleetConfig): string {

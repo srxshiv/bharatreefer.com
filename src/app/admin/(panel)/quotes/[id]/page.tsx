@@ -1,8 +1,9 @@
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Mail, MessageCircle, Phone } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mail, MessageCircle, Phone, Truck } from "lucide-react";
+import { NumberPlate } from "@/components/admin/fleet/number-plate";
 import { NoteForm } from "@/components/admin/note-form";
 import { QuoteUpdateForm } from "@/components/admin/quote-update-form";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -10,11 +11,12 @@ import { card, secondaryButton } from "@/components/admin/ui";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS } from "@/config/materials";
 import { getSiteContent } from "@/features/content/data";
+import { getQuoteAssignments } from "@/features/fleet/data";
 import { getQuoteRequest } from "@/features/quotes/admin";
 import { dispatchWhatsappMessage } from "@/features/quotes/messages";
 import { cn } from "@/lib/cn";
 import { formatDateTimeInIndia, formatIsoDate, toIsoDate } from "@/lib/dates";
-import { LOAD_TYPE_LABELS, formatKg, formatTrucks } from "@/lib/format";
+import { LOAD_TYPE_LABELS, formatCapacity, formatKg, formatTrucks } from "@/lib/format";
 import { formatIndianMobile } from "@/lib/phone";
 import { parseTruckPlan } from "@/lib/truck-plan";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -22,6 +24,10 @@ import { whatsappLink } from "@/lib/whatsapp";
 export const metadata: Metadata = {
   title: "Quote request",
 };
+
+// Renders complete on the server (one round trip, about 0.2 s): no skeleton flash. The
+// progress bar at the top of the panel shows a click was registered.
+export const instant = false;
 
 const sectionTitle = "font-sans text-base font-semibold text-ink-950";
 
@@ -46,23 +52,16 @@ function Field({ label, wide, children }: { label: string; wide?: boolean; child
   );
 }
 
-function DetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <BackLink />
-      <div className="h-10 w-56 animate-pulse rounded-lg bg-frost-100" />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_23rem]">
-        <div className="h-96 animate-pulse rounded-xl bg-frost-100" />
-        <div className="h-96 animate-pulse rounded-xl bg-frost-100" />
-      </div>
-    </div>
-  );
-}
-
 async function QuoteView({ params }: Pick<PageProps<"/admin/quotes/[id]">, "params">) {
   const { id } = await params;
-  const [quote, { business, bands }] = await Promise.all([getQuoteRequest(id), getSiteContent()]);
+  const [quote, { business, bands }, assignments] = await Promise.all([
+    getQuoteRequest(id),
+    getSiteContent(),
+    getQuoteAssignments(id),
+  ]);
   if (!quote) notFound();
+  const placedKg = assignments.reduce((sum, assignment) => sum + assignment.loadKg, 0);
+  const showTrucks = quote.status === "CONFIRMED" || assignments.length > 0;
 
   const band = bands[quote.material];
   const bandLabels = Object.fromEntries(MATERIAL_IDS.map((key) => [key, bands[key].label])) as Record<
@@ -174,6 +173,59 @@ async function QuoteView({ params }: Pick<PageProps<"/admin/quotes/[id]">, "para
         </div>
 
         <div className="space-y-6">
+          {showTrucks ? (
+            <section className={cn(card, "p-6")}>
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className={sectionTitle}>Trucks</h2>
+                <span className="font-mono text-sm text-ink-500">
+                  {formatKg(placedKg)} of {formatKg(quote.quantityKg)}
+                </span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-frost-100" aria-hidden="true">
+                <div
+                  className={cn("h-full rounded-full", BAND_STYLES[quote.material].fill)}
+                  style={{ width: `${Math.min(100, (placedKg / quote.quantityKg) * 100)}%` }}
+                />
+              </div>
+              {assignments.length > 0 ? (
+                <ul className="mt-4 space-y-3">
+                  {assignments.map((assignment) => (
+                    <li key={assignment.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <NumberPlate plate={assignment.plateNumber} />
+                      <span className="font-mono text-sm font-semibold text-ink-950">{formatKg(assignment.loadKg)}</span>
+                      <p className="w-full text-xs text-ink-500">
+                        {formatCapacity(assignment.capacityKg)} truck
+                        {assignment.driverName ? ` · ${assignment.driverName}` : ""}
+                        {assignment.driverPhone ? (
+                          <>
+                            {" · "}
+                            <a href={`tel:${assignment.driverPhone}`} className="font-mono text-ice-700 hover:underline">
+                              {formatIndianMobile(assignment.driverPhone)}
+                            </a>
+                          </>
+                        ) : null}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 text-sm text-ink-500">Not on a truck yet.</p>
+              )}
+              {quote.status === "CONFIRMED" ? (
+                <Link
+                  href={`/admin/fleet?order=${quote.id}`}
+                  className={cn(secondaryButton, "mt-5 w-full")}
+                >
+                  <Truck aria-hidden="true" className="size-4" />
+                  {placedKg >= quote.quantityKg ? "View in fleet" : "Place on trucks"}
+                  <ArrowRight aria-hidden="true" className="size-4" />
+                </Link>
+              ) : (
+                <p className="mt-4 text-xs text-ink-500">Kept as a record. Completed requests no longer take up space.</p>
+              )}
+            </section>
+          ) : null}
+
           <section className={cn(card, "p-6")}>
             <h2 className={cn(sectionTitle, "mb-4")}>Status and quote</h2>
             <QuoteUpdateForm id={quote.id} status={quote.status} quotedAmount={quote.quotedAmount} />
@@ -215,9 +267,5 @@ async function QuoteView({ params }: Pick<PageProps<"/admin/quotes/[id]">, "para
 }
 
 export default function QuotePage({ params }: PageProps<"/admin/quotes/[id]">) {
-  return (
-    <Suspense fallback={<DetailSkeleton />}>
-      <QuoteView params={params} />
-    </Suspense>
-  );
+  return <QuoteView params={params} />;
 }

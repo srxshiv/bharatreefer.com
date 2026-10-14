@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PasswordForm } from "@/components/admin/password-form";
 import { card } from "@/components/admin/ui";
@@ -8,8 +7,11 @@ export const metadata: Metadata = {
   title: "Account",
 };
 
-async function Profile() {
-  const admin = await requireAdmin();
+// Renders complete on the server: the page is ready in one round trip, so showing a
+// skeleton first would only add a flash.
+export const instant = false;
+
+function Profile({ admin }: { admin: { name: string; email: string } }) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
       <div>
@@ -24,16 +26,15 @@ async function Profile() {
   );
 }
 
-export default function AccountPage() {
+export default async function AccountPage() {
+  const admin = await requireAdmin();
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold tracking-tight text-ink-950">Account</h1>
 
       <section className={`${card} p-6`}>
         <h2 className="mb-4 font-sans text-base font-semibold text-ink-950">Signed in as</h2>
-        <Suspense fallback={<div className="h-11 animate-pulse rounded-lg bg-frost-100" />}>
-          <Profile />
-        </Suspense>
+        <Profile admin={admin} />
       </section>
 
       <section className={`${card} p-6`}>

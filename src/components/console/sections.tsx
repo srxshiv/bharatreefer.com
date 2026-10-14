@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
-import { Clock, Mail, MapPin, MessageCircle, Phone, Thermometer, Timer, Truck } from "lucide-react";
+import { CalendarClock, Clock, Mail, MapPin, MessageCircle, Phone, Thermometer, Timer, Truck } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import { largestTruckKg, smallestTruckKg, type FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import type { BusinessInfo } from "@/config/site";
-import type { FleetPhotoInfo, SiteCopy, TruckSizeInfo } from "@/features/content/types";
+import { automaticFleetTitle } from "@/features/content/automatic";
+import type { PageSection } from "@/features/content/sections";
+import type { Faq, FleetPhotoInfo, RouteInfo, SiteCopy, TruckSizeInfo } from "@/features/content/types";
 import { GENERAL_WHATSAPP_MESSAGE } from "@/features/quotes/messages";
 import { cn } from "@/lib/cn";
 import { formatCapacity } from "@/lib/format";
@@ -12,6 +13,7 @@ import { formatHours } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
 import { whatsappLink } from "@/lib/whatsapp";
 import { DeskStatus } from "./desk-status";
+import { RouteButton } from "./route-button";
 import { card, primaryButton, secondaryButton } from "./ui";
 
 /** The brand column: who the business is, what it carries, how to reach it. Server-rendered. */
@@ -27,12 +29,15 @@ function tonnes(kg: number): string {
   return kg >= 1000 ? `${kg / 1000} tonnes` : formatCapacity(kg);
 }
 
-function SectionHeading({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
+/** A section's label, heading and introduction, as set in the admin panel. Empty text is left out. */
+function SectionHeading({ section, automaticTitle = "" }: { section: PageSection; automaticTitle?: string }) {
   return (
     <div className="mb-5">
-      <p className="caption text-ice-600">{eyebrow}</p>
-      <h2 className="mt-2 text-2xl/tight font-semibold tracking-tight text-navy-950">{title}</h2>
-      {children ? <p className="mt-2.5 max-w-prose text-[15px] leading-7 text-ink-600">{children}</p> : null}
+      {section.eyebrow ? <p className="caption text-ice-600">{section.eyebrow}</p> : null}
+      <h2 id={`${section.id}-title`} className={cn("text-2xl/tight font-semibold tracking-tight text-navy-950", section.eyebrow && "mt-2")}>
+        {section.title ?? automaticTitle}
+      </h2>
+      {section.intro ? <p className="mt-2.5 max-w-prose text-[15px] leading-7 text-ink-600">{section.intro}</p> : null}
     </div>
   );
 }
@@ -42,11 +47,13 @@ export function Hero({
   copy,
   fleet,
   bands,
+  showFacts,
 }: {
   business: BusinessInfo;
   copy: SiteCopy;
   fleet: FleetConfig;
   bands: Record<MaterialId, TemperatureBandInfo>;
+  showFacts: boolean;
 }) {
   const facts = [
     {
@@ -78,29 +85,29 @@ export function Hero({
       <p className="mt-4 max-w-xl text-lg leading-8 text-ink-600">{copy.heroIntro}</p>
       <div aria-hidden="true" className="tricolour mt-6 h-1 w-24 rounded-full" />
 
-      <dl className="mt-7 grid gap-3 sm:grid-cols-3">
-        {facts.map((fact) => (
-          <div key={fact.label} className={cn(card, "flex items-center gap-3 px-4 py-3.5")}>
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-ice-50 text-ice-600">
-              <fact.Icon aria-hidden="true" className="size-4.5" />
-            </span>
-            <div className="min-w-0">
-              <dd className="text-sm/5 font-semibold text-navy-950">{fact.value}</dd>
-              <dt className="mt-0.5 text-xs text-ink-500">{fact.label}</dt>
+      {showFacts ? (
+        <dl className="mt-7 grid gap-3 sm:grid-cols-3">
+          {facts.map((fact) => (
+            <div key={fact.label} className={cn(card, "flex items-center gap-3 px-4 py-3.5")}>
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-ice-50 text-ice-600">
+                <fact.Icon aria-hidden="true" className="size-4.5" />
+              </span>
+              <div className="min-w-0">
+                <dd className="text-sm/5 font-semibold text-navy-950">{fact.value}</dd>
+                <dt className="mt-0.5 text-xs text-ink-500">{fact.label}</dt>
+              </div>
             </div>
-          </div>
-        ))}
-      </dl>
+          ))}
+        </dl>
+      ) : null}
     </section>
   );
 }
 
-export function Bands({ bands }: { bands: Record<MaterialId, TemperatureBandInfo> }) {
+export function Bands({ section, bands }: { section: PageSection; bands: Record<MaterialId, TemperatureBandInfo> }) {
   return (
     <section aria-labelledby="bands-title">
-      <SectionHeading eyebrow="What we carry" title="Set to what your cargo needs">
-        Tell us what you are moving and the truck is set to the matching band before it loads.
-      </SectionHeading>
+      <SectionHeading section={section} />
       <ul className="grid gap-4 sm:grid-cols-3">
         {MATERIAL_IDS.map((id) => {
           const band = bands[id];
@@ -127,10 +134,12 @@ export function Bands({ bands }: { bands: Record<MaterialId, TemperatureBandInfo
 }
 
 export function Fleet({
+  section,
   trucks,
   fleet,
   photos,
 }: {
+  section: PageSection;
   trucks: TruckSizeInfo[];
   fleet: FleetConfig;
   photos: FleetPhotoInfo[];
@@ -140,13 +149,7 @@ export function Fleet({
 
   return (
     <section aria-labelledby="fleet-title">
-      <SectionHeading
-        eyebrow="Our fleet"
-        title={`${trucks.length} truck sizes, ${formatCapacity(trucks[0].capacityKg)} to ${tonnes(largest)}`}
-      >
-        The quote form suggests the smallest truck that carries your weight. Dispatch confirms
-        the vehicle when they quote.
-      </SectionHeading>
+      <SectionHeading section={section} automaticTitle={automaticFleetTitle(trucks, fleet)} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className={cn(card, "px-5 py-2")}>
@@ -227,10 +230,10 @@ export function Fleet({
   );
 }
 
-export function Steps({ copy }: { copy: SiteCopy }) {
+export function Steps({ section, copy }: { section: PageSection; copy: SiteCopy }) {
   return (
     <section aria-labelledby="steps-title">
-      <SectionHeading eyebrow="How it works" title="From request to a truck at your dock" />
+      <SectionHeading section={section} />
       <ol className="grid gap-4 sm:grid-cols-3">
         {copy.steps.map((step, index) => (
           <li key={step.title} className={cn(card, "p-5")}>
@@ -246,7 +249,7 @@ export function Steps({ copy }: { copy: SiteCopy }) {
   );
 }
 
-export function Contact({ business, copy }: { business: BusinessInfo; copy: SiteCopy }) {
+export function Contact({ section, business }: { section: PageSection; business: BusinessInfo }) {
   const details = [
     {
       Icon: Mail,
@@ -264,10 +267,7 @@ export function Contact({ business, copy }: { business: BusinessInfo; copy: Site
 
   return (
     <section aria-labelledby="contact-title">
-      <SectionHeading eyebrow="Contact" title="Talk to dispatch">
-        Urgent load or an unusual route? Call the desk directly, or send the details through
-        the form and we will come back with a quote.
-      </SectionHeading>
+      <SectionHeading section={section} />
 
       <div className="flex flex-wrap gap-3">
         <a href={`tel:${business.phone}`} className={primaryButton}>
@@ -299,25 +299,86 @@ export function Contact({ business, copy }: { business: BusinessInfo; copy: Site
         ))}
       </dl>
 
-      {copy.faqs.length > 0 ? (
-        <div className="mt-8">
-          <h3 className="caption text-ice-600">Questions</h3>
-          <div className="mt-3 divide-y divide-frost-200 border-y border-frost-200">
-            {copy.faqs.map((faq) => (
-              <details key={faq.question} className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-3.5 text-sm font-medium text-navy-950 [&::-webkit-details-marker]:hidden">
-                  {faq.question}
-                  <span
-                    aria-hidden="true"
-                    className="relative size-3.5 shrink-0 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2 before:bg-navy-900 after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-navy-900 after:transition-transform group-open:after:rotate-90"
-                  />
-                </summary>
-                <p className="pb-4 text-sm leading-6 text-ink-600">{faq.answer}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      ) : null}
+    </section>
+  );
+}
+
+export function Faqs({ section, faqs }: { section: PageSection; faqs: Faq[] }) {
+  return (
+    <section aria-labelledby="faqs-title">
+      <SectionHeading section={section} />
+      <div className="divide-y divide-frost-200 border-y border-frost-200">
+        {faqs.map((faq) => (
+          <details key={faq.question} className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-3.5 text-sm font-medium text-navy-950 [&::-webkit-details-marker]:hidden">
+              {faq.question}
+              <span
+                aria-hidden="true"
+                className="relative size-3.5 shrink-0 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2 before:bg-navy-900 after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-navy-900 after:transition-transform group-open:after:rotate-90"
+              />
+            </summary>
+            <p className="pb-4 text-sm leading-6 text-ink-600">{faq.answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Lanes the business runs often (beta). Each card starts a quote with the route filled in. */
+export function Routes({ section, routes }: { section: PageSection; routes: RouteInfo[] }) {
+  return (
+    <section aria-labelledby="routes-title">
+      <SectionHeading section={section} />
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {routes.map((route) => (
+          <li
+            key={`${route.originCity}-${route.destinationCity}-${route.originState}-${route.destinationState}`}
+            className={cn(card, "flex flex-col p-4 transition-shadow hover:shadow-md")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-navy-950">{route.originCity}</p>
+                <p className="truncate text-xs text-ink-500">{route.originState}</p>
+              </div>
+              <div aria-hidden="true" className="relative h-px min-w-8 flex-1 border-t border-dashed border-frost-400">
+                <Truck className="absolute -top-2 left-1/2 size-4 -translate-x-1/2 bg-white px-0.5 text-ice-600" />
+              </div>
+              <span className="sr-only">to</span>
+              <div className="min-w-0 text-right">
+                <p className="truncate text-base font-semibold text-navy-950">{route.destinationCity}</p>
+                <p className="truncate text-xs text-ink-500">{route.destinationState}</p>
+              </div>
+            </div>
+            {route.transitTime || route.frequency ? (
+              <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-600">
+                {route.transitTime ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Timer aria-hidden="true" className="size-3.5 text-ice-600" />
+                    {route.transitTime}
+                  </span>
+                ) : null}
+                {route.frequency ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarClock aria-hidden="true" className="size-3.5 text-ice-600" />
+                    {route.frequency}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+            <div className="mt-auto pt-3">
+              <RouteButton
+                route={{
+                  originState: route.originState,
+                  originCity: route.originCity,
+                  destinationState: route.destinationState,
+                  destinationCity: route.destinationCity,
+                }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

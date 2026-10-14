@@ -1,6 +1,9 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, MessageCircle, Phone } from "lucide-react";
+import { AnnouncementBar } from "@/components/site/announcement-bar";
 import { Logo } from "@/components/site/logo";
+import type { PageSection, SectionId } from "@/features/content/sections";
 import type { SiteContent } from "@/features/content/types";
 import { GENERAL_WHATSAPP_MESSAGE } from "@/features/quotes/messages";
 import { cn } from "@/lib/cn";
@@ -8,7 +11,7 @@ import { formatIndianMobile } from "@/lib/phone";
 import { whatsappLink } from "@/lib/whatsapp";
 import { DeskStatus } from "./desk-status";
 import { QuoteCard } from "./quote-card";
-import { Bands, Contact, Fleet, Hero, Steps, formatAddress } from "./sections";
+import { Bands, Contact, Faqs, Fleet, Hero, Routes, Steps, formatAddress } from "./sections";
 import { primaryButton } from "./ui";
 
 /**
@@ -17,11 +20,27 @@ import { primaryButton } from "./ui";
  * it sits right under the introduction.
  */
 export function Home({ content }: { content: SiteContent }) {
-  const { business, fleet, trucks, bands, copy, photos } = content;
+  const { business, fleet, trucks, bands, copy, photos, routes, sections, showFacts, announcement } = content;
   const phoneDisplay = formatIndianMobile(business.phone);
+
+  // Each section the business has switched on, in their order. A section with nothing to
+  // show (no routes yet, no questions) is left out rather than shown empty.
+  const render: Record<SectionId, (section: PageSection) => ReactNode> = {
+    bands: (section) => <Bands section={section} bands={bands} />,
+    fleet: (section) => <Fleet section={section} trucks={trucks} fleet={fleet} photos={photos} />,
+    routes: (section) => (routes.length > 0 ? <Routes section={section} routes={routes} /> : null),
+    steps: (section) => (copy.steps.length > 0 ? <Steps section={section} copy={copy} /> : null),
+    contact: (section) => <Contact section={section} business={business} />,
+    faqs: (section) => (copy.faqs.length > 0 ? <Faqs section={section} faqs={copy.faqs} /> : null),
+  };
+  const shown = sections
+    .filter((section) => section.visible)
+    .map((section) => ({ id: section.id, node: render[section.id](section) }))
+    .filter((item) => item.node !== null);
 
   return (
     <div className="flex min-h-dvh flex-col">
+      {announcement ? <AnnouncementBar announcement={announcement} /> : null}
       <header className="sticky top-0 z-30 border-b border-frost-200 bg-white/90 backdrop-blur-sm">
         <div className="shell flex h-16 items-center justify-between gap-4 lg:h-20">
           <Link href="/" className="rounded-lg">
@@ -58,7 +77,7 @@ export function Home({ content }: { content: SiteContent }) {
       <main className="frost-glow flex-1">
         <div className="shell grid grid-cols-1 gap-x-10 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:pt-6 lg:pb-10 xl:gap-x-14">
           <div className="lg:col-start-1 lg:pt-4">
-            <Hero business={business} copy={copy} fleet={fleet} bands={bands} />
+            <Hero business={business} copy={copy} fleet={fleet} bands={bands} showFacts={showFacts} />
           </div>
 
           {/* Pinned while the brand column scrolls. Sized to fit a laptop screen whole, nothing to scroll. */}
@@ -66,12 +85,13 @@ export function Home({ content }: { content: SiteContent }) {
             <QuoteCard business={business} fleet={fleet} bands={bands} />
           </div>
 
-          <div className="mt-14 space-y-14 lg:col-start-1 lg:row-start-2 lg:mt-16">
-            <Bands bands={bands} />
-            <Fleet trucks={trucks} fleet={fleet} photos={photos} />
-            <Steps copy={copy} />
-            <Contact business={business} copy={copy} />
-          </div>
+          {shown.length > 0 ? (
+            <div className="mt-14 space-y-14 lg:col-start-1 lg:row-start-2 lg:mt-16">
+              {shown.map((item) => (
+                <div key={item.id}>{item.node}</div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </main>
 

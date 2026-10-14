@@ -2,7 +2,8 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { db, describeDatabase } from "@/lib/db";
+import { serverEnv } from "@/lib/env";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { clientIp, hashIp } from "@/lib/request";
@@ -68,6 +69,16 @@ export async function login(_previous: AuthFormState, formData: FormData): Promi
 
   if (!user || !passwordMatches) {
     await recordFailedLogin(email, ipHash);
+    // The visitor only ever sees the generic message. In development, say which part failed
+    // and where, so a missing account or the wrong database is obvious from the terminal.
+    if (process.env.NODE_ENV !== "production") {
+      const where = describeDatabase(serverEnv().DATABASE_URL);
+      console.warn(
+        user
+          ? `[auth] Wrong password for ${email} (database ${where}).`
+          : `[auth] No admin account ${email} in database ${where}. Create it with: pnpm admin:create --email ${email} --name "Your Name"`,
+      );
+    }
     return { error: INVALID_CREDENTIALS, email };
   }
 

@@ -1,15 +1,18 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ActionForm } from "@/components/admin/action-form";
 import { card, input, label } from "@/components/admin/ui";
 import { saveBusinessAction } from "@/features/content/actions";
-import { readSiteContent } from "@/features/content/data";
+import { getSiteContentForAdmin } from "@/features/content/data";
 import { DAY_NAMES } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
 
 export const metadata: Metadata = {
   title: "Business details",
 };
+
+// Renders complete on the server (one round trip, about 0.2 s): no skeleton flash. The
+// progress bar at the top of the panel shows a click was registered.
+export const instant = false;
 
 const sectionTitle = "font-sans text-base font-semibold text-ink-950";
 const hint = "mt-1.5 text-sm text-ink-500";
@@ -55,7 +58,7 @@ function Field({
 }
 
 async function BusinessForm() {
-  const { content } = await readSiteContent();
+  const { content } = await getSiteContentForAdmin();
   const { business } = content;
 
   return (
@@ -162,9 +165,5 @@ async function BusinessForm() {
 }
 
 export default function BusinessPage() {
-  return (
-    <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-frost-100" />}>
-      <BusinessForm />
-    </Suspense>
-  );
+  return <BusinessForm />;
 }

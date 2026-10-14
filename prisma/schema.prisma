@@ -75,7 +75,8 @@ model QuoteRequest {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  activities QuoteActivity[]
+  activities  QuoteActivity[]
+  assignments TruckAssignment[]
 
   @@index([status, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
@@ -90,6 +91,7 @@ enum QuoteActivityType {
   STATUS_CHANGE
   PRICE_CHANGE
   NOTIFICATION
+  ASSIGNMENT
 
   @@map("quote_activity_type")
 }
@@ -190,6 +192,11 @@ model SiteSettings {
   /// [{ question, answer }]. Null means the automatic questions.
   faqs  Json?
 
+  /// Public page sections: { [sectionId]: { visible, eyebrow?, title?, intro? } }. Missing keys use the defaults.
+  sections     Json?
+  /// Bar across the top of the public site: { enabled, text, linkLabel?, linkUrl?, tone }.
+  announcement Json?
+
   /// Smallest and largest consignment accepted through the quote form, in kilograms.
   minQuantityKg Int @map("min_quantity_kg")
   maxQuantityKg Int @map("max_quantity_kg")
@@ -240,4 +247,68 @@ model FleetPhoto {
 
   @@index([position])
   @@map("fleet_photos")
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  MAINTENANCE
+
+  @@map("vehicle_status")
+}
+
+/// A truck in the fleet, identified by its registration plate.
+model Vehicle {
+  id          String        @id @default(cuid())
+  /// Uppercase without spaces or dashes, e.g. "DL01LA4521".
+  plateNumber String        @unique @map("plate_number")
+  /// Payload in kilograms. Groups the truck with a size in the fleet.
+  capacityKg  Int           @map("capacity_kg")
+  model       String?
+  driverName  String?       @map("driver_name")
+  /// E.164
+  driverPhone String?       @map("driver_phone")
+  status      VehicleStatus @default(AVAILABLE)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  assignments TruckAssignment[]
+
+  @@index([capacityKg])
+  @@map("vehicles")
+}
+
+/// A confirmed load, or part of one, placed on a truck. A truck can carry several part loads
+/// and a heavy load can span several trucks.
+model TruckAssignment {
+  id             String       @id @default(cuid())
+  vehicleId      String       @map("vehicle_id")
+  vehicle        Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  quoteRequestId String       @map("quote_request_id")
+  quoteRequest   QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  /// How much of the request's weight travels on this truck.
+  loadKg         Int          @map("load_kg")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([vehicleId, quoteRequestId])
+  @@index([quoteRequestId])
+  @@map("truck_assignments")
+}
+
+/// A lane the business runs regularly, shown on the public site (beta).
+model Route {
+  id               String   @id @default(cuid())
+  originState      String   @map("origin_state")
+  originCity       String   @map("origin_city")
+  destinationState String   @map("destination_state")
+  destinationCity  String   @map("destination_city")
+  /// e.g. "36 to 48 hours"
+  transitTime      String?  @map("transit_time")
+  /// e.g. "Daily departures"
+  frequency        String?
+  position         Int
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([position])
+  @@map("routes")
 }

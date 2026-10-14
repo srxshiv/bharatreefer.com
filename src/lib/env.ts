@@ -21,15 +21,21 @@ const schema = z.object({
 
 type ServerEnv = z.infer<typeof schema>;
 
-let cached: ServerEnv | undefined;
+let cached: { source: string; env: ServerEnv } | undefined;
 
 /**
- * Server-side environment, validated on first use rather than at import so a
- * build without secrets still succeeds and a misconfigured deploy fails with a
- * readable message instead of an obscure driver error.
+ * Server-side environment, validated on first use rather than at import so a build without
+ * secrets still succeeds and a misconfigured deploy fails with a readable message instead
+ * of an obscure driver error.
+ *
+ * Validated again whenever one of the values changes, because `next dev` reloads `.env`
+ * without restarting.
  */
 export function serverEnv(): ServerEnv {
-  if (cached) return cached;
+  const source = Object.keys(schema.shape)
+    .map((name) => process.env[name] ?? "")
+    .join("\u0000");
+  if (cached?.source === source) return cached.env;
 
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
@@ -37,6 +43,6 @@ export function serverEnv(): ServerEnv {
     throw new Error(`Invalid environment configuration:\n${problems}\nSee .env.example.`);
   }
 
-  cached = parsed.data;
-  return cached;
+  cached = { source, env: parsed.data };
+  return cached.env;
 }

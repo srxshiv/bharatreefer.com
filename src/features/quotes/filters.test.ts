@@ -106,3 +106,16 @@ describe("filter flags", () => {
     expect(isFiltered({ ...DEFAULT_INBOX_FILTERS, originState: "Punjab" })).toBe(true);
   });
 });
+
+describe("board view", () => {
+  it("is read from the URL and kept in links", () => {
+    expect(parseInboxFilters({ view: "board" }).view).toBe("board");
+    expect(parseInboxFilters({ view: "grid" }).view).toBe("list");
+    expect(inboxQuery({ ...DEFAULT_INBOX_FILTERS, view: "board", q: "pune" })).toBe("?q=pune&view=board");
+    expect(inboxQuery({ ...DEFAULT_INBOX_FILTERS, view: "list" })).toBe("");
+  });
+
+  it("does not count as a filter", () => {
+    expect(isFiltered({ ...DEFAULT_INBOX_FILTERS, view: "board" })).toBe(false);
+  });
+});

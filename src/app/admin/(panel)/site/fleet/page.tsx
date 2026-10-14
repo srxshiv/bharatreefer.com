@@ -1,11 +1,10 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ActionForm } from "@/components/admin/action-form";
 import { ListEditor } from "@/components/admin/list-editor";
 import { PhotoControls } from "@/components/admin/photo-controls";
 import { card, input, label } from "@/components/admin/ui";
 import { saveFleetAction, updateFleetPhotoCaptionAction, uploadFleetPhotoAction } from "@/features/content/actions";
-import { MAX_FLEET_PHOTOS, readSiteContent } from "@/features/content/data";
+import { MAX_FLEET_PHOTOS, getSiteContentForAdmin } from "@/features/content/data";
 import { MAX_TRUCK_SIZES } from "@/features/content/schema";
 import { cn } from "@/lib/cn";
 
@@ -13,10 +12,14 @@ export const metadata: Metadata = {
   title: "Fleet and photos",
 };
 
+// Renders complete on the server (one round trip, about 0.2 s): no skeleton flash. The
+// progress bar at the top of the panel shows a click was registered.
+export const instant = false;
+
 const sectionTitle = "font-sans text-base font-semibold text-ink-950";
 
 async function FleetForms() {
-  const { content } = await readSiteContent();
+  const { content } = await getSiteContentForAdmin();
   const { trucks, fleet, photos } = content;
 
   return (
@@ -145,9 +148,5 @@ async function FleetForms() {
 }
 
 export default function FleetPage() {
-  return (
-    <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-frost-100" />}>
-      <FleetForms />
-    </Suspense>
-  );
+  return <FleetForms />;
 }
