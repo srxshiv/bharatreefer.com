@@ -21,8 +21,6 @@ export function truckState(truck: FleetTruck): TruckState {
     capacityKg: truck.capacityKg,
     status: truck.status,
     usedKg: truck.usedKg,
-    temperature: truck.temperature,
-    bands: [...new Set(truck.loads.map((load) => load.material))],
   };
 }
 

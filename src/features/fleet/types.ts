@@ -28,8 +28,6 @@ export type FleetTruck = {
   model: string | null;
   driverName: string | null;
   driverPhone: string | null;
-  /** The band the truck is set up for, or null when not fixed. */
-  temperature: MaterialId | null;
   lengthFt: number | null;
   tyres: number | null;
   status: TruckStatus;

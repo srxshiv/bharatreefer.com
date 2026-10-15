@@ -270,8 +270,6 @@ model Vehicle {
   driverName    String?       @map("driver_name")
   /// E.164
   driverPhone   String?       @map("driver_phone")
-  /// Temperature band the truck is set up for. Null: not fixed. Shown as a guide; mixing is allowed.
-  temperature   Material?
   /// Body length in feet, for information.
   lengthFt      Float?        @map("length_ft")
   /// Number of tyres, for information.

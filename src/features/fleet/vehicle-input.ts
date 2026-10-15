@@ -1,4 +1,3 @@
-import { isMaterialId, type MaterialId } from "@/config/materials";
 import { normaliseIndianMobile } from "@/lib/phone";
 import { normalisePlate } from "./plate";
 
@@ -9,7 +8,6 @@ export type VehicleInput = {
   driverName: string | null;
   /** E.164 */
   driverPhone: string | null;
-  temperature: MaterialId | null;
   lengthFt: number | null;
   tyres: number | null;
 };
@@ -48,9 +46,6 @@ export function parseVehicleForm(
     return { ok: false, error: "Enter the driver's 10-digit mobile number, or leave it empty." };
   }
 
-  const band = text(formData, "temperature");
-  if (band && !isMaterialId(band)) return { ok: false, error: "Choose the truck's temperature." };
-
   const rawLength = text(formData, "lengthFt").replace(/\s*(ft|feet|')\s*$/i, "");
   const lengthFt = rawLength ? Number(rawLength) : null;
   if (lengthFt !== null && !(Number.isFinite(lengthFt) && lengthFt >= 4 && lengthFt <= 60)) {
@@ -71,7 +66,6 @@ export function parseVehicleForm(
       model: model || null,
       driverName: driverName || null,
       driverPhone,
-      temperature: band ? (band as MaterialId) : null,
       lengthFt: lengthFt === null ? null : Math.round(lengthFt * 10) / 10,
       tyres,
     },

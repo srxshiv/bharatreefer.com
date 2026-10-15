@@ -49,9 +49,9 @@ export function placeNear(anchor: HTMLElement | null): PickerPosition | null {
 
 /**
  * A searchable list of every truck, grouped by payload, for choosing where a load goes. Each
- * truck shows what it carries, what it would carry with this load, and anything to know
- * (over the payload, a different temperature, on a trip). The owner always decides: only
- * trucks on a trip or in maintenance cannot be chosen.
+ * truck shows what it carries (each load in its temperature's colour), what it would carry
+ * with this load, and whether that goes over the payload. Any load can go on any truck: the
+ * owner always decides, and only trucks on a trip or in maintenance cannot be chosen.
  */
 export function TruckPicker({
   request,
@@ -95,7 +95,7 @@ export function TruckPicker({
 
   const states = useMemo(() => new Map(board.trucks.map((truck) => [truck.id, truckState(truck)])), [board.trucks]);
   const suggested = request && kgValid
-    ? bestFitId([...states.values()].filter((state) => state.id !== request.fromTruckId), request.material, kg)
+    ? bestFitId([...states.values()].filter((state) => state.id !== request.fromTruckId), kg)
     : null;
 
   const suggestedTruck = suggested ? board.trucks.find((truck) => truck.id === suggested) : undefined;
@@ -110,7 +110,6 @@ export function TruckPicker({
         truck.driverName ?? "",
         formatCapacity(truck.capacityKg),
         String(truck.capacityKg),
-        truck.temperature ? label(truck.temperature) : "",
       ]
         .join("|")
         .toLowerCase()
@@ -146,7 +145,6 @@ export function TruckPicker({
                 kg={kg}
                 kgValid={kgValid}
                 suggested={truck.id === suggested}
-                label={label}
                 onPick={onPick}
               />
             </li>
@@ -283,7 +281,7 @@ export function TruckPicker({
               <section aria-label="Suggested truck" className="mb-2 rounded-xl bg-saffron-50/50 p-1 dark:bg-ice-50">
                 <h3 className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-saffron-600">
                   <Sparkles aria-hidden="true" className="size-3.5" />
-                  Suggested: takes it all, right temperature
+                  Suggested: takes it all, least room to spare
                 </h3>
                 <TruckOption
                   truck={suggestedTruck}
@@ -292,7 +290,6 @@ export function TruckPicker({
                   kg={kg}
                   kgValid={kgValid}
                   suggested={false}
-                  label={label}
                   onPick={onPick}
                 />
               </section>
@@ -326,7 +323,6 @@ function TruckOption({
   kg,
   kgValid,
   suggested,
-  label,
   onPick,
 }: {
   truck: FleetTruck;
@@ -335,20 +331,18 @@ function TruckOption({
   kg: number;
   kgValid: boolean;
   suggested: boolean;
-  label: (band: MaterialId) => string;
   onPick: (truck: FleetTruck, kg: number) => void;
 }) {
   const current = truck.id === request.fromTruckId;
-  const placement = assessPlacement(state, request.material, kgValid ? kg : 0, label);
+  const placement = assessPlacement(state, kgValid ? kg : 0);
   const disabled = current || placement.blocked !== null || !kgValid;
   const adding = disabled ? 0 : kg;
   const after = truck.usedKg + adding;
   const over = after > truck.capacityKg;
-  // The bar is the payload: what is on board now, then this load. Anything past the end is
-  // over the payload, which the label says in words.
+  // The bar is the payload, see-through where it is empty: the loads on board in their
+  // temperatures' colours, then this load in a lighter shade of its own. Anything past the end
+  // is over the payload, which the label says in words.
   const share = (value: number) => `${Math.min(100, (value / truck.capacityKg) * 100)}%`;
-  const otherBand = truck.temperature !== null && truck.temperature !== request.material;
-  const mixed = !otherBand && state.bands.some((band) => band !== request.material);
 
   let verdict: { text: string; tone: string; icon?: boolean };
   if (current) verdict = { text: "Current truck", tone: "bg-frost-100 text-ink-600" };
@@ -373,23 +367,21 @@ function TruckOption({
     >
       <span className="flex items-center gap-2">
         <NumberPlate plate={truck.plateNumber} />
-        {truck.temperature ? (
-          <span className={cn("text-xs font-medium", otherBand ? "text-saffron-600" : "text-ink-500")}>
-            {label(truck.temperature)}
-            {otherBand ? " truck" : ""}
-          </span>
-        ) : null}
-        {mixed ? <span className="text-xs font-medium text-saffron-600">Has other loads</span> : null}
         <span className={cn("ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold", verdict.tone)}>
           {verdict.icon ? <Check aria-hidden="true" className="size-3.5" /> : null}
           {verdict.text}
         </span>
       </span>
-      <span aria-hidden="true" className={cn("mt-2.5 flex h-2 overflow-hidden rounded-full bg-frost-100", over && "ring-1 ring-danger")}>
-        <span className="h-full shrink-0 bg-ink-300" style={{ width: share(truck.usedKg) }} />
+      <span
+        aria-hidden="true"
+        className={cn("mt-2.5 flex h-2.5 overflow-hidden rounded-full border", over ? "border-danger" : "border-ink-300 dark:border-ink-400")}
+      >
+        {truck.loads.map((load) => (
+          <span key={load.assignmentId} className={cn("h-full shrink-0", BAND_STYLES[load.material].fill)} style={{ width: share(load.loadKg) }} />
+        ))}
         {adding > 0 ? (
           <span
-            className={cn("h-full shrink-0", over ? "bg-danger/70" : BAND_STYLES[request.material].fill)}
+            className={cn("h-full shrink-0 border-l border-surface", over ? "bg-danger/70" : cn(BAND_STYLES[request.material].fill, "opacity-50 dark:opacity-70"))}
             style={{ width: share(adding) }}
           />
         ) : null}

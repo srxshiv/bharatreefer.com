@@ -10,7 +10,6 @@ function truck(id: string, capacityKg: number, extra: Partial<FleetTruck> = {}):
     model: null,
     driverName: null,
     driverPhone: null,
-    temperature: null,
     lengthFt: null,
     tyres: null,
     status: "AVAILABLE",

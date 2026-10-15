@@ -16,7 +16,6 @@ describe("parseVehicleForm", () => {
         model: "  Tata  Signa ",
         driverName: "",
         driverPhone: "098710 94268",
-        temperature: "FROZEN",
         lengthFt: "32 ft",
         tyres: "10",
       }),
@@ -29,7 +28,6 @@ describe("parseVehicleForm", () => {
         model: "Tata Signa",
         driverName: null,
         driverPhone: "+919871094268",
-        temperature: "FROZEN",
         lengthFt: 32,
         tyres: 10,
       },
@@ -39,7 +37,7 @@ describe("parseVehicleForm", () => {
   it("leaves the optional details empty when not given", () => {
     expect(parseVehicleForm(form({ plateNumber: "HR38Z4410", capacityKg: "4000" }))).toMatchObject({
       ok: true,
-      value: { temperature: null, lengthFt: null, tyres: null },
+      value: { lengthFt: null, tyres: null },
     });
   });
 
@@ -52,6 +50,5 @@ describe("parseVehicleForm", () => {
     expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", driverPhone: "12345" }))).toMatchObject({ ok: false });
     expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", lengthFt: "200" }))).toMatchObject({ ok: false });
     expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", tyres: "6.5" }))).toMatchObject({ ok: false });
-    expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", temperature: "HOT" }))).toMatchObject({ ok: false });
   });
 });

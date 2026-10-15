@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { MessageCircle, Phone, Trash2, Wrench } from "lucide-react";
-import { BAND_STYLES } from "@/components/band-styles";
 import type { MaterialId } from "@/config/materials";
 import type { TruckSizeInfo } from "@/features/content/types";
 import { deleteVehicleAction, updateVehicleAction } from "@/features/fleet/actions";
@@ -129,17 +128,7 @@ export function TruckSheetBody({
 
       <section>
         <h3 className="caption text-ink-500">Truck</h3>
-        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-          <Fact label="Temperature">
-            {truck.temperature ? (
-              <span className={cn("inline-flex items-center gap-1.5", BAND_STYLES[truck.temperature].text)}>
-                <span aria-hidden="true" className={cn("size-2 rounded-full", BAND_STYLES[truck.temperature].fill)} />
-                {bandLabels[truck.temperature]}
-              </span>
-            ) : (
-              <span className="text-ink-500">Not fixed</span>
-            )}
-          </Fact>
+        <dl className="mt-2 grid grid-cols-3 gap-x-4 gap-y-3">
           <Fact label="Length">{truck.lengthFt !== null ? `${truck.lengthFt.toLocaleString("en-IN")} ft` : <span className="text-ink-500">—</span>}</Fact>
           <Fact label="Tyres">{truck.tyres ?? <span className="text-ink-500">—</span>}</Fact>
           <Fact label="Model">{truck.model ?? <span className="text-ink-500">—</span>}</Fact>
@@ -212,10 +201,9 @@ export function TruckSheetBody({
         </summary>
         <div className="border-t border-frost-200 p-4">
           <TruckForm
-            key={[truck.plateNumber, truck.capacityKg, truck.model, truck.driverName, truck.driverPhone, truck.temperature, truck.lengthFt, truck.tyres].join(":")}
+            key={[truck.plateNumber, truck.capacityKg, truck.model, truck.driverName, truck.driverPhone, truck.lengthFt, truck.tyres].join(":")}
             truck={truck}
             sizes={sizes}
-            bandLabels={bandLabels}
             submitLabel="Save truck"
             onSubmit={(formData) => updateVehicleAction(truck.id, formData)}
             onSaved={(message) => notify({ ok: true, message })}

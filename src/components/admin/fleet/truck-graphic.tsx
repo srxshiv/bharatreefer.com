@@ -4,21 +4,15 @@ import type { MaterialId } from "@/config/materials";
 import type { FleetLoad, TruckStatus } from "@/features/fleet/types";
 import { cn } from "@/lib/cn";
 
-/** Hatched fill for a load about to be placed, in its band's colour. */
-const PREVIEW: Record<MaterialId, string> = {
-  FROZEN: "bg-[repeating-linear-gradient(135deg,var(--color-frozen)_0_5px,transparent_5px_10px)]",
-  CHILLED: "bg-[repeating-linear-gradient(135deg,var(--color-chilled)_0_5px,transparent_5px_10px)]",
-  AMBIENT: "bg-[repeating-linear-gradient(135deg,var(--color-ambient)_0_5px,transparent_5px_10px)]",
-};
-
 function percent(kg: number, of: number): string {
   return `${Math.max(0, Math.min(100, (kg / of) * 100))}%`;
 }
 
 /**
- * A reefer truck seen from the side. The box fills from the cab backwards with each load in
- * its band's colour. Past the payload the box keeps going, and the part over the limit is
- * marked red, so an overloaded truck shows how far over it is at a glance.
+ * A reefer truck seen from the side. The box is see-through, so empty room shows as empty,
+ * and it fills from the cab backwards with each load in its temperature's colour: frozen
+ * blue, chilled cyan, ambient saffron. Past the payload the box keeps going, and the part over
+ * the limit is marked red, so an overloaded truck shows how far over it is at a glance.
  */
 export function TruckGraphic({
   capacityKg,
@@ -57,9 +51,9 @@ export function TruckGraphic({
         ) : null}
         <div
           className={cn(
-            "relative flex flex-1 flex-row-reverse overflow-hidden rounded-l-md rounded-r-sm border bg-frost-50 dark:bg-[#123d70]",
+            "relative flex flex-1 flex-row-reverse overflow-hidden rounded-l-md rounded-r-sm border-2 bg-transparent",
             tall ? "h-20" : tiny ? "h-5" : "h-12",
-            over ? "border-danger" : "border-frost-300",
+            over ? "border-danger" : "border-ink-300 dark:border-ink-400",
             status === "MAINTENANCE" &&
               "bg-[repeating-linear-gradient(45deg,var(--color-frost-100)_0_6px,var(--color-frost-50)_6px_12px)]",
           )}
@@ -81,7 +75,7 @@ export function TruckGraphic({
             <div
               className={cn(
                 "h-full w-(--w) shrink-0 border-l border-white/80 opacity-70 transition-[width] duration-300 starting:w-0",
-                PREVIEW[preview.material],
+                BAND_STYLES[preview.material].hatch,
               )}
               style={{ "--w": percent(preview.kg, scaleKg) } as CSSProperties}
             />

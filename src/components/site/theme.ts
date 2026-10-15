@@ -10,5 +10,9 @@ export const THEME_COLORS = { dark: "#011f45", light: "#f4f7fb" } as const;
 /**
  * Runs in <head> before the page paints, so a visitor who chose the dark theme never sees
  * a flash of the light one. The page is served light; this only switches it when needed.
+ *
+ * It also handles every theme button (marked `data-theme-toggle`), so the button works the
+ * moment the page shows, without waiting for React to load: on a slow connection, or while
+ * the development server is still compiling, a React click handler would not be attached yet.
  */
-export const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_KEY)});if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="light"?${JSON.stringify(THEME_COLORS.light)}:${JSON.stringify(THEME_COLORS.dark)});}}catch(e){}})();`;
+export const THEME_SCRIPT = `(function(){var K=${JSON.stringify(THEME_KEY)},C=${JSON.stringify(THEME_COLORS)},d=document;function a(t){d.documentElement.dataset.theme=t;var m=d.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",C[t]);}try{var t=localStorage.getItem(K);if(t==="light"||t==="dark")a(t);}catch(e){}d.addEventListener("click",function(e){var b=e.target&&e.target.closest&&e.target.closest("[data-theme-toggle]");if(!b)return;var n=d.documentElement.dataset.theme==="dark"?"light":"dark";a(n);try{localStorage.setItem(K,n);}catch(e){}});})();`;

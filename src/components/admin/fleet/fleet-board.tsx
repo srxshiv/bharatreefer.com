@@ -280,7 +280,7 @@ export function FleetBoard({
               </li>
             ))}
             <li className="inline-flex items-center gap-1.5">
-              <span aria-hidden="true" className="size-2.5 rounded-sm border border-frost-300 bg-frost-50 dark:bg-[#123d70]" />
+              <span aria-hidden="true" className="size-2.5 rounded-sm border border-ink-300 dark:border-ink-400" />
               Free
             </li>
             <li className="inline-flex items-center gap-1.5">
@@ -331,7 +331,6 @@ export function FleetBoard({
         {sheet?.kind === "add" ? (
           <TruckForm
             sizes={view.sizes}
-            bandLabels={bandLabels}
             defaultCapacityKg={sheet.capacityKg}
             submitLabel="Add truck"
             onSubmit={addVehicleAction}
@@ -529,12 +528,6 @@ function TruckCard({
           <NumberPlate plate={truck.plateNumber} />
         </button>
         <div className="flex flex-wrap justify-end gap-1.5">
-          {truck.temperature ? (
-            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium", BAND_STYLES[truck.temperature].soft, BAND_STYLES[truck.temperature].text)}>
-              <span aria-hidden="true" className={cn("size-1.5 rounded-full", BAND_STYLES[truck.temperature].fill)} />
-              {bandLabels[truck.temperature]}
-            </span>
-          ) : null}
           {truck.status === "ON_TRIP" ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-ice-50 px-2 py-0.5 text-xs font-semibold text-ice-700">
               <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-ice-500" />

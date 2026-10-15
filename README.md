@@ -197,18 +197,20 @@ from search engines.
 - **Request detail** (the panel, or the full page): the load and the customer, one-tap call, WhatsApp and email, the
   status and quoted amount, the trucks a confirmed load is on, internal notes, and a
   timeline of every change, email and truck placement.
-- **Fleet**: every truck by number plate, grouped by payload, with its temperature, body
-  length, tyres, driver and status (available, loading, on a trip, in maintenance). Each
-  truck is drawn with its loads filling the box in their band's colour; past the payload
-  the box keeps going and the excess is marked red, with "2,000 kg over" beside it. Each
+- **Fleet**: every truck by number plate, grouped by payload, with its body length, tyres,
+  driver and status (available, loading, on a trip, in maintenance). Trucks have no
+  temperature of their own: any load can go on any truck. Each truck is drawn with a
+  see-through box, its loads filling it in their temperature's colour (frozen blue, chilled
+  cyan, ambient saffron) and the empty room left clear; past the payload the box keeps going
+  and the excess is marked red, with "2,000 kg over" beside it. Each
   truck lists the loads on board with **Move** (to another truck) and **Remove** (back to
   the queue, still Confirmed).
   - Confirmed requests waiting for a truck are listed beside the trucks. **Choose truck**
     opens a searchable list of every truck, grouped by payload: type a plate, driver, model
     or size. Set how much of the load goes (all of it by default, or part, to split it), and
-    each truck shows what it carries, what it would carry with this load, whether it fits or
-    by how much it goes over, and anything to know (set up for another temperature,
-    carrying another band). The best fit is pinned at the top as a suggestion. On a
+    each truck shows what it carries (each load in its colour), what it would carry with
+    this load, and whether it fits or by how much it goes over. The best fit (takes it all
+    with the least room to spare) is pinned at the top as a suggestion. On a
     computer, a request can also be dragged onto a truck.
   - **Start trip** when a loaded truck leaves. **End trip** asks first, then delivers
     everything on board and empties the truck; a request whose whole weight has been
@@ -217,10 +219,10 @@ from search engines.
 
 How the fleet rules work:
 
-- The owner decides what goes where. A truck can be loaded past its payload (the board
-  shows by how much) and with a different temperature band (the board warns). Only a truck
-  on a trip or in maintenance takes no new loads. A request never has more weight placed
-  than it weighs.
+- The owner decides what goes where. Any load can go on any truck, and loads of different
+  temperatures can share one. A truck can be loaded past its payload (the board shows by how
+  much). Only a truck on a trip or in maintenance takes no new loads. A request never has
+  more weight placed than it weighs.
 - A load is on board until its trip ends. Marking a request Completed by hand delivers its
   loads too; moving it back to an earlier stage, or to Lost, takes them off their trucks.
 - One truck can carry parts of the same request on different trips.
@@ -366,7 +368,7 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   placement, the pipeline strip and board for requests, section switches, ordering and
   headings, the announcement bar, routes (beta), sample data (`pnpm db:seed`), and faster
   page switches in the admin panel.
-- **Fleet and speed update (done).** Trucks with temperature, length and tyres; choosing
+- **Fleet and speed update (done).** Trucks with length and tyres; choosing
   trucks from a searchable list, splitting and moving loads, overweight shown in red;
   trips that deliver loads and complete requests; prefetched admin pages; filters that
   apply as you change them; a hardened database pool; functions next to the database.

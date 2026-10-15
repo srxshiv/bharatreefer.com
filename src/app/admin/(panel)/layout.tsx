@@ -21,7 +21,7 @@ async function SignedInAs() {
   return <span className="hidden text-sm text-ink-500 xl:inline">{admin.name}</span>;
 }
 
-export default function PanelLayout({ children, modal }: LayoutProps<"/admin">) {
+export default function PanelLayout({ children }: LayoutProps<"/admin">) {
   return (
     <div className="flex flex-1 flex-col">
       <Suspense fallback={null}>
@@ -71,8 +71,6 @@ export default function PanelLayout({ children, modal }: LayoutProps<"/admin">) 
       </header>
 
       <main className="shell flex-1 py-6">{children}</main>
-      {/* A request opened from any admin page shows here, in a side panel over that page. */}
-      {modal}
     </div>
   );
 }

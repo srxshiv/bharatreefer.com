@@ -86,26 +86,26 @@ const STATUS_LABEL: Record<QuoteStatus, string> = {
   NEW: "New", CONTACTED: "Contacted", QUOTED: "Quoted", CONFIRMED: "Confirmed", COMPLETED: "Completed", LOST: "Lost", SPAM: "Spam",
 };
 
-/** Sample trucks: [plate, payload kg, model, body length ft, tyres, temperature]. Real Indian plate format. */
-export const SAMPLE_TRUCKS: Array<[string, number, string, number, number, "FROZEN" | "CHILLED" | "AMBIENT" | null]> = [
-  ["DL01LA4521", 900, "Tata Ace Gold reefer", 7, 4, "CHILLED"],
-  ["DL01LB7730", 900, "Tata Ace Gold reefer", 7, 4, "FROZEN"],
-  ["HR55AK1290", 1500, "Mahindra Bolero Pik-Up reefer", 8.5, 4, "CHILLED"],
-  ["HR55AK3384", 1500, "Mahindra Bolero Pik-Up reefer", 8.5, 4, null],
-  ["DL03CG5512", 2500, "Tata Intra V50 reefer", 10, 4, "FROZEN"],
-  ["HR38Z4410", 4000, "Tata 407 reefer", 14, 6, "FROZEN"],
-  ["HR38Z6672", 4000, "Tata 407 reefer", 14, 6, null],
-  ["DL01GC2209", 7000, "Eicher Pro 2095", 17, 6, "CHILLED"],
-  ["HR63E8891", 9000, "Eicher Pro 3015", 20, 6, "FROZEN"],
-  ["HR63E9014", 9000, "Eicher Pro 3015", 20, 6, null],
-  ["PB10HR3321", 16000, "Tata LPT 1916", 24, 10, "FROZEN"],
-  ["PB10HR4478", 16000, "Ashok Leyland 1920", 24, 10, "AMBIENT"],
-  ["PB10HS0912", 16000, "Tata LPT 1916", 24, 10, null],
-  ["DL01GD7765", 22000, "BharatBenz 2823R", 32, 12, "FROZEN"],
-  ["DL01GD8810", 22000, "Tata Signa 2825", 32, 12, null],
+/** Sample trucks: [plate, payload kg, model, body length ft, tyres]. Real Indian plate format. */
+export const SAMPLE_TRUCKS: Array<[string, number, string, number, number]> = [
+  ["DL01LA4521", 900, "Tata Ace Gold reefer", 7, 4],
+  ["DL01LB7730", 900, "Tata Ace Gold reefer", 7, 4],
+  ["HR55AK1290", 1500, "Mahindra Bolero Pik-Up reefer", 8.5, 4],
+  ["HR55AK3384", 1500, "Mahindra Bolero Pik-Up reefer", 8.5, 4],
+  ["DL03CG5512", 2500, "Tata Intra V50 reefer", 10, 4],
+  ["HR38Z4410", 4000, "Tata 407 reefer", 14, 6],
+  ["HR38Z6672", 4000, "Tata 407 reefer", 14, 6],
+  ["DL01GC2209", 7000, "Eicher Pro 2095", 17, 6],
+  ["HR63E8891", 9000, "Eicher Pro 3015", 20, 6],
+  ["HR63E9014", 9000, "Eicher Pro 3015", 20, 6],
+  ["PB10HR3321", 16000, "Tata LPT 1916", 24, 10],
+  ["PB10HR4478", 16000, "Ashok Leyland 1920", 24, 10],
+  ["PB10HS0912", 16000, "Tata LPT 1916", 24, 10],
+  ["DL01GD7765", 22000, "BharatBenz 2823R", 32, 12],
+  ["DL01GD8810", 22000, "Tata Signa 2825", 32, 12],
 ];
 
-type SeedTruck = { id: string; capacityKg: number; status: string; usedKg: number; band: string | null; temperature: string | null };
+type SeedTruck = { id: string; capacityKg: number; status: string; usedKg: number };
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -245,13 +245,12 @@ async function seed(prisma: PrismaClient) {
   const plates = new Set((await prisma.vehicle.findMany({ select: { plateNumber: true } })).map((v) => v.plateNumber));
   const trucks = SAMPLE_TRUCKS.filter(([plate]) => !plates.has(plate));
   await prisma.vehicle.createMany({
-    data: trucks.map(([plateNumber, capacityKg, model, lengthFt, tyres, temperature], index) => ({
+    data: trucks.map(([plateNumber, capacityKg, model, lengthFt, tyres], index) => ({
       plateNumber,
       capacityKg,
       model,
       lengthFt,
       tyres,
-      temperature,
       driverName: index % 3 === 0 ? null : `${random.pick(FIRST_NAMES)} ${random.pick(LAST_NAMES)}`,
       driverPhone: index % 3 === 0 ? null : `+9198${String(random.int(10_000_000, 99_999_999))}`,
       status: index === 9 ? "MAINTENANCE" : "AVAILABLE",
@@ -259,9 +258,9 @@ async function seed(prisma: PrismaClient) {
   });
   const vehicles = await prisma.vehicle.findMany({
     where: { plateNumber: { in: SAMPLE_TRUCKS.map(([plate]) => plate) } },
-    select: { id: true, plateNumber: true, capacityKg: true, status: true, temperature: true },
+    select: { id: true, plateNumber: true, capacityKg: true, status: true },
   });
-  const fleetState: SeedTruck[] = vehicles.map((vehicle) => ({ ...vehicle, usedKg: 0, band: null }));
+  const fleetState: SeedTruck[] = vehicles.map((vehicle) => ({ ...vehicle, usedKg: 0 }));
 
   // A few confirmed loads are already on trucks, each on its own truck with plenty of room
   // left, so a handful of trucks are part loaded and most are empty. The rest of the
@@ -269,7 +268,7 @@ async function seed(prisma: PrismaClient) {
   const PART_LOADED_TRUCKS = 4;
   const confirmed = rows
     .filter((row) => row.status === "CONFIRMED")
-    .map((row) => ({ id: idByReference.get(row.reference)!, kg: row.quantityKg as number, material: row.material as string }));
+    .map((row) => ({ id: idByReference.get(row.reference)!, kg: row.quantityKg as number }));
   const assignments: Array<{ vehicleId: string; quoteRequestId: string; loadKg: number; deliveredAt?: Date }> = [];
   for (const order of confirmed) {
     if (assignments.length >= PART_LOADED_TRUCKS) break;
@@ -278,14 +277,12 @@ async function seed(prisma: PrismaClient) {
         (candidate) =>
           candidate.status === "AVAILABLE" &&
           candidate.usedKg === 0 &&
-          (candidate.temperature === null || candidate.temperature === order.material) &&
           // Ends up no more than two thirds full.
           candidate.capacityKg >= order.kg * 1.5,
       )
       .sort((a, b) => a.capacityKg - b.capacityKg)[0];
     if (!truck) continue;
     truck.usedKg = order.kg;
-    truck.band = order.material;
     assignments.push({ vehicleId: truck.id, quoteRequestId: order.id, loadKg: order.kg });
   }
 

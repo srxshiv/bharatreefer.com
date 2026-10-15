@@ -18,9 +18,10 @@ export type { FleetBoard, FleetLoad, FleetOutcome, FleetTruck, WaitingOrder };
 // The rules:
 // - A load is on board while its assignment has no delivery time. Ending a trip delivers
 //   everything on the truck; a request whose weight has all been delivered is marked Completed.
-// - The owner decides what goes where. Trucks can be loaded past their payload (the board
-//   shows by how much) and with mixed temperature bands (the board warns). Only trucks on a
-//   trip or in maintenance take no new loads.
+// - The owner decides what goes where. Any load can go on any truck: trucks have no
+//   temperature of their own, and loads of different temperatures can share one. Trucks can be
+//   loaded past their payload (the board shows by how much). Only trucks on a trip or in
+//   maintenance take no new loads.
 // - A request never has more weight placed than it weighs.
 
 const vehicleSelect = {
@@ -30,7 +31,6 @@ const vehicleSelect = {
   model: true,
   driverName: true,
   driverPhone: true,
-  temperature: true,
   lengthFt: true,
   tyres: true,
   status: true,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, useTransition, type FormEvent } from "react";
-import { MATERIAL_IDS, type MaterialId } from "@/config/materials";
 import type { FleetOutcome, FleetTruck } from "@/features/fleet/types";
 import type { TruckSizeInfo } from "@/features/content/types";
 import { formatPlate } from "@/features/fleet/plate";
@@ -15,7 +14,6 @@ import { input, label } from "../ui";
 export function TruckForm({
   truck,
   sizes,
-  bandLabels,
   defaultCapacityKg,
   submitLabel,
   onSubmit,
@@ -23,7 +21,6 @@ export function TruckForm({
 }: {
   truck?: FleetTruck;
   sizes: TruckSizeInfo[];
-  bandLabels: Record<MaterialId, string>;
   defaultCapacityKg?: number;
   submitLabel: string;
   onSubmit: (formData: FormData) => Promise<FleetOutcome>;
@@ -101,25 +98,7 @@ export function TruckForm({
           </select>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <label htmlFor={`${id}-temperature`} className={label}>
-            Temperature
-          </label>
-          <select
-            id={`${id}-temperature`}
-            name="temperature"
-            defaultValue={truck?.temperature ?? ""}
-            className={cn(input, "mt-1.5")}
-          >
-            <option value="">Not fixed</option>
-            {MATERIAL_IDS.map((band) => (
-              <option key={band} value={band}>
-                {bandLabels[band]}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor={`${id}-length`} className={label}>
             Length <span className="font-normal text-ink-500">(ft)</span>
