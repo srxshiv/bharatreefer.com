@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refreshAdminData } from "@/features/auth/refresh-admin";
 import { formatInr } from "@/lib/format";
 import { addQuoteNote, updateQuoteRequest } from "./admin";
 import { isQuoteStatus } from "./status";
@@ -36,7 +36,7 @@ export async function saveQuoteUpdate(id: string, formData: FormData): Promise<A
   if (outcome === "not-found") return { error: GONE };
   if (outcome === "unchanged") return { success: "Nothing to save." };
 
-  refresh();
+  refreshAdminData();
   return { success: "Saved." };
 }
 
@@ -52,7 +52,7 @@ export async function saveQuoteNote(id: string, formData: FormData): Promise<Adm
 
   if (!(await addQuoteNote(id, body))) return { error: GONE };
 
-  refresh();
+  refreshAdminData();
   return { success: "Note added." };
 }
 
@@ -72,6 +72,23 @@ export async function moveQuoteStage(id: string, status: string, quotedAmount?: 
 
   const outcome = await updateQuoteRequest(id, { status, quotedAmount });
   if (outcome === "not-found") return { error: GONE };
-  if (outcome === "updated") refresh();
+  if (outcome === "updated") refreshAdminData();
   return { success: "Saved." };
+}
+
+/** Most requests one bulk change touches. */
+const MAX_BULK = 200;
+
+/** Moves several requests to one stage, as if each were moved on its own (timeline, trucks). */
+export async function bulkMoveQuoteStage(ids: string[], status: string): Promise<AdminFormState> {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_BULK) return { error: "Choose the requests first." };
+  if (!ids.every((id) => typeof id === "string" && id.length > 0 && id.length <= 64)) return { error: GONE };
+  if (!isQuoteStatus(status)) return { error: "Choose a status." };
+
+  let moved = 0;
+  for (const id of ids) {
+    if ((await updateQuoteRequest(id, { status })) === "updated") moved += 1;
+  }
+  if (moved > 0) refreshAdminData();
+  return { success: moved === 0 ? "Nothing to change." : `${moved} ${moved === 1 ? "request" : "requests"} moved.` };
 }

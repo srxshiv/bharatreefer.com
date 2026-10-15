@@ -32,8 +32,10 @@ const HEADER = [
 /** Downloads the quote requests matching the inbox filters as a CSV file. */
 export async function GET(request: NextRequest) {
   const filters = parseInboxFilters(Object.fromEntries(request.nextUrl.searchParams));
+  // `ids` exports just the rows ticked in the list.
+  const ids = request.nextUrl.searchParams.get("ids")?.split(",").filter((id) => /^[a-z0-9]{10,40}$/i.test(id)).slice(0, 500);
   // Checks the session itself and redirects to sign-in when there is none.
-  const quotes = await exportQuoteRequests(filters);
+  const quotes = await exportQuoteRequests(filters, ids?.length ? ids : undefined);
   const { bands } = await getSiteContent();
 
   const rows = quotes.map((quote) => [

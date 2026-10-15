@@ -17,7 +17,7 @@ export function RouteButton({ route, className }: { route: RoutePrefill; classNa
         requestRouteQuote(route);
       }}
       className={cn(
-        "inline-flex h-9 items-center gap-1.5 rounded-lg text-sm font-semibold text-ice-700 transition-colors hover:text-navy-950",
+        "inline-flex h-9 items-center gap-1.5 rounded-lg text-sm font-semibold text-ice-700 transition-colors hover:text-ink-950",
         className,
       )}
     >

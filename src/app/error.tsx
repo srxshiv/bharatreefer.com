@@ -21,7 +21,7 @@ export default function RouteError({
     <main className="flex flex-1 flex-col justify-center bg-frost-50 text-ink-900">
       <div className="shell py-16">
         <p className="caption text-ink-400">Something went wrong</p>
-        <h1 className="mt-4 max-w-xl text-4xl/tight font-semibold tracking-tight text-navy-950">
+        <h1 className="mt-4 max-w-xl text-4xl/tight font-semibold tracking-tight text-ink-950">
           We could not load this page.
         </h1>
         <p className="mt-5 max-w-md text-lg leading-8 text-ink-500">
@@ -38,7 +38,7 @@ export default function RouteError({
           </button>
           <a
             href={`tel:${business.phone}`}
-            className="inline-flex h-12 items-center rounded-lg border border-frost-300 bg-white px-5 font-mono text-[15px] text-navy-900 transition-colors hover:border-ice-500"
+            className="inline-flex h-12 items-center rounded-lg border border-frost-300 bg-surface px-5 font-mono text-[15px] text-ink-950 transition-colors hover:border-ice-500"
           >
             Call {formatIndianMobile(business.phone)}
           </a>

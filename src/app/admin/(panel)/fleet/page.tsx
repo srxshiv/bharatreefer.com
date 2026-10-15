@@ -3,7 +3,6 @@ import { FleetBoard } from "@/components/admin/fleet/fleet-board";
 import { MATERIAL_IDS } from "@/config/materials";
 import { getSiteContent } from "@/features/content/data";
 import { getFleetBoard } from "@/features/fleet/data";
-import { dateInIndia } from "@/lib/dates";
 
 export const metadata: Metadata = {
   title: "Fleet",
@@ -15,15 +14,15 @@ export const instant = false;
 
 export default async function FleetPage({ searchParams }: PageProps<"/admin/fleet">) {
   const [{ order }, board, { bands }] = await Promise.all([searchParams, getFleetBoard(), getSiteContent()]);
-  const bandInfo = Object.fromEntries(
-    MATERIAL_IDS.map((id) => [id, { label: bands[id].label, range: bands[id].range }]),
-  ) as Record<(typeof MATERIAL_IDS)[number], { label: string; range: string }>;
+  const bandLabels = Object.fromEntries(MATERIAL_IDS.map((id) => [id, bands[id].label])) as Record<
+    (typeof MATERIAL_IDS)[number],
+    string
+  >;
 
   return (
     <FleetBoard
       board={board}
-      bands={bandInfo}
-      today={dateInIndia()}
+      bandLabels={bandLabels}
       initialOrderId={typeof order === "string" ? order : undefined}
     />
   );

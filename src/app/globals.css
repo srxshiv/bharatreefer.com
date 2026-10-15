@@ -1,29 +1,38 @@
 @import "tailwindcss";
 
 /*
- * Palette. Navy from the logo for text and the main button, ice blue for the cold chain,
- * saffron and green from the tricolour as accents, frost-blue surfaces. Colour otherwise
- * means temperature: frozen is blue, chilled is cyan, ambient is saffron.
+ * Palette, built around the navy of "REEFER" in the logo (#012754, measured from the
+ * artwork: #011b42 in its shadows to #013b71 in its sheen). Navy for text, buttons and the
+ * brand bands; a royal ice blue drawn from the same lettering for accents; surfaces and
+ * text faintly tinted towards the navy; saffron and green from the tricolour as accents.
+ * Colour otherwise means temperature: frozen is blue, chilled is cyan, ambient is saffron.
  */
 @theme {
-  --color-navy-950: #061a30;
-  --color-navy-900: #0a2d57;
-  --color-navy-800: #0f3f78;
-  --color-navy-700: #175399;
+  /* Cards, panels, inputs and headers. Changes with the theme; "white" never does. */
+  --color-surface: #ffffff;
 
-  --color-ice-50: #eef6fc;
-  --color-ice-100: #dcedf9;
-  --color-ice-200: #bfe0f5;
-  --color-ice-300: #8fcdf3;
-  --color-ice-400: #3fb3f4;
-  --color-ice-500: #1e90e8;
-  --color-ice-600: #1273c4;
+  --color-navy-50: #eef3f9;
+  --color-navy-100: #dbe5f2;
+  --color-navy-200: #b7cae4;
+  --color-navy-950: #01183a;
+  --color-navy-900: #012754;
+  --color-navy-800: #013262;
+  --color-navy-700: #0d4a86;
 
-  --color-frost-50: #f5f9fc;
-  --color-frost-100: #eaf1f7;
-  --color-frost-200: #d9e4ee;
-  --color-frost-300: #c3d2e0;
-  --color-frost-400: #a3b6c9;
+  --color-ice-50: #eef4fb;
+  --color-ice-100: #dce8f6;
+  --color-ice-200: #bcd2ee;
+  --color-ice-300: #8db3e2;
+  --color-ice-400: #4f8ed6;
+  --color-ice-500: #2a6fc4;
+  --color-ice-600: #1a5aa8;
+  --color-ice-700: #013262;
+
+  --color-frost-50: #f4f7fb;
+  --color-frost-100: #e9eef6;
+  --color-frost-200: #d9e2ee;
+  --color-frost-300: #c3cfdf;
+  --color-frost-400: #a2b3c9;
 
   --color-saffron-50: #fff1e6;
   --color-saffron-400: #ff9a3d;
@@ -33,14 +42,14 @@
   --color-leaf-50: #e8f5ec;
   --color-leaf-600: #0a7a35;
 
-  --color-ink-950: #0b1a2b;
-  --color-ink-900: #14263b;
-  --color-ink-800: #1f3449;
-  --color-ink-700: #2b4059;
-  --color-ink-600: #3f5571;
-  --color-ink-500: #5a6f88;
-  --color-ink-400: #8597ad;
-  --color-ink-300: #aebccc;
+  --color-ink-950: #0b1a31;
+  --color-ink-900: #152843;
+  --color-ink-800: #213554;
+  --color-ink-700: #2d4363;
+  --color-ink-600: #415878;
+  --color-ink-500: #5a6e8c;
+  --color-ink-400: #8594ad;
+  --color-ink-300: #aebacd;
 
   --color-frozen: #1d5fd6;
   --color-frozen-soft: #e4edff;
@@ -55,12 +64,72 @@
   --color-success-soft: #e8f5ec;
 }
 
+/*
+ * Themes. Light is the default: white cards on a pale navy-tinted page, the logo navy for
+ * text and buttons. <html data-theme="dark"> switches to the dark theme, built on the REEFER
+ * navy: the page is that navy, cards and panels a step lighter, text light. A script in the
+ * root layout applies the visitor's choice before the page paints. Every colour token below
+ * is redefined for dark, so components mostly need no theme-specific classes; `dark:`
+ * exists for the few that do.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces: the navy of the logo, layered from the page up to raised panels. */
+  --color-frost-50: #011f45;
+  --color-surface: #072b58;
+  --color-frost-100: #0c3466;
+  --color-frost-200: #1a4276;
+  --color-frost-300: #2a5288;
+  --color-frost-400: #43699e;
+
+  /* Text, light on navy. */
+  --color-ink-950: #f2f6fc;
+  --color-ink-900: #e1e9f5;
+  --color-ink-800: #ccd8ea;
+  --color-ink-700: #b4c3da;
+  --color-ink-600: #9fb1cc;
+  --color-ink-500: #8ba0c0;
+  --color-ink-400: #6b82a5;
+  --color-ink-300: #4a6390;
+
+  /* Brand fills: a brighter royal blue, so buttons and active items stand out on navy.
+     navy-950 stays the deepest band (footer, toasts). */
+  --color-navy-950: #00132e;
+  --color-navy-900: #2563b3;
+  --color-navy-800: #3474c6;
+  --color-navy-700: #5a8fd6;
+  --color-navy-50: #0c3466;
+  --color-navy-100: #123d72;
+  --color-navy-200: #1d4a85;
+
+  /* Accents: tints become dark, text accents become light. */
+  --color-ice-50: #0e3769;
+  --color-ice-100: #134079;
+  --color-ice-600: #8db8ef;
+  --color-ice-700: #a9c9f2;
+
+  /* Temperature and status, readable on navy. */
+  --color-frozen: #5b8ff0;
+  --color-frozen-soft: #12346a;
+  --color-chilled-soft: #0b3b4f;
+  --color-ambient-soft: #3b2a14;
+  --color-danger: #ef5350;
+  --color-danger-soft: #3d1a24;
+  --color-success: #4cc38a;
+  --color-success-soft: #0d3a32;
+  --color-saffron-50: #3a2812;
+  --color-saffron-600: #ffa04f;
+  --color-leaf-50: #0d3a32;
+}
+
 /* Laptops with little vertical room: the quote card tightens up so it stays on screen. */
 @custom-variant short (@media (min-width: 64rem) and (max-height: 50rem));
 
 /* Older names still used in a few places, kept as aliases of the palette above. */
 @theme inline {
-  --color-ice-700: var(--color-navy-800);
   --color-amber-300: var(--color-saffron-400);
   --color-amber-400: var(--color-saffron-500);
   --color-amber-500: var(--color-saffron-500);
@@ -129,13 +198,14 @@
 /* Dark backdrop for the admin sign-in and the error pages. */
 @utility reefer-wall {
   background-color: var(--color-navy-950);
-  background-image: radial-gradient(60rem 30rem at 15% -10%, rgb(63 179 244 / 0.14), transparent 60%);
+  background-image: radial-gradient(60rem 30rem at 15% -10%, rgb(42 111 196 / 0.24), transparent 60%);
 }
 
-/* Cold glow behind the brand column. */
+/* Cold glow behind the brand column: the logo's navy and royal blue, a touch of saffron. */
 @utility frost-glow {
   background-image:
-    radial-gradient(50rem 28rem at 0% 0%, rgb(63 179 244 / 0.16), transparent 65%),
+    radial-gradient(50rem 28rem at 0% 0%, rgb(42 111 196 / 0.13), transparent 65%),
+    radial-gradient(36rem 22rem at 30% 0%, rgb(1 39 84 / 0.06), transparent 70%),
     radial-gradient(40rem 24rem at 100% 10%, rgb(255 122 0 / 0.05), transparent 60%);
 }
 
@@ -168,15 +238,6 @@
   @media (width >= 40rem) {
     padding-inline: 2rem;
   }
-}
-
-/* The brand side of the admin sign-in page: deep navy with a cold glow and a fine dot grid. */
-@utility login-panel {
-  background-color: var(--color-navy-950);
-  background-image:
-    radial-gradient(36rem 28rem at 85% 0%, rgb(63 179 244 / 0.28), transparent 65%),
-    radial-gradient(30rem 22rem at 0% 100%, rgb(255 122 0 / 0.1), transparent 60%),
-    linear-gradient(160deg, var(--color-navy-900) 0%, var(--color-navy-950) 70%);
 }
 
 @utility dot-grid {

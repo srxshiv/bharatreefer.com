@@ -64,7 +64,7 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 | `pnpm db:migrate` | Create and apply a migration in development. |
 | `pnpm db:deploy` | Apply pending migrations in production. |
 | `pnpm db:studio` | Browse the database in Prisma Studio. |
-| `pnpm db:seed` | Replace the sample data: 62 quote requests across every stage, 15 trucks, and loads placed on them. Real requests are never touched. `pnpm db:seed --clear` removes the sample data only. |
+| `pnpm db:seed` | Replace the sample data: 62 quote requests across every stage, 15 trucks with their details, loads on them (one truck out on a trip) and the delivery history of completed requests. Real requests and your own trucks are never touched. `pnpm db:seed --clear` removes the sample data only. |
 
 ## Project layout
 
@@ -107,9 +107,24 @@ One page in two columns:
   quote" button jumps to it. Under the weight field a strip of the fleet lights up the
   truck the load is planned on.
 
-The palette follows the logo: navy for text and buttons, ice blue for the cold-chain feel,
-saffron and green from the tricolour as accents. Temperature keeps its own colours (frozen
-blue, chilled cyan, ambient saffron).
+The site has two themes, on the public pages and in the admin panel alike, with a sun/moon
+switch in the header (and on the sign-in page):
+
+- **Light (the default)** is white cards on a pale navy-tinted page, with the logo navy for
+  text and buttons.
+- **Dark** is built on the navy of "REEFER" in the logo (`#012754`, measured from the
+  artwork): the page is that navy, cards and panels a step lighter, text light, and
+  buttons and active items a brighter royal blue so they stand out. The logo gets a thin
+  white outline so its navy lettering shows against the navy.
+
+The choice is kept in the browser (`localStorage`, key `bharat-reefer-color-theme`). A small script in the
+root layout applies it before the page paints, so there is no flash of the other theme.
+Every colour token in `src/app/globals.css` has a dark value under `[data-theme="dark"]`,
+so components use the same classes in both themes: `bg-surface` for cards and inputs (not
+`bg-white`, which stays white, as on the number plates), `text-ink-*` for text (not
+`text-navy-*`, which is a fill colour in dark). The `dark:` variant covers the few
+exceptions. Temperature keeps its own colours (frozen blue, chilled cyan, ambient
+saffron), slightly brightened in dark. Emails and the social preview image stay light.
 
 The logo lives at `public/brand/logo.webp` (made from `assets/Bharat Reefer Tricolor Truck
 Logo.png`); the favicons in `src/app/icon.png` and `apple-icon.png` are cut from it.
@@ -164,40 +179,53 @@ stored. Raw IP addresses are never stored, only a keyed hash.
 `/admin` is for the business only. It is not linked from the public site and is excluded
 from search engines.
 
-- **Requests**: a pipeline strip across the top shows how many requests sit at each stage
-  (New, Contacted, Quoted, Confirmed, Completed), what the quoted ones are worth, and the
-  win rate. Two views:
-  - **List**: every request, filtered by stage, with search by reference, name, phone or
-    city, a temperature filter, and under "More filters": received date range, pickup date
-    range, from and to state, full or part load, quoted or not, and sorting (newest,
-    oldest, pickup date). Active filters show as removable chips; the CSV export uses the
-    same filters.
+- **Requests**: one slim strip shows how many requests sit at each stage, what the quoted
+  ones are worth, and the win rate; below it, search, a temperature dropdown and a
+  **Filters** button whose panel holds the rest (received and pickup dates, from and to
+  state, load type, price, sorting) and applies them together. Two views:
+  - **List**: compact rows with page numbers and 25, 50 or 100 rows per page. Each row has a
+    menu to call the customer or move the request to any stage, and tick boxes select rows
+    to move several at once or export just those to CSV.
   - **Board**: a column per open stage. Each card moves on with one button (Mark
     contacted, Send quote, Confirmed, Delivered) or to any stage from its menu, and can be
     dragged between columns on a computer. Moving to Quoted asks for the price in the card.
     Confirmed cards show whether the load is on a truck yet.
-- **Request detail**: the load and the customer, one-tap call, WhatsApp and email, the
+- **Request panel**: clicking a request anywhere in the panel (a row, a board card, the
+  fleet queue, a load on a truck) opens it in a side panel over the page instead of
+  leaving it. The address changes, so Back or Escape closes it and a reload or shared link
+  shows the full page. Built with an intercepting route (`@modal/(.)quotes/[id]`).
+- **Request detail** (the panel, or the full page): the load and the customer, one-tap call, WhatsApp and email, the
   status and quoted amount, the trucks a confirmed load is on, internal notes, and a
   timeline of every change, email and truck placement.
-- **Fleet**: every truck by number plate, grouped by payload. Each truck is drawn with its
-  loads filling the box in their temperature band's colour. Confirmed requests waiting for
-  a truck are listed beside them: pick one and the board marks the best fit, shows how much
-  each truck would take, and dims the ones that cannot (in maintenance, full, or carrying
-  another temperature band). Tap a truck, drag the request onto it, or place it
-  automatically; a heavy load spreads over several trucks. Tapping a truck on its own opens
-  its details: loads with "Take off", status (available or in maintenance), driver, edit,
-  and remove.
+- **Fleet**: every truck by number plate, grouped by payload, with its temperature, body
+  length, tyres, driver and status (available, loading, on a trip, in maintenance). Each
+  truck is drawn with its loads filling the box in their band's colour; past the payload
+  the box keeps going and the excess is marked red, with "2,000 kg over" beside it. Each
+  truck lists the loads on board with **Move** (to another truck) and **Remove** (back to
+  the queue, still Confirmed).
+  - Confirmed requests waiting for a truck are listed beside the trucks. **Choose truck**
+    opens a searchable list of every truck, grouped by payload: type a plate, driver, model
+    or size. Set how much of the load goes (all of it by default, or part, to split it), and
+    each truck shows what it carries, what it would carry with this load, whether it fits or
+    by how much it goes over, and anything to know (set up for another temperature,
+    carrying another band). The best fit is pinned at the top as a suggestion. On a
+    computer, a request can also be dragged onto a truck.
+  - **Start trip** when a loaded truck leaves. **End trip** asks first, then delivers
+    everything on board and empties the truck; a request whose whole weight has been
+    delivered is marked Completed.
 - **Website**: the editable content described above.
 
 How the fleet rules work:
 
-- Only Confirmed requests count towards what a truck carries. Marking a request Completed
-  frees its trucks and keeps them as a record; moving it back to an earlier stage, or to
-  Lost, takes it off them.
-- One temperature band per truck. A truck in maintenance takes no loads, and cannot be put
-  in maintenance or removed while it carries any.
-- Placing a load locks the request and the truck in the database, so two people placing
-  loads at once cannot overfill a truck or place more than the request weighs.
+- The owner decides what goes where. A truck can be loaded past its payload (the board
+  shows by how much) and with a different temperature band (the board warns). Only a truck
+  on a trip or in maintenance takes no new loads. A request never has more weight placed
+  than it weighs.
+- A load is on board until its trip ends. Marking a request Completed by hand delivers its
+  loads too; moving it back to an earlier stage, or to Lost, takes them off their trucks.
+- One truck can carry parts of the same request on different trips.
+- Placing or moving a load locks the request and the truck in the database, so two people
+  working at once cannot place more than a request weighs.
 - Plates are stored without spaces (`DL01LA4521`) and shown as printed (`DL 01 LA 4521`).
   Bharat-series plates (`22 BH 1234 AA`) are accepted too.
 - **Account**: change your password. Doing so signs out your other devices.
@@ -244,6 +272,14 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
 - Set the environment variables above in the hosting dashboard.
 - Run `pnpm db:deploy` against the production database before the first release and after
   any schema change.
+- The live site and `.env` share one Neon database, so a schema change reaches the live
+  site the moment it is applied, before its code is deployed. Keep the two in step: apply a
+  migration, then push the code that uses it straight away, and don't run `pnpm db:seed`
+  (or otherwise write new values, such as a new truck status) until that code is live.
+  Older code fails on values it does not know: on 15 October the Fleet page broke on the
+  live site because a seeded truck was "on trip" before the code that knows trips was
+  deployed. Changes that remove things (a column, an index) go in a later migration, after
+  the code that stops using them is live.
 - Create the first admin account with `pnpm admin:create` (see Admin panel).
 - The database must be reachable during `next build`, because the public page prerenders
   with the content from it.
@@ -252,6 +288,10 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
 - Rate limiting and login throttling read the client IP from `x-forwarded-for`. Vercel sets
   it. Behind your own proxy, make sure the proxy sets that header and strips any value sent
   by the client.
+- `vercel.json` runs the server code in Singapore (`sin1`), next to the Neon database in
+  `ap-southeast-1`. Every admin page makes several database round trips, so functions in
+  another region (Vercel's default is Washington, D.C.) make every page about a second
+  slower. If the database moves, move this with it.
 
 ## Notes for contributors
 
@@ -283,14 +323,29 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   measured the card at four sizes).
 - Date filters in the admin panel are calendar days in India time; `startOfDayInIndia` in
   `src/lib/dates.ts` turns them into the UTC instants the database compares against.
-- Admin pages set `export const instant = false` and render complete on the server, with
-  no skeletons. A thin bar at the top of the panel (`NavigationProgress`) and a line under
-  the clicked link (`PendingHint`) show the click registered. Measured against Neon from
-  India in a production build: feedback within 10 ms, the new page in 0.2 to 0.33 s.
-  Changes on the two boards show immediately (`useOptimistic`) and save in the background.
-- The database pool keeps connections for 10 minutes and opens six when the app starts:
-  a new connection to Neon costs about 650 ms, a query about 95 ms. Data functions run
-  their queries in parallel with the session check.
+- **Why switching admin pages is instant.** The admin data functions and the session check
+  use `"use cache: private"`: nothing is stored on the server, but the browser keeps each
+  rendered page for 30 seconds (`ADMIN_PAGE_CACHE`). The main menu and the list/board
+  switch use `<Link prefetch>`, so those pages are fetched whole, data included, as soon
+  as the panel loads; rows, cards and filter links do the same on hover or touch
+  (`IntentLink`). Measured in a production build: 10 to 65 ms per switch, against 200 to
+  330 ms before.
+- Every admin save calls `refreshAdminData()`, which expires the `admin-data` cache tag and
+  refreshes the page. Without the tag, the refreshed page would show the data from before
+  the save. Pages also refetch when you come back to the tab after 30 seconds away
+  (`RefreshWhenVisible`), so new requests show up.
+- Admin pages set `export const instant = false`: they render complete, with no skeletons.
+  A thin bar at the top and a line under the clicked link show progress on the rare
+  switch that is not prefetched.
+- The filters apply as you change them (dates shortly after typing stops); the results
+  stay on screen, dimmed, while the next ones load. Filter fields are wrapped in their
+  labels rather than tied by `id`, because Next.js keeps recent pages mounted and the list
+  and board views would otherwise share ids.
+- The database pool keeps connections for 5 minutes and opens six when the app starts: a
+  new connection to Neon costs about 650 ms, a query about 95 ms. Idle connections are
+  probed every 10 seconds and replaced after 5 minutes, and a query gives up after 20
+  seconds; without this, a connection dropped by the network (a router, a hotspot, a
+  change of network) made the next page hang for 30 seconds or more.
 - `sslmode=require` in a connection string is rewritten to `verify-full`, which is what the
   pg driver already does, to stop its warning on every connection.
 - `next dev` keeps `use cache` results in memory across code changes. If you change the
@@ -311,5 +366,9 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   placement, the pipeline strip and board for requests, section switches, ordering and
   headings, the announcement bar, routes (beta), sample data (`pnpm db:seed`), and faster
   page switches in the admin panel.
+- **Fleet and speed update (done).** Trucks with temperature, length and tyres; choosing
+  trucks from a searchable list, splitting and moving loads, overweight shown in red;
+  trips that deliver loads and complete requests; prefetched admin pages; filters that
+  apply as you change them; a hardened database pool; functions next to the database.
 - **Phase 5: launch.** Neon and Vercel production setup, the domain, error monitoring,
   analytics, CAPTCHA if spam appears, backups, and a pre-launch checklist.

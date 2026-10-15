@@ -1,10 +1,11 @@
 import "server-only";
+import { cacheLife, cacheTag } from "next/cache";
 import type { Prisma, QuoteActivityType } from "@/generated/prisma/client";
-import { requireAdmin } from "@/features/auth/session";
+import { ADMIN_DATA_TAG, ADMIN_PAGE_CACHE, requireAdmin } from "@/features/auth/session";
 import { startOfDayInIndia, startOfNextDayInIndia } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatInr } from "@/lib/format";
-import { INBOX_PAGE_SIZE, type InboxFilters } from "./filters";
+import type { InboxFilters } from "./filters";
 import { QUOTE_STATUSES, STATUS_LABELS, type QuoteStatusId } from "./status";
 
 // Every function here checks the session first. Pages, actions and the export route
@@ -126,6 +127,9 @@ export async function listQuoteRequests(filters: InboxFilters): Promise<{
   counts: StatusCounts;
   values: StatusValues;
 }> {
+  "use cache: private";
+  cacheLife(ADMIN_PAGE_CACHE);
+  cacheTag(ADMIN_DATA_TAG);
   const base = matching(filters);
   const where = { AND: [base, inStatus(filters.status)] };
 
@@ -136,8 +140,8 @@ export async function listQuoteRequests(filters: InboxFilters): Promise<{
     db().quoteRequest.findMany({
       where,
       orderBy: ordering(filters.sort),
-      skip: (filters.page - 1) * INBOX_PAGE_SIZE,
-      take: INBOX_PAGE_SIZE,
+      skip: (filters.page - 1) * filters.size,
+      take: filters.size,
       select: inboxSelect,
     }),
     db().quoteRequest.groupBy({
@@ -151,7 +155,7 @@ export async function listQuoteRequests(filters: InboxFilters): Promise<{
   const { counts, values } = tally(grouped);
   // The per-status counts already hold the total for the current tab.
   const total = counts[filters.status];
-  return { rows, total, pageCount: Math.max(1, Math.ceil(total / INBOX_PAGE_SIZE)), counts, values };
+  return { rows, total, pageCount: Math.max(1, Math.ceil(total / filters.size)), counts, values };
 }
 
 function tally(
@@ -182,6 +186,9 @@ export async function listBoard(filters: InboxFilters): Promise<{
   /** When the board was read, for showing how long ago each request arrived. */
   readAt: number;
 }> {
+  "use cache: private";
+  cacheLife(ADMIN_PAGE_CACHE);
+  cacheTag(ADMIN_DATA_TAG);
   const base = matching(filters);
   const [, placed, grouped, ...columns] = await Promise.all([
     requireAdmin(),
@@ -217,6 +224,9 @@ export async function listBoard(filters: InboxFilters): Promise<{
 }
 
 export async function getQuoteRequest(id: string): Promise<QuoteDetail | null> {
+  "use cache: private";
+  cacheLife(ADMIN_PAGE_CACHE);
+  cacheTag(ADMIN_DATA_TAG);
   // One round trip: the session check, the request, its timeline and the author names run
   // together. Nested includes would be fetched one after another instead.
   const [, quote, activities, admins] = await Promise.all([
@@ -241,12 +251,15 @@ export async function getQuoteRequest(id: string): Promise<QuoteDetail | null> {
   };
 }
 
-/** Rows for the CSV export, newest first, using the same filters as the inbox. */
-export async function exportQuoteRequests(filters: InboxFilters): Promise<ExportRow[]> {
+/**
+ * Rows for the CSV export, using the same filters and order as the inbox. With `ids`, just
+ * those requests (the rows ticked in the list), whatever the filters.
+ */
+export async function exportQuoteRequests(filters: InboxFilters, ids?: string[]): Promise<ExportRow[]> {
   const [, rows] = await Promise.all([
     requireAdmin(),
     db().quoteRequest.findMany({
-      where: { AND: [matching(filters), inStatus(filters.status)] },
+      where: ids ? { id: { in: ids } } : { AND: [matching(filters), inStatus(filters.status)] },
       orderBy: ordering(filters.sort),
       take: EXPORT_LIMIT,
       select: exportSelect,
@@ -295,8 +308,18 @@ export async function updateQuoteRequest(
     }
     if (changes.length === 0) return "unchanged";
 
-    if (current.status === "CONFIRMED" && update.status !== "CONFIRMED" && update.status !== "COMPLETED") {
-      const { count } = await tx.truckAssignment.deleteMany({ where: { quoteRequestId: id } });
+    // Loads still on board follow the request: delivered when it is marked Completed, taken
+    // off their trucks when it goes back to an earlier stage or is lost.
+    if (current.status === "CONFIRMED" && update.status === "COMPLETED") {
+      const { count } = await tx.truckAssignment.updateMany({
+        where: { quoteRequestId: id, deliveredAt: null },
+        data: { deliveredAt: new Date() },
+      });
+      if (count > 0) {
+        changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Delivered; its truck is free" : `Delivered; its ${count} trucks are free` });
+      }
+    } else if (current.status === "CONFIRMED" && update.status !== "CONFIRMED") {
+      const { count } = await tx.truckAssignment.deleteMany({ where: { quoteRequestId: id, deliveredAt: null } });
       if (count > 0) {
         changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Taken off its truck" : `Taken off its ${count} trucks` });
       }

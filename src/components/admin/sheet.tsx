@@ -14,6 +14,8 @@ export function Sheet({
   title,
   children,
   status,
+  actions,
+  size = "md",
 }: {
   open: boolean;
   onClose: () => void;
@@ -21,6 +23,10 @@ export function Sheet({
   children: ReactNode;
   /** Result of the last action, shown along the bottom. The page behind is dimmed, so it goes here. */
   status?: ReactNode;
+  /** Buttons or links shown beside the close button. */
+  actions?: ReactNode;
+  /** "lg" for content laid out in two columns, such as a whole request. */
+  size?: "md" | "lg";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -38,14 +44,21 @@ export function Sheet({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      onClose={onClose}
+      // Only the person closes it (Escape, the X, a click outside). The dialog's own "close"
+      // event also fires when the panel unmounts or React re-runs the effect in development,
+      // and treating that as a close made route panels go Back twice.
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
       className={cn(
-        "fixed inset-x-0 top-auto bottom-0 m-0 max-h-[90dvh] w-full max-w-none flex-col overflow-hidden rounded-t-2xl bg-white p-0 text-ink-900 shadow-2xl open:flex",
-        "sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:max-h-dvh sm:w-[32rem] sm:rounded-none sm:rounded-l-2xl",
-        "backdrop:bg-ink-950/40",
+        "fixed inset-x-0 top-auto bottom-0 m-0 max-h-[90dvh] w-full max-w-none flex-col overflow-hidden rounded-t-2xl bg-surface p-0 text-ink-900 shadow-2xl open:flex",
+        "sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:max-h-dvh sm:rounded-none sm:rounded-l-2xl",
+        size === "lg" ? "sm:w-[min(58rem,calc(100vw-2rem))]" : "sm:w-[32rem]",
+        "backdrop:bg-[#000a1c]/55",
         "transition-[translate] duration-300 ease-out starting:open:translate-y-full sm:starting:open:translate-x-full sm:starting:open:translate-y-0",
       )}
     >
@@ -53,16 +66,20 @@ export function Sheet({
         <div id={titleId} className="min-w-0">
           {title}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="-mr-2 inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-frost-100 hover:text-ink-950"
-        >
-          <X aria-hidden="true" className="size-5" />
-          <span className="sr-only">Close</span>
-        </button>
+        <div className="-mr-2 flex shrink-0 items-center gap-1">
+          {actions}
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-frost-100 hover:text-ink-950"
+          >
+            <X aria-hidden="true" className="size-5" />
+            <span className="sr-only">Close</span>
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
+      {/* min-h-0 lets the body scroll inside the panel's height in every browser. */}
+      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
       <div aria-live="polite" className="empty:hidden border-t border-frost-200 px-5 py-3">
         {status}
       </div>

@@ -100,7 +100,7 @@ async function FleetForms() {
                 type="file"
                 accept="image/*"
                 required
-                className="mt-1.5 block w-full text-sm text-ink-700 file:mr-3 file:h-11 file:rounded-lg file:border file:border-frost-300 file:bg-white file:px-4 file:text-sm file:font-semibold file:text-ink-950"
+                className="mt-1.5 block w-full text-sm text-ink-700 file:mr-3 file:h-11 file:rounded-lg file:border file:border-frost-300 file:bg-surface file:px-4 file:text-sm file:font-semibold file:text-ink-950"
               />
               <p className="mt-1.5 text-sm text-ink-500">JPEG, PNG, WebP or HEIC, under 6 MB.</p>
             </div>

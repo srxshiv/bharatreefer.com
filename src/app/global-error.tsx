@@ -21,16 +21,16 @@ export default function GlobalError({
           flexDirection: "column",
           justifyContent: "center",
           padding: "2rem",
-          background: "#f5f9fc",
-          color: "#11161e",
+          background: "#f4f7fb",
+          color: "#0b1a31",
           fontFamily: "system-ui, sans-serif",
         }}
       >
         <title>{`Something went wrong | ${DEFAULT_BUSINESS.name}`}</title>
         <h1 style={{ margin: 0, fontSize: "2rem", lineHeight: 1.1 }}>Something went wrong.</h1>
-        <p style={{ maxWidth: "28rem", color: "#5f6b7a", lineHeight: 1.6 }}>
+        <p style={{ maxWidth: "28rem", color: "#5a6e8c", lineHeight: 1.6 }}>
           Please try again. If you need a truck now, call dispatch on{" "}
-          <a href={`tel:${DEFAULT_BUSINESS.phone}`} style={{ color: "#11161e" }}>
+          <a href={`tel:${DEFAULT_BUSINESS.phone}`} style={{ color: "#0b1a31" }}>
             {formatIndianMobile(DEFAULT_BUSINESS.phone)}
           </a>
           .
@@ -44,7 +44,7 @@ export default function GlobalError({
               padding: "0 1.25rem",
               border: 0,
               borderRadius: "8px",
-              background: "#0a2d57",
+              background: "#012754",
               color: "#ffffff",
               fontSize: "1rem",
               fontWeight: 500,

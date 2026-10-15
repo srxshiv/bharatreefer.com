@@ -3,7 +3,9 @@ import Link from "next/link";
 import { ExternalLink, LogOut } from "lucide-react";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NavigationProgress } from "@/components/admin/navigation-progress";
+import { RefreshWhenVisible } from "@/components/admin/refresh-when-visible";
 import { Logo } from "@/components/site/logo";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 import { logout } from "@/features/auth/actions";
 import { getAdmin } from "@/features/auth/session";
 import { getSiteContent } from "@/features/content/data";
@@ -19,30 +21,32 @@ async function SignedInAs() {
   return <span className="hidden text-sm text-ink-500 xl:inline">{admin.name}</span>;
 }
 
-export default function PanelLayout({ children }: LayoutProps<"/admin">) {
+export default function PanelLayout({ children, modal }: LayoutProps<"/admin">) {
   return (
     <div className="flex flex-1 flex-col">
       <Suspense fallback={null}>
         <NavigationProgress />
       </Suspense>
-      <header className="border-b border-frost-200 bg-white">
+      <RefreshWhenVisible />
+      <header className="border-t-[3px] border-b border-t-navy-900 border-b-frost-200 bg-surface">
         {/* Phones: logo and account actions on top, the section links in a row beneath. */}
         <div className="shell flex flex-wrap items-center gap-x-3 sm:gap-x-6">
           <Link href="/admin" className="flex h-16 shrink-0 items-center gap-3 rounded-md">
             <Suspense fallback={null}>
               <BrandLogo />
             </Suspense>
-            <span className="caption rounded bg-frost-100 px-1.5 py-0.5 text-ink-500">Admin</span>
+            <span className="caption rounded bg-navy-900 px-1.5 py-0.5 text-white">Admin</span>
           </Link>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-3 md:order-last">
             <Suspense fallback={null}>
               <SignedInAs />
             </Suspense>
+            <ThemeToggle className="size-9" />
             <Link
               href="/"
               target="_blank"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-frost-100 hover:text-navy-900"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-frost-100 hover:text-ink-950"
             >
               <ExternalLink aria-hidden="true" className="size-4" />
               <span className="hidden lg:inline">View site</span>
@@ -51,7 +55,7 @@ export default function PanelLayout({ children }: LayoutProps<"/admin">) {
             <form action={logout}>
               <button
                 type="submit"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-frost-100 hover:text-navy-900"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-frost-100 hover:text-ink-950"
               >
                 <LogOut aria-hidden="true" className="size-4" />
                 <span className="hidden lg:inline">Sign out</span>
@@ -66,7 +70,9 @@ export default function PanelLayout({ children }: LayoutProps<"/admin">) {
         </div>
       </header>
 
-      <main className="shell flex-1 py-8">{children}</main>
+      <main className="shell flex-1 py-6">{children}</main>
+      {/* A request opened from any admin page shows here, in a side panel over that page. */}
+      {modal}
     </div>
   );
 }

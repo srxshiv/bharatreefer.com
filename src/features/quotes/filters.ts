@@ -4,7 +4,10 @@ import { isIsoDate } from "@/lib/dates";
 import type { LoadTypeId } from "@/lib/truck-plan";
 import { isQuoteStatus, type QuoteStatusId } from "./status";
 
-export const INBOX_PAGE_SIZE = 25;
+/** Rows per page the list offers; the first is the default. */
+export const PAGE_SIZES = [25, 50, 100] as const;
+export type PageSize = (typeof PAGE_SIZES)[number];
+export const INBOX_PAGE_SIZE: PageSize = PAGE_SIZES[0];
 
 export const SORT_IDS = ["newest", "oldest", "pickup"] as const;
 export type SortId = (typeof SORT_IDS)[number];
@@ -36,6 +39,8 @@ export type InboxFilters = {
   q: string;
   /** 1-based. */
   page: number;
+  /** Rows per page in the list. */
+  size: PageSize;
   /** A paged list, or the pipeline board with a column per open stage. */
   view: "list" | "board";
 };
@@ -54,6 +59,7 @@ export const DEFAULT_INBOX_FILTERS: InboxFilters = {
   sort: "newest",
   q: "",
   page: 1,
+  size: INBOX_PAGE_SIZE,
   view: "list",
 };
 
@@ -84,6 +90,7 @@ export function parseInboxFilters(params: RawParams): InboxFilters {
   const quoted = first(params.quoted).toUpperCase();
   const sort = first(params.sort).toLowerCase();
   const page = Number.parseInt(first(params.page), 10);
+  const size = Number.parseInt(first(params.size), 10);
   const [from, to] = orderedRange(isoDateOrEmpty(first(params.from)), isoDateOrEmpty(first(params.to)));
   const [pickupFrom, pickupTo] = orderedRange(
     isoDateOrEmpty(first(params.pickup_from)),
@@ -106,6 +113,7 @@ export function parseInboxFilters(params: RawParams): InboxFilters {
     sort: (SORT_IDS as readonly string[]).includes(sort) ? (sort as SortId) : "newest",
     q: first(params.q).trim().slice(0, 100),
     page: Number.isInteger(page) && page > 0 ? page : 1,
+    size: (PAGE_SIZES as readonly number[]).includes(size) ? (size as PageSize) : INBOX_PAGE_SIZE,
     view: first(params.view).toLowerCase() === "board" ? "board" : "list",
   };
 }
@@ -128,6 +136,7 @@ export function inboxQuery(filters: Partial<InboxFilters>): string {
   if (filters.sort && filters.sort !== "newest") params.set("sort", filters.sort);
   if (filters.q) params.set("q", filters.q);
   if (filters.page && filters.page > 1) params.set("page", String(filters.page));
+  if (filters.size && filters.size !== INBOX_PAGE_SIZE) params.set("size", String(filters.size));
   if (filters.view === "board") params.set("view", "board");
 
   const query = params.toString();

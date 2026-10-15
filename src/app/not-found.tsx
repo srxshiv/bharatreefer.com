@@ -20,7 +20,7 @@ export default async function NotFound() {
       </div>
       <div className="shell flex flex-1 flex-col justify-center py-16">
         <p className="caption text-ink-400">Error 404</p>
-        <h1 className="mt-4 max-w-xl text-4xl/tight font-semibold tracking-tight text-navy-950">
+        <h1 className="mt-4 max-w-xl text-4xl/tight font-semibold tracking-tight text-ink-950">
           This page is not on our route.
         </h1>
         <p className="mt-5 max-w-md text-lg leading-8 text-ink-500">
@@ -35,7 +35,7 @@ export default async function NotFound() {
           </Link>
           <a
             href={`tel:${business.phone}`}
-            className="inline-flex h-12 items-center rounded-lg border border-frost-300 bg-white px-5 font-mono text-[15px] text-navy-900 transition-colors hover:border-ice-500"
+            className="inline-flex h-12 items-center rounded-lg border border-frost-300 bg-surface px-5 font-mono text-[15px] text-ink-950 transition-colors hover:border-ice-500"
           >
             Call {formatIndianMobile(business.phone)}
           </a>

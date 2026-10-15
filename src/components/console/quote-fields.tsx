@@ -190,7 +190,7 @@ export function QuoteFields(props: QuoteFieldsProps) {
                     "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ice-500",
                     selected
                       ? cn(BAND_STYLES[bandId].selected, "text-ink-950")
-                      : "border-frost-300 bg-white text-ink-700 hover:border-frost-400",
+                      : "border-frost-300 bg-surface text-ink-700 hover:border-frost-400",
                   )}
                 >
                   <input
@@ -271,7 +271,7 @@ export function QuoteFields(props: QuoteFieldsProps) {
           <p className="text-xs leading-5 text-ink-500 lg:truncate">
             {plan ? (
               <>
-                <span className="font-medium text-navy-900">
+                <span className="font-medium text-ink-950">
                   {formatTrucks(plan.trucks)}, {LOAD_TYPE_LABELS[plan.loadType].toLowerCase()}
                 </span>
                 , {describePlan(plan)}.
@@ -358,7 +358,7 @@ export function QuoteFields(props: QuoteFieldsProps) {
           <button
             type="button"
             onClick={() => setNotesOpen(true)}
-            className="mt-2.5 inline-flex items-center gap-1 rounded-md text-xs font-medium text-ice-600 transition-colors hover:text-navy-900"
+            className="mt-2.5 inline-flex items-center gap-1 rounded-md text-xs font-medium text-ice-600 transition-colors hover:text-ink-950"
           >
             <Plus aria-hidden="true" className="size-3.5" />
             Add a note about the cargo

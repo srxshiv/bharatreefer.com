@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition, type FormEvent } from "react";
+import { MATERIAL_IDS, type MaterialId } from "@/config/materials";
 import type { FleetOutcome, FleetTruck } from "@/features/fleet/types";
 import type { TruckSizeInfo } from "@/features/content/types";
 import { formatPlate } from "@/features/fleet/plate";
@@ -14,6 +15,7 @@ import { input, label } from "../ui";
 export function TruckForm({
   truck,
   sizes,
+  bandLabels,
   defaultCapacityKg,
   submitLabel,
   onSubmit,
@@ -21,6 +23,7 @@ export function TruckForm({
 }: {
   truck?: FleetTruck;
   sizes: TruckSizeInfo[];
+  bandLabels: Record<MaterialId, string>;
   defaultCapacityKg?: number;
   submitLabel: string;
   onSubmit: (formData: FormData) => Promise<FleetOutcome>;
@@ -96,6 +99,54 @@ export function TruckForm({
               </option>
             ))}
           </select>
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor={`${id}-temperature`} className={label}>
+            Temperature
+          </label>
+          <select
+            id={`${id}-temperature`}
+            name="temperature"
+            defaultValue={truck?.temperature ?? ""}
+            className={cn(input, "mt-1.5")}
+          >
+            <option value="">Not fixed</option>
+            {MATERIAL_IDS.map((band) => (
+              <option key={band} value={band}>
+                {bandLabels[band]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`${id}-length`} className={label}>
+            Length <span className="font-normal text-ink-500">(ft)</span>
+          </label>
+          <input
+            id={`${id}-length`}
+            name="lengthFt"
+            inputMode="decimal"
+            autoComplete="off"
+            defaultValue={truck?.lengthFt ?? ""}
+            placeholder="e.g. 20"
+            className={cn(input, "mt-1.5 font-mono")}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${id}-tyres`} className={label}>
+            Tyres
+          </label>
+          <input
+            id={`${id}-tyres`}
+            name="tyres"
+            inputMode="numeric"
+            autoComplete="off"
+            defaultValue={truck?.tyres ?? ""}
+            placeholder="e.g. 6"
+            className={cn(input, "mt-1.5 font-mono")}
+          />
         </div>
       </div>
       <div>

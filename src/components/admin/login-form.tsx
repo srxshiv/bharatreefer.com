@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 const INITIAL: AuthFormState = {};
 
 const fieldClass = cn(
-  "h-12 w-full rounded-xl border border-frost-300 bg-white pl-11 text-[15px] text-ink-950 shadow-xs",
+  "h-12 w-full rounded-xl border border-frost-300 bg-surface pl-11 text-[15px] text-ink-950 shadow-xs",
   "transition-[border-color,box-shadow] placeholder:text-ink-400 hover:border-frost-400",
   "focus:border-ice-500 focus:ring-4 focus:ring-ice-500/15 focus:outline-none",
   "aria-invalid:border-danger/60",
@@ -93,7 +93,7 @@ export function LoginForm({ className }: { className?: string }) {
             onClick={() => setShowPassword((shown) => !shown)}
             aria-pressed={showPassword}
             aria-controls="login-password"
-            className="absolute inset-y-0 right-1.5 my-auto grid size-9 place-items-center rounded-lg text-ink-400 transition-colors hover:bg-frost-100 hover:text-navy-900"
+            className="absolute inset-y-0 right-1.5 my-auto grid size-9 place-items-center rounded-lg text-ink-400 transition-colors hover:bg-frost-100 hover:text-ink-950"
           >
             {showPassword ? (
               <EyeOff aria-hidden="true" className="size-4.5" />
@@ -115,7 +115,7 @@ export function LoginForm({ className }: { className?: string }) {
         disabled={pending}
         className={cn(
           "group inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-navy-900 px-5 text-[15px] font-medium text-white",
-          "shadow-[0_12px_24px_-12px_rgb(10_45_87/0.7)] transition-colors hover:bg-navy-800 disabled:cursor-progress disabled:opacity-75",
+          "shadow-[0_12px_24px_-12px_rgb(1_39_84/0.7)] transition-colors hover:bg-navy-800 disabled:cursor-progress disabled:opacity-75",
         )}
       >
         {pending ? (

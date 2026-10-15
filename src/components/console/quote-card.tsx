@@ -170,7 +170,7 @@ export function QuoteCard({
       ref={sectionRef}
       id="quote"
       aria-labelledby={`${id}-title`}
-      className={cn(card, "flex scroll-mt-20 flex-col overflow-hidden lg:scroll-mt-24 shadow-[0_30px_60px_-30px_rgb(10_45_87/0.45)]", className)}
+      className={cn(card, "flex scroll-mt-20 flex-col overflow-hidden lg:scroll-mt-24 shadow-[0_30px_60px_-30px_rgb(1_39_84/0.45)]", className)}
     >
       <div className="flex shrink-0 items-center justify-between gap-4 bg-navy-900 px-5 py-3 text-white">
         <h2 id={`${id}-title`} className="flex items-center gap-2 text-base font-semibold">

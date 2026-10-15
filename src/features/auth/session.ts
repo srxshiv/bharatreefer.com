@@ -1,7 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { cache } from "react";
-import { connection } from "next/server";
+import { cacheLife } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -28,10 +27,31 @@ export async function createSession(userId: string): Promise<void> {
 }
 
 /**
+ * How long a browser may reuse admin pages it already has (or prefetched) before asking the
+ * server again. Any save clears them at once, so this only delays changes made elsewhere,
+ * such as a new quote request arriving. 30 seconds is the shortest Next.js allows for
+ * prefetched pages to stay usable.
+ */
+export const ADMIN_PAGE_CACHE = { stale: 30, revalidate: 300, expire: 3600 } as const;
+
+/**
+ * Tag on every privately cached admin read. Admin saves expire it with `updateTag`, so the
+ * page they refresh shows the change instead of the cached data from before it.
+ */
+export const ADMIN_DATA_TAG = "admin-data";
+
+/**
  * The signed-in admin, or null. Checked against the database on every request, so a
  * session that was signed out or expired stops working immediately.
+ *
+ * Cached privately: the result is never stored on the server, only kept by this browser
+ * with the pages that used it. That is what lets the admin pages be prefetched whole, data
+ * included, so switching between them is instant.
  */
-export const getAdmin = cache(async (): Promise<Admin | null> => {
+export async function getAdmin(): Promise<Admin | null> {
+  "use cache: private";
+  cacheLife(ADMIN_PAGE_CACHE);
+
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
@@ -39,13 +59,10 @@ export const getAdmin = cache(async (): Promise<Admin | null> => {
     where: { tokenHash: hashToken(token) },
     select: { expiresAt: true, user: { select: { id: true, name: true, email: true } } },
   });
-  // Comparing with the current time ties the result to this request, which Next.js wants
-  // stated before reading the clock.
-  await connection();
-  if (!session || session.expiresAt <= new Date()) return null;
+  if (!session || session.expiresAt.getTime() <= Date.now()) return null;
 
   return session.user;
-});
+}
 
 /** The signed-in admin. Sends anyone else to the sign-in page. */
 export async function requireAdmin(): Promise<Admin> {

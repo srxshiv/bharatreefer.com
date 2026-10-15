@@ -6,7 +6,7 @@ import { deleteFleetPhotoAction, moveFleetPhotoAction } from "@/features/content
 import { cn } from "@/lib/cn";
 
 const iconButton =
-  "inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-700 transition-colors hover:border-ink-400 disabled:opacity-40";
+  "inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-surface text-ink-700 transition-colors hover:border-ink-400 disabled:opacity-40";
 
 export function PhotoControls({
   id,

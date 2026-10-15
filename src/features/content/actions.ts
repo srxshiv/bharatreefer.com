@@ -1,6 +1,7 @@
 "use server";
 
-import { refresh, updateTag } from "next/cache";
+import { updateTag } from "next/cache";
+import { refreshAdminData } from "@/features/auth/refresh-admin";
 import sharp from "sharp";
 import type { z } from "zod";
 import { MATERIAL_IDS } from "@/config/materials";
@@ -64,7 +65,7 @@ function field(formData: FormData, name: string): string {
 /** Expires the public site's cached content and refreshes the admin page. */
 function published() {
   updateTag(SITE_CONTENT_TAG);
-  refresh();
+  refreshAdminData();
 }
 
 export async function saveBusinessAction(formData: FormData): Promise<ContentFormState> {

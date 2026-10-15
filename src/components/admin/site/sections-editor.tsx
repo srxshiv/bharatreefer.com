@@ -119,7 +119,7 @@ function SectionRow({
     <li
       className={cn(
         "rounded-xl border transition-colors",
-        row.visible ? "border-frost-200 bg-white" : "border-dashed border-frost-300 bg-frost-50",
+        row.visible ? "border-frost-200 bg-surface" : "border-dashed border-frost-300 bg-frost-50",
       )}
     >
       <div className="flex items-center gap-3 p-3 sm:p-4">

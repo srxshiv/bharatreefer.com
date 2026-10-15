@@ -1,3 +1,4 @@
+import { isMaterialId, type MaterialId } from "@/config/materials";
 import { normaliseIndianMobile } from "@/lib/phone";
 import { normalisePlate } from "./plate";
 
@@ -8,6 +9,9 @@ export type VehicleInput = {
   driverName: string | null;
   /** E.164 */
   driverPhone: string | null;
+  temperature: MaterialId | null;
+  lengthFt: number | null;
+  tyres: number | null;
 };
 
 export const MIN_VEHICLE_KG = 100;
@@ -44,8 +48,32 @@ export function parseVehicleForm(
     return { ok: false, error: "Enter the driver's 10-digit mobile number, or leave it empty." };
   }
 
+  const band = text(formData, "temperature");
+  if (band && !isMaterialId(band)) return { ok: false, error: "Choose the truck's temperature." };
+
+  const rawLength = text(formData, "lengthFt").replace(/\s*(ft|feet|')\s*$/i, "");
+  const lengthFt = rawLength ? Number(rawLength) : null;
+  if (lengthFt !== null && !(Number.isFinite(lengthFt) && lengthFt >= 4 && lengthFt <= 60)) {
+    return { ok: false, error: "Enter the body length in feet, between 4 and 60, or leave it empty." };
+  }
+
+  const rawTyres = text(formData, "tyres");
+  const tyres = rawTyres ? Number(rawTyres) : null;
+  if (tyres !== null && !(Number.isInteger(tyres) && tyres >= 3 && tyres <= 30)) {
+    return { ok: false, error: "Enter the number of tyres, between 3 and 30, or leave it empty." };
+  }
+
   return {
     ok: true,
-    value: { plateNumber, capacityKg, model: model || null, driverName: driverName || null, driverPhone },
+    value: {
+      plateNumber,
+      capacityKg,
+      model: model || null,
+      driverName: driverName || null,
+      driverPhone,
+      temperature: band ? (band as MaterialId) : null,
+      lengthFt: lengthFt === null ? null : Math.round(lengthFt * 10) / 10,
+      tyres,
+    },
   };
 }

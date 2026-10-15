@@ -4,7 +4,7 @@ import { DEFAULT_FLEET, type FleetConfig } from "@/config/fleet";
 import { DEFAULT_BANDS, MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import { DEFAULT_BUSINESS, type BusinessInfo } from "@/config/site";
 import { Prisma } from "@/generated/prisma/client";
-import { requireAdmin } from "@/features/auth/session";
+import { ADMIN_DATA_TAG, ADMIN_PAGE_CACHE, requireAdmin } from "@/features/auth/session";
 import { db } from "@/lib/db";
 import { normaliseDays } from "@/lib/hours";
 import { DEFAULT_HERO_INTRO, automaticFaqs, automaticHeading, automaticSteps } from "./automatic";
@@ -247,6 +247,9 @@ export async function getSiteContentForAdmin(): Promise<{
   custom: CustomCopy;
   editable: EditableSettings;
 }> {
+  "use cache: private";
+  cacheLife(ADMIN_PAGE_CACHE);
+  cacheTag(ADMIN_DATA_TAG);
   const [, loaded] = await Promise.all([requireAdmin(), loadCached()]);
   if (loaded.fromDefaults) {
     throw new Error("The website settings could not be loaded from the database. Try again shortly.");

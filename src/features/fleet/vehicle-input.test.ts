@@ -8,13 +8,38 @@ function form(values: Record<string, string>): FormData {
 }
 
 describe("parseVehicleForm", () => {
-  it("normalises the plate, payload and driver's number", () => {
+  it("normalises the plate, payload, driver's number and the optional details", () => {
     const result = parseVehicleForm(
-      form({ plateNumber: " dl 01 la 4521 ", capacityKg: "22,000", model: "  Tata  Signa ", driverName: "", driverPhone: "098710 94268" }),
+      form({
+        plateNumber: " dl 01 la 4521 ",
+        capacityKg: "22,000",
+        model: "  Tata  Signa ",
+        driverName: "",
+        driverPhone: "098710 94268",
+        temperature: "FROZEN",
+        lengthFt: "32 ft",
+        tyres: "10",
+      }),
     );
     expect(result).toEqual({
       ok: true,
-      value: { plateNumber: "DL01LA4521", capacityKg: 22000, model: "Tata Signa", driverName: null, driverPhone: "+919871094268" },
+      value: {
+        plateNumber: "DL01LA4521",
+        capacityKg: 22000,
+        model: "Tata Signa",
+        driverName: null,
+        driverPhone: "+919871094268",
+        temperature: "FROZEN",
+        lengthFt: 32,
+        tyres: 10,
+      },
+    });
+  });
+
+  it("leaves the optional details empty when not given", () => {
+    expect(parseVehicleForm(form({ plateNumber: "HR38Z4410", capacityKg: "4000" }))).toMatchObject({
+      ok: true,
+      value: { temperature: null, lengthFt: null, tyres: null },
     });
   });
 
@@ -24,8 +49,9 @@ describe("parseVehicleForm", () => {
       ok: false,
       error: "Choose the truck's payload.",
     });
-    expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", driverPhone: "12345" }))).toMatchObject({
-      ok: false,
-    });
+    expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", driverPhone: "12345" }))).toMatchObject({ ok: false });
+    expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", lengthFt: "200" }))).toMatchObject({ ok: false });
+    expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", tyres: "6.5" }))).toMatchObject({ ok: false });
+    expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", temperature: "HOT" }))).toMatchObject({ ok: false });
   });
 });

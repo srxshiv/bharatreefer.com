@@ -9,7 +9,9 @@ import type { BoardStage, InboxRow, StatusCounts, StatusValues } from "@/feature
 import { moveQuoteStage } from "@/features/quotes/admin-actions";
 import { QUOTE_STATUSES, STATUS_LABELS, type QuoteStatusId } from "@/features/quotes/status";
 import { cn } from "@/lib/cn";
+import { formatIsoDayMonth, toIsoDate } from "@/lib/dates";
 import { formatInr, formatInrShort, formatKg } from "@/lib/format";
+import { IntentLink } from "../intent-link";
 import { STAGE_ACCENT } from "./stage-styles";
 
 type Columns = Record<BoardStage, InboxRow[]>;
@@ -19,8 +21,6 @@ type Toast = { id: number; ok: boolean; text: string };
 
 const DRAG_TYPE = "application/x-bharat-request";
 
-/** Pickup dates are plain calendar dates stored at midnight UTC: "18 Oct". */
-const shortDate = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** The step each stage usually takes next. */
 const NEXT: Record<BoardStage, { to: QuoteStatusId; label: string }> = {
@@ -171,7 +171,7 @@ export function PipelineBoard({
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-950">
                   <span aria-hidden="true" className={cn("size-2 rounded-full", STAGE_ACCENT[stage])} />
                   {STATUS_LABELS[stage]}
-                  <span className="rounded-md bg-white px-1.5 font-mono text-xs font-medium text-ink-500">{state.counts[stage]}</span>
+                  <span className="rounded-md bg-surface px-1.5 font-mono text-xs font-medium text-ink-500">{state.counts[stage]}</span>
                 </h2>
                 {state.values[stage] > 0 ? (
                   <span className="font-mono text-xs text-ink-500">{formatInrShort(state.values[stage])}</span>
@@ -203,7 +203,7 @@ export function PipelineBoard({
               {hidden > 0 ? (
                 <Link
                   href={listHref[stage]}
-                  className="mt-2 inline-flex h-9 items-center justify-center gap-1 rounded-lg text-xs font-semibold text-ice-700 hover:bg-white"
+                  className="mt-2 inline-flex h-9 items-center justify-center gap-1 rounded-lg text-xs font-semibold text-ice-700 hover:bg-surface"
                 >
                   {hidden} more in the list
                   <ArrowRight aria-hidden="true" className="size-3.5" />
@@ -221,7 +221,7 @@ export function PipelineBoard({
             role={toast.ok ? "status" : "alert"}
             className={cn(
               "pointer-events-auto flex max-w-md items-start gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-xl transition duration-300 starting:translate-y-2 starting:opacity-0",
-              toast.ok ? "bg-ink-950" : "bg-danger",
+              toast.ok ? "bg-navy-950 ring-1 ring-white/10" : "bg-danger",
             )}
           >
             {toast.ok ? (
@@ -273,18 +273,18 @@ function Card({
         event.dataTransfer.effectAllowed = "move";
       }}
       className={cn(
-        "group relative rounded-xl border border-frost-200 bg-white p-3.5 shadow-[0_1px_0_rgb(0_0_0/0.03)] transition-[box-shadow,border-color,opacity] duration-200 starting:opacity-0 hover:border-ink-300 hover:shadow-md",
+        "group relative rounded-xl border border-frost-200 bg-surface p-3.5 shadow-[0_1px_0_rgb(0_0_0/0.03)] transition-[box-shadow,border-color,opacity] duration-200 starting:opacity-0 hover:border-ink-300 hover:shadow-md",
         row.status === "NEW" && "shadow-[inset_3px_0_0_var(--color-ice-500)]",
         pending && "opacity-60",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <Link
+        <IntentLink
           href={`/admin/quotes/${row.id}`}
           className="font-mono text-sm font-semibold text-ink-950 after:absolute after:inset-0 after:rounded-xl hover:text-ice-700"
         >
           {row.reference}
-        </Link>
+        </IntentLink>
         <span className="text-xs text-ink-500" title="Received">
           {age(row.createdAt, now)}
         </span>
@@ -299,7 +299,7 @@ function Card({
         <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", BAND_STYLES[row.material].fill)} />
         <span className="truncate">
           {bandLabel} · {formatKg(row.quantityKg)}
-          {row.pickupDate ? ` · pickup ${shortDate.format(row.pickupDate)}` : ""}
+          {row.pickupDate ? ` · pickup ${formatIsoDayMonth(toIsoDate(row.pickupDate))}` : ""}
         </span>
       </p>
 
@@ -333,7 +333,7 @@ function Card({
             type="button"
             disabled={pending}
             onClick={() => onRequest(next.to)}
-            className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-frost-300 bg-white text-xs font-semibold text-ink-950 transition-colors hover:border-navy-900 hover:bg-navy-900 hover:text-white disabled:opacity-50"
+            className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-frost-300 bg-surface text-xs font-semibold text-ink-950 transition-colors hover:border-navy-900 hover:bg-navy-900 hover:text-white disabled:opacity-50"
           >
             {next.label}
             <ArrowRight aria-hidden="true" className="size-3.5" />
@@ -353,7 +353,7 @@ function Card({
               element.style.top = `${below + height > window.innerHeight ? Math.max(8, rect.top - height - 4) : below}px`;
               element.style.left = `${Math.max(8, rect.right - 192)}px`;
             }}
-            className="inline-flex size-8 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-50"
+            className="inline-flex size-8 items-center justify-center rounded-lg border border-frost-300 bg-surface text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-50"
           >
             <Ellipsis aria-hidden="true" className="size-4" />
             <span className="sr-only">More moves for {row.reference}</span>
@@ -362,7 +362,7 @@ function Card({
             ref={menu}
             id={menuId}
             popover="auto"
-            className="fixed m-0 w-48 rounded-xl border border-frost-200 bg-white p-1 text-sm shadow-xl"
+            className="fixed m-0 w-48 rounded-xl border border-frost-200 bg-surface p-1 text-sm shadow-xl"
           >
             <p className="px-2.5 pt-1.5 pb-1 text-xs text-ink-500">Move to</p>
             {QUOTE_STATUSES.filter((status) => status !== row.status).map((status) => (
@@ -431,7 +431,7 @@ function PriceForm({
               if (event.key === "Escape" && onCancel) onCancel();
             }}
             className={cn(
-              "h-9 w-full rounded-lg border bg-white pr-2 pl-6 font-mono text-sm text-ink-950 focus:ring-2 focus:ring-ice-400/50 focus:outline-none",
+              "h-9 w-full rounded-lg border bg-surface pr-2 pl-6 font-mono text-sm text-ink-950 focus:ring-2 focus:ring-ice-400/50 focus:outline-none",
               error ? "border-danger" : "border-frost-300 focus:border-ink-900",
             )}
           />

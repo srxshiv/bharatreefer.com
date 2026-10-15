@@ -55,7 +55,7 @@ export function Confirmation({
           id="quote-confirmation-title"
           ref={headingRef}
           tabIndex={-1}
-          className="flex items-center gap-2 text-xl/tight font-semibold tracking-tight text-navy-950 focus:outline-none"
+          className="flex items-center gap-2 text-xl/tight font-semibold tracking-tight text-ink-950 focus:outline-none"
         >
           <CircleCheck aria-hidden="true" className="size-6 shrink-0 text-success" strokeWidth={1.75} />
           Request received.
@@ -102,7 +102,7 @@ export function Confirmation({
         <button
           type="button"
           onClick={onReset}
-          className="inline-flex h-11 items-center justify-center rounded-md px-2 text-sm font-medium text-ink-500 underline decoration-frost-400 underline-offset-4 transition-colors hover:text-navy-900 sm:ml-auto"
+          className="inline-flex h-11 items-center justify-center rounded-md px-2 text-sm font-medium text-ink-500 underline decoration-frost-400 underline-offset-4 transition-colors hover:text-ink-950 sm:ml-auto"
         >
           Send another
         </button>

@@ -3,6 +3,9 @@ import type { TruckSizeInfo } from "@/features/content/types";
 
 // Plain data shared by the server (./data) and the fleet board in the browser.
 
+export type TruckStatus = "AVAILABLE" | "ON_TRIP" | "MAINTENANCE";
+
+/** Part or all of a confirmed request, on board a truck. */
 export type FleetLoad = {
   assignmentId: string;
   quoteId: string;
@@ -25,18 +28,25 @@ export type FleetTruck = {
   model: string | null;
   driverName: string | null;
   driverPhone: string | null;
-  status: "AVAILABLE" | "MAINTENANCE";
+  /** The band the truck is set up for, or null when not fixed. */
+  temperature: MaterialId | null;
+  lengthFt: number | null;
+  tyres: number | null;
+  status: TruckStatus;
+  /** ISO timestamp, while on a trip. */
+  tripStartedAt: string | null;
+  /** Weight on board. Can exceed the payload: the owner decides. */
   usedKg: number;
-  material: MaterialId | null;
   loads: FleetLoad[];
 };
 
-/** A confirmed request with weight still to place on a truck. */
+/** A confirmed request with weight not yet on a truck. */
 export type WaitingOrder = {
   id: string;
   reference: string;
   material: MaterialId;
   quantityKg: number;
+  /** On trucks now or already delivered. */
   assignedKg: number;
   originCity: string;
   destinationCity: string;
@@ -50,6 +60,8 @@ export type FleetBoard = {
   /** Truck sizes listed in the website settings, ascending. */
   sizes: TruckSizeInfo[];
   confirmedCount: number;
+  /** India date when the board was read, "YYYY-MM-DD", for flagging close pickups. */
+  today: string;
 };
 
 export type FleetOutcome = { ok: true; message: string } | { ok: false; error: string };

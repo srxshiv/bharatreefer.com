@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 
+const START_EVENT = "admin:navigation-start";
+
+/** Shows the bar for a navigation that does not start from a link click, such as the filter form. */
+export function startNavigationProgress() {
+  window.dispatchEvent(new Event(START_EVENT));
+}
+
 /** Gives up waiting after this long, so a navigation that never completes cannot leave the bar stuck. */
 const GIVE_UP_MS = 8_000;
 
@@ -39,25 +46,12 @@ export function NavigationProgress() {
       setPending(true);
     }
 
-    // Only search forms that navigate (next/form, with an admin page as their action).
-    // Settings forms submit by hand and stay on the page.
-    function onSubmit(event: SubmitEvent) {
-      const form = event.target;
-      if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "get") return;
-      const action = form.getAttribute("action");
-      if (!action?.startsWith("/admin")) return;
-      const query = new URLSearchParams(
-        [...new FormData(form).entries()].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-      ).toString();
-      if (`${action}${query ? `?${query}` : ""}` === here()) return;
-      setPending(true);
-    }
-
+    const onStart = () => setPending(true);
     document.addEventListener("click", onClick);
-    document.addEventListener("submit", onSubmit);
+    window.addEventListener(START_EVENT, onStart);
     return () => {
       document.removeEventListener("click", onClick);
-      document.removeEventListener("submit", onSubmit);
+      window.removeEventListener(START_EVENT, onStart);
     };
   }, []);
 

@@ -12,29 +12,48 @@ export function isIsoDate(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
 }
 
-/** "2026-10-09" -> "9 Oct 2026" */
-export function formatIsoDate(value: string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${value}T00:00:00Z`));
+// Dates are written out by hand rather than with Intl.DateTimeFormat. Browsers word them
+// differently ("15 Oct, 11:34 am" in Node and Chrome, "15 Oct at 11:34 AM" in Safari), and a
+// date formatted on the server and again in the browser has to match exactly or React
+// reports a mismatch. India keeps UTC+5:30 all year, so its time is simple to work out.
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const INDIA_OFFSET_MS = (5 * 60 + 30) * 60_000;
+
+/** The parts of a moment in India time. */
+function indiaParts(date: Date) {
+  const shifted = new Date(date.getTime() + INDIA_OFFSET_MS);
+  const hours = shifted.getUTCHours();
+  return {
+    day: shifted.getUTCDate(),
+    month: MONTHS[shifted.getUTCMonth()],
+    year: shifted.getUTCFullYear(),
+    time: `${hours % 12 === 0 ? 12 : hours % 12}:${String(shifted.getUTCMinutes()).padStart(2, "0")} ${hours < 12 ? "am" : "pm"}`,
+  };
 }
 
-const indiaDateTime = new Intl.DateTimeFormat("en-IN", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-  timeZone: "Asia/Kolkata",
-});
+/** "2026-10-09" -> "9 Oct 2026" */
+export function formatIsoDate(value: string): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]} ${year}`;
+}
+
+/** "2026-10-09" -> "9 Oct": a nearby date, where the year goes without saying. */
+export function formatIsoDayMonth(value: string): string {
+  const [, month, day] = value.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]}`;
+}
 
 /** A moment in Indian time: "8 Oct 2026, 3:47 pm". */
 export function formatDateTimeInIndia(date: Date): string {
-  return indiaDateTime.format(date);
+  const { day, month, year, time } = indiaParts(date);
+  return `${day} ${month} ${year}, ${time}`;
+}
+
+/** A recent moment in Indian time, without the year: "8 Oct, 3:47 pm". */
+export function formatShortDateTimeInIndia(date: Date): string {
+  const { day, month, time } = indiaParts(date);
+  return `${day} ${month}, ${time}`;
 }
 
 /** A stored calendar date (midnight UTC) as "YYYY-MM-DD". */

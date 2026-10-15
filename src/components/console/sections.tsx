@@ -34,7 +34,7 @@ function SectionHeading({ section, automaticTitle = "" }: { section: PageSection
   return (
     <div className="mb-5">
       {section.eyebrow ? <p className="caption text-ice-600">{section.eyebrow}</p> : null}
-      <h2 id={`${section.id}-title`} className={cn("text-2xl/tight font-semibold tracking-tight text-navy-950", section.eyebrow && "mt-2")}>
+      <h2 id={`${section.id}-title`} className={cn("text-2xl/tight font-semibold tracking-tight text-ink-950", section.eyebrow && "mt-2")}>
         {section.title ?? automaticTitle}
       </h2>
       {section.intro ? <p className="mt-2.5 max-w-prose text-[15px] leading-7 text-ink-600">{section.intro}</p> : null}
@@ -78,7 +78,7 @@ export function Hero({
       <p className="caption text-ice-600">{business.tagline}</p>
       <h1
         id="hero-title"
-        className="mt-3 text-[2.25rem]/[1.1] font-semibold tracking-tight text-navy-950 lg:text-[2.75rem]/[1.08]"
+        className="mt-3 text-[2.25rem]/[1.1] font-semibold tracking-tight text-ink-950 lg:text-[2.75rem]/[1.08]"
       >
         {copy.heroHeading}
       </h1>
@@ -93,7 +93,7 @@ export function Hero({
                 <fact.Icon aria-hidden="true" className="size-4.5" />
               </span>
               <div className="min-w-0">
-                <dd className="text-sm/5 font-semibold text-navy-950">{fact.value}</dd>
+                <dd className="text-sm/5 font-semibold text-ink-950">{fact.value}</dd>
                 <dt className="mt-0.5 text-xs text-ink-500">{fact.label}</dt>
               </div>
             </div>
@@ -113,7 +113,7 @@ export function Bands({ section, bands }: { section: PageSection; bands: Record<
           const band = bands[id];
           return (
             <li key={id} className={cn(card, "border-t-4 p-5", BAND_STYLES[id].rule)}>
-              <p className="text-base font-semibold text-navy-950">{band.label}</p>
+              <p className="text-base font-semibold text-ink-950">{band.label}</p>
               <p className={cn("mt-1 font-mono text-lg font-medium", BAND_STYLES[id].text)}>{band.range}</p>
               <p className="mt-3 text-sm leading-6 text-ink-600">{band.summary}</p>
               {band.examples.length > 0 ? (
@@ -173,7 +173,7 @@ export function Fleet({
             <tbody className="divide-y divide-frost-200">
               {trucks.map((truck) => (
                 <tr key={truck.capacityKg}>
-                  <td className="py-2.5 pr-4 font-mono whitespace-nowrap text-navy-950">{formatCapacity(truck.capacityKg)}</td>
+                  <td className="py-2.5 pr-4 font-mono whitespace-nowrap text-ink-950">{formatCapacity(truck.capacityKg)}</td>
                   {named ? <td className="py-2.5 pr-4 text-ink-500">{truck.name ?? "—"}</td> : null}
                   <td className="w-[45%] py-2.5 pl-4">
                     <span className="block h-1.5 rounded-full bg-frost-100">
@@ -191,13 +191,13 @@ export function Fleet({
 
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
           <div className={cn(card, "p-5")}>
-            <dt className="text-base font-semibold text-navy-950">Full load</dt>
+            <dt className="text-base font-semibold text-ink-950">Full load</dt>
             <dd className="mt-1.5 text-sm leading-6 text-ink-600">
               A dedicated truck sized to your consignment. Loads heavier than {tonnes(largest)} are split across more than one truck.
             </dd>
           </div>
           <div className={cn(card, "p-5")}>
-            <dt className="text-base font-semibold text-navy-950">Part load</dt>
+            <dt className="text-base font-semibold text-ink-950">Part load</dt>
             <dd className="mt-1.5 text-sm leading-6 text-ink-600">
               Smaller consignments share a truck with other cargo in the same temperature band heading the same way.
             </dd>
@@ -240,7 +240,7 @@ export function Steps({ section, copy }: { section: PageSection; copy: SiteCopy 
             <span className="grid size-8 place-items-center rounded-full bg-navy-900 font-mono text-xs text-white">
               {String(index + 1).padStart(2, "0")}
             </span>
-            <p className="mt-4 text-base font-semibold text-navy-950">{step.title}</p>
+            <p className="mt-4 text-base font-semibold text-ink-950">{step.title}</p>
             <p className="mt-1.5 text-sm leading-6 text-ink-600">{step.body}</p>
           </li>
         ))}
@@ -289,7 +289,7 @@ export function Contact({ section, business }: { section: PageSection; business:
 
       <dl className={cn(card, "mt-5 grid gap-px overflow-hidden bg-frost-200 sm:grid-cols-2")}>
         {details.map((item) => (
-          <div key={item.label} className="bg-white p-4">
+          <div key={item.label} className="bg-surface p-4">
             <dt className="caption flex items-center gap-2 text-ink-400">
               <item.Icon aria-hidden="true" className="size-3.5 text-ice-600" />
               {item.label}
@@ -310,7 +310,7 @@ export function Faqs({ section, faqs }: { section: PageSection; faqs: Faq[] }) {
       <div className="divide-y divide-frost-200 border-y border-frost-200">
         {faqs.map((faq) => (
           <details key={faq.question} className="group">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-3.5 text-sm font-medium text-navy-950 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-3.5 text-sm font-medium text-ink-950 [&::-webkit-details-marker]:hidden">
               {faq.question}
               <span
                 aria-hidden="true"
@@ -338,15 +338,15 @@ export function Routes({ section, routes }: { section: PageSection; routes: Rout
           >
             <div className="flex items-center gap-3">
               <div className="min-w-0">
-                <p className="truncate text-base font-semibold text-navy-950">{route.originCity}</p>
+                <p className="truncate text-base font-semibold text-ink-950">{route.originCity}</p>
                 <p className="truncate text-xs text-ink-500">{route.originState}</p>
               </div>
               <div aria-hidden="true" className="relative h-px min-w-8 flex-1 border-t border-dashed border-frost-400">
-                <Truck className="absolute -top-2 left-1/2 size-4 -translate-x-1/2 bg-white px-0.5 text-ice-600" />
+                <Truck className="absolute -top-2 left-1/2 size-4 -translate-x-1/2 bg-surface px-0.5 text-ice-600" />
               </div>
               <span className="sr-only">to</span>
               <div className="min-w-0 text-right">
-                <p className="truncate text-base font-semibold text-navy-950">{route.destinationCity}</p>
+                <p className="truncate text-base font-semibold text-ink-950">{route.destinationCity}</p>
                 <p className="truncate text-xs text-ink-500">{route.destinationState}</p>
               </div>
             </div>

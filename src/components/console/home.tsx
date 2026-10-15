@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, MessageCircle, Phone } from "lucide-react";
 import { AnnouncementBar } from "@/components/site/announcement-bar";
 import { Logo } from "@/components/site/logo";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 import type { PageSection, SectionId } from "@/features/content/sections";
 import type { SiteContent } from "@/features/content/types";
 import { GENERAL_WHATSAPP_MESSAGE } from "@/features/quotes/messages";
@@ -41,7 +42,8 @@ export function Home({ content }: { content: SiteContent }) {
   return (
     <div className="flex min-h-dvh flex-col">
       {announcement ? <AnnouncementBar announcement={announcement} /> : null}
-      <header className="sticky top-0 z-30 border-b border-frost-200 bg-white/90 backdrop-blur-sm">
+      {/* A navy band along the top in the logo's colour. */}
+      <header className="sticky top-0 z-30 border-t-[3px] border-b border-t-navy-900 border-b-frost-200 bg-surface/90 backdrop-blur-sm">
         <div className="shell flex h-16 items-center justify-between gap-4 lg:h-20">
           <Link href="/" className="rounded-lg">
             <Logo name={business.name} priority />
@@ -50,7 +52,7 @@ export function Home({ content }: { content: SiteContent }) {
             <DeskStatus hours={business.hours} className="hidden text-sm md:inline-flex" />
             <a
               href={`tel:${business.phone}`}
-              className="inline-flex h-10 items-center gap-2 rounded-lg px-2.5 font-mono text-sm text-navy-900 transition-colors hover:bg-frost-100"
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-2.5 font-mono text-sm text-ink-950 transition-colors hover:bg-frost-100"
             >
               <Phone aria-hidden="true" className="size-4 text-ice-600" />
               <span className="sr-only sm:not-sr-only">{phoneDisplay}</span>
@@ -66,6 +68,7 @@ export function Home({ content }: { content: SiteContent }) {
                 <MessageCircle aria-hidden="true" className="size-4" />
               </a>
             ) : null}
+            <ThemeToggle />
             <a href="#quote" className={cn(primaryButton, "h-10 px-4 text-sm lg:hidden")}>
               Get a quote
               <ArrowRight aria-hidden="true" className="size-4" />
@@ -95,8 +98,9 @@ export function Home({ content }: { content: SiteContent }) {
         </div>
       </main>
 
-      <footer className="border-t border-frost-200 bg-white">
-        <div className="shell flex flex-col gap-2 py-5 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="bg-navy-950 text-ice-200/80">
+        <div aria-hidden="true" className="tricolour h-0.5 opacity-90" />
+        <div className="shell flex flex-col gap-2 py-6 text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
             {business.name} · {formatAddress(business.address)} · {business.email}
           </p>

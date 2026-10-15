@@ -161,26 +161,26 @@ model LoginAttempt {
 model SiteSettings {
   id String @id @default("default")
 
-  name    String
-  tagline String
+  name       String
+  tagline    String
   /// E.164, e.g. "+919871094268".
-  phone   String
+  phone      String
   /// E.164. Null hides the WhatsApp links.
-  whatsapp String?
+  whatsapp   String?
   /// Public contact address shown on the site.
-  email   String
+  email      String
   /// Where new-request alerts go. Null means the public email.
   alertEmail String? @map("alert_email")
 
-  addressStreet String  @map("address_street")
-  addressCity   String  @map("address_city")
-  addressRegion String  @map("address_region")
+  addressStreet String @map("address_street")
+  addressCity   String @map("address_city")
+  addressRegion String @map("address_region")
 
   /// Days the desk is open: ["Monday", ...].
-  hoursDays  Json   @map("hours_days")
+  hoursDays    Json   @map("hours_days")
   /// "HH:MM", 24-hour, India time.
-  hoursOpen  String @map("hours_open")
-  hoursClose String @map("hours_close")
+  hoursOpen    String @map("hours_open")
+  hoursClose   String @map("hours_close")
   /// How quickly dispatch commits to replying, e.g. "24 hours".
   responseTime String @map("response_time")
 
@@ -188,9 +188,9 @@ model SiteSettings {
   heroHeading String? @map("hero_heading")
   heroIntro   String  @map("hero_intro")
   /// [{ title, body }]. Null means the automatic three steps.
-  steps Json?
+  steps       Json?
   /// [{ question, answer }]. Null means the automatic questions.
-  faqs  Json?
+  faqs        Json?
 
   /// Public page sections: { [sectionId]: { visible, eyebrow?, title?, intro? } }. Missing keys use the defaults.
   sections     Json?
@@ -198,8 +198,8 @@ model SiteSettings {
   announcement Json?
 
   /// Smallest and largest consignment accepted through the quote form, in kilograms.
-  minQuantityKg Int @map("min_quantity_kg")
-  maxQuantityKg Int @map("max_quantity_kg")
+  minQuantityKg        Int @map("min_quantity_kg")
+  maxQuantityKg        Int @map("max_quantity_kg")
   /// A load gets a dedicated truck when it fills at least this much of the smallest truck that fits it.
   dedicatedFillPercent Int @map("dedicated_fill_percent")
 
@@ -210,13 +210,13 @@ model SiteSettings {
 
 /// How each temperature band is presented. One row per Material; the bands themselves are fixed.
 model TemperatureBand {
-  id       Material @id
-  label    String
+  id        Material @id
+  label     String
   /// Set-point range as shown to customers, e.g. "−18 to −22 °C".
-  range    String
-  summary  String
+  range     String
+  summary   String
   /// string[]
-  examples Json
+  examples  Json
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("temperature_bands")
@@ -224,9 +224,9 @@ model TemperatureBand {
 
 /// A truck size in the fleet. The quote form plans loads onto these.
 model TruckSize {
-  id         String  @id @default(cuid())
+  id         String   @id @default(cuid())
   /// Payload in kilograms.
-  capacityKg Int     @unique @map("capacity_kg")
+  capacityKg Int      @unique @map("capacity_kg")
   /// Optional model or body name shown next to the capacity, e.g. "Tata 407".
   name       String?
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -249,8 +249,11 @@ model FleetPhoto {
   @@map("fleet_photos")
 }
 
+/// AVAILABLE: at the depot, loads can be placed on it. ON_TRIP: on the road with its loads.
+/// MAINTENANCE: off the road.
 enum VehicleStatus {
   AVAILABLE
+  ON_TRIP
   MAINTENANCE
 
   @@map("vehicle_status")
@@ -258,18 +261,26 @@ enum VehicleStatus {
 
 /// A truck in the fleet, identified by its registration plate.
 model Vehicle {
-  id          String        @id @default(cuid())
+  id            String        @id @default(cuid())
   /// Uppercase without spaces or dashes, e.g. "DL01LA4521".
-  plateNumber String        @unique @map("plate_number")
+  plateNumber   String        @unique @map("plate_number")
   /// Payload in kilograms. Groups the truck with a size in the fleet.
-  capacityKg  Int           @map("capacity_kg")
-  model       String?
-  driverName  String?       @map("driver_name")
+  capacityKg    Int           @map("capacity_kg")
+  model         String?
+  driverName    String?       @map("driver_name")
   /// E.164
-  driverPhone String?       @map("driver_phone")
-  status      VehicleStatus @default(AVAILABLE)
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  driverPhone   String?       @map("driver_phone")
+  /// Temperature band the truck is set up for. Null: not fixed. Shown as a guide; mixing is allowed.
+  temperature   Material?
+  /// Body length in feet, for information.
+  lengthFt      Float?        @map("length_ft")
+  /// Number of tyres, for information.
+  tyres         Int?
+  status        VehicleStatus @default(AVAILABLE)
+  /// When the current trip started. Set only while ON_TRIP.
+  tripStartedAt DateTime?     @map("trip_started_at") @db.Timestamptz(3)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   assignments TruckAssignment[]
 
@@ -277,8 +288,9 @@ model Vehicle {
   @@map("vehicles")
 }
 
-/// A confirmed load, or part of one, placed on a truck. A truck can carry several part loads
-/// and a heavy load can span several trucks.
+/// A confirmed load, or part of one, placed on a truck. A truck can carry several part loads,
+/// a heavy load can span several trucks, and one truck can carry parts of the same request on
+/// different trips.
 model TruckAssignment {
   id             String       @id @default(cuid())
   vehicleId      String       @map("vehicle_id")
@@ -287,9 +299,11 @@ model TruckAssignment {
   quoteRequest   QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
   /// How much of the request's weight travels on this truck.
   loadKg         Int          @map("load_kg")
+  /// Set when the trip carrying it ended. Null while the load is on board.
+  deliveredAt    DateTime?    @map("delivered_at") @db.Timestamptz(3)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  @@unique([vehicleId, quoteRequestId])
+  @@index([vehicleId, deliveredAt])
   @@index([quoteRequestId])
   @@map("truck_assignments")
 }

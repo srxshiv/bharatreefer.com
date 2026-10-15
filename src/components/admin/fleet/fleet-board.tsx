@@ -1,97 +1,116 @@
 "use client";
 
 import { useEffect, useOptimistic, useRef, useState, useTransition, type CSSProperties, type DragEvent } from "react";
-import Link from "next/link";
-import { ArrowRight, CircleAlert, CircleCheck, Plus, Sparkles, Truck, Wrench, X } from "lucide-react";
+import { ArrowRight, CircleAlert, CircleCheck, Plus, Truck, Wrench } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS, type MaterialId } from "@/config/materials";
 import {
   addVehicleAction,
   assignLoadAction,
-  autoAssignLoadAction,
+  endTripAction,
+  moveLoadAction,
   setVehicleStatusAction,
+  startTripAction,
   unassignLoadAction,
 } from "@/features/fleet/actions";
 import {
   applyChange,
-  asTruckLoad,
   groupTrucks,
-  placeableKg,
   remainingKg,
   summarise,
   type BoardChange,
   type CapacityGroup,
 } from "@/features/fleet/board-state";
-import { blockedReason, rankTrucks } from "@/features/fleet/capacity";
-import type { FleetBoard as Board, FleetOutcome, FleetTruck, WaitingOrder } from "@/features/fleet/types";
+import { overKg } from "@/features/fleet/capacity";
+import { formatPlate } from "@/features/fleet/plate";
+import type { FleetBoard as Board, FleetLoad, FleetOutcome, FleetTruck, WaitingOrder } from "@/features/fleet/types";
 import { cn } from "@/lib/cn";
 import { formatIsoDate } from "@/lib/dates";
 import { formatCapacity, formatKg } from "@/lib/format";
+import { IntentLink } from "../intent-link";
+import { CHOOSE_TRUCK_EVENT } from "../requests/choose-truck-button";
 import { Sheet } from "../sheet";
 import { card, primaryButton } from "../ui";
+import { LoadRows } from "./load-rows";
 import { NumberPlate } from "./number-plate";
+import { TripButton, tripSince } from "./trip-button";
+import { truckDetails } from "./truck-details";
 import { TruckForm } from "./truck-form";
 import { TruckGraphic } from "./truck-graphic";
+import { TruckPicker, placeNear, type PickerRequest } from "./truck-picker";
 import { TruckSheetBody, TruckSheetTitle } from "./truck-sheet";
 
-type Bands = Record<MaterialId, { label: string; range: string }>;
 type Toast = { id: number; outcome: FleetOutcome };
 type SheetState = { kind: "truck"; id: string } | { kind: "add"; capacityKg?: number } | null;
+type PickerState = {
+  request: PickerRequest;
+  target: { kind: "assign"; orderId: string } | { kind: "move"; assignmentId: string };
+} | null;
 
 const DRAG_TYPE = "application/x-bharat-order";
 
 export function FleetBoard({
   board,
-  bands,
-  today,
+  bandLabels,
   initialOrderId,
 }: {
   board: Board;
-  bands: Bands;
-  /** India date, "YYYY-MM-DD", for flagging close pickups. */
-  today: string;
+  bandLabels: Record<MaterialId, string>;
+  /** A request to open the truck picker for straight away (from its detail page). */
   initialOrderId?: string;
 }) {
   const [view, addChange] = useOptimistic(board, applyChange);
   const [, startTransition] = useTransition();
-  const [selectedId, setSelectedId] = useState<string | null>(initialOrderId ?? null);
   const [sheet, setSheet] = useState<SheetState>(null);
+  const [picker, setPicker] = useState<PickerState>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [dragging, setDragging] = useState(false);
   const toastCount = useRef(0);
+  const openedFor = useRef<string | null>(null);
 
-  const selected = view.waiting.find((order) => order.id === selectedId) ?? null;
   const summary = summarise(view);
-  const groups = groupTrucks(view);
+  const groups = groupTrucks(view.trucks, view.sizes);
   const largest = Math.max(1, ...groups.map((group) => group.capacityKg));
-  const bestId = selected
-    ? rankTrucks(view.trucks.map(asTruckLoad), selected.material, remainingKg(selected))[0]?.id
-    : undefined;
   const sheetTruck = sheet?.kind === "truck" ? view.trucks.find((truck) => truck.id === sheet.id) : undefined;
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), toast.outcome.ok ? 3500 : 6000);
+    const timer = setTimeout(() => setToast(null), toast.outcome.ok ? 4000 : 7000);
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Coming from a request's page: open the picker for it once, under its queue card.
   useEffect(() => {
-    if (!selected) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !document.querySelector("dialog[open]")) setSelectedId(null);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [selected]);
+    if (!initialOrderId || openedFor.current === initialOrderId) return;
+    const order = view.waiting.find((item) => item.id === initialOrderId);
+    if (!order) return;
+    openedFor.current = initialOrderId;
+    const anchor = document.querySelector<HTMLElement>(`[data-order="${CSS.escape(order.id)}"] [data-choose]`);
+    anchor?.scrollIntoView({ block: "nearest" });
+    openAssign(order, anchor);
+  });
 
-  /** Opens a sheet without carrying over the message from before. */
-  function openSheet(next: SheetState) {
-    setToast(null);
-    setSheet(next);
-  }
+  // "Choose truck" in a request's side panel, opened over this board, lands here.
+  useEffect(() => {
+    function onChoose(event: Event) {
+      const order = view.waiting.find((item) => item.id === (event as CustomEvent<string>).detail);
+      if (!order) return;
+      const anchor = document.querySelector<HTMLElement>(`[data-order="${CSS.escape(order.id)}"] [data-choose]`);
+      anchor?.scrollIntoView({ block: "nearest" });
+      openAssign(order, anchor);
+    }
+    window.addEventListener(CHOOSE_TRUCK_EVENT, onChoose);
+    return () => window.removeEventListener(CHOOSE_TRUCK_EVENT, onChoose);
+  });
 
   function notify(outcome: FleetOutcome) {
     toastCount.current += 1;
     setToast({ id: toastCount.current, outcome });
+  }
+
+  function openSheet(next: SheetState) {
+    setToast(null);
+    setSheet(next);
   }
 
   /** Shows the change at once, then saves it. The page refreshes from the server afterwards. */
@@ -106,37 +125,86 @@ export function FleetBoard({
     });
   }
 
-  function placeOn(truck: FleetTruck, order: WaitingOrder | null = selected) {
+  function openAssign(order: WaitingOrder, anchor: HTMLElement | null) {
+    setToast(null);
+    setPicker({
+      target: { kind: "assign", orderId: order.id },
+      request: {
+        title: `Choose a truck for ${order.reference}`,
+        material: order.material,
+        maxKg: remainingKg(order),
+        fixedKg: false,
+        position: placeNear(anchor),
+      },
+    });
+  }
+
+  function openMove(truck: FleetTruck, load: FleetLoad, anchor: HTMLElement) {
+    setToast(null);
+    setPicker({
+      target: { kind: "move", assignmentId: load.assignmentId },
+      request: {
+        title: `Move ${load.reference} off ${formatPlate(truck.plateNumber)}`,
+        material: load.material,
+        maxKg: load.loadKg,
+        fixedKg: true,
+        fromTruckId: truck.id,
+        position: placeNear(anchor),
+      },
+    });
+  }
+
+  function pick(truck: FleetTruck, kg: number) {
+    if (!picker) return;
+    const { target } = picker;
+    setPicker(null);
+    if (target.kind === "assign") {
+      run({ kind: "assign", quoteId: target.orderId, truckId: truck.id, kg }, () => assignLoadAction(target.orderId, truck.id, kg));
+    } else {
+      run({ kind: "move", assignmentId: target.assignmentId, truckId: truck.id }, () => moveLoadAction(target.assignmentId, truck.id));
+    }
+  }
+
+  function remove(load: FleetLoad) {
+    run({ kind: "unassign", assignmentId: load.assignmentId }, () => unassignLoadAction(load.assignmentId));
+  }
+
+  function dropOn(truck: FleetTruck, orderId: string) {
+    const order = view.waiting.find((item) => item.id === orderId);
     if (!order) return;
-    if (blockedReason(asTruckLoad(truck), order.material)) return;
-    run({ kind: "assign", quoteId: order.id, truckId: truck.id }, () => assignLoadAction(order.id, truck.id));
+    if (truck.status !== "AVAILABLE") {
+      notify({ ok: false, error: truck.status === "ON_TRIP" ? "That truck is on a trip." : "That truck is in maintenance." });
+      return;
+    }
+    const kg = remainingKg(order);
+    run({ kind: "assign", quoteId: order.id, truckId: truck.id, kg }, () => assignLoadAction(order.id, truck.id, kg));
   }
 
-  function autoPlace(order: WaitingOrder) {
-    run({ kind: "auto", quoteId: order.id }, () => autoAssignLoadAction(order.id));
-  }
-
-  function unassign(assignmentId: string) {
-    run({ kind: "unassign", assignmentId }, () => unassignLoadAction(assignmentId));
-  }
-
-  function setStatus(truck: FleetTruck, status: FleetTruck["status"]) {
-    run({ kind: "status", truckId: truck.id, status }, () => setVehicleStatusAction(truck.id, status));
-  }
+  const actions = {
+    onMove: openMove,
+    onRemove: remove,
+    onStartTrip: (truck: FleetTruck) => run({ kind: "start-trip", truckId: truck.id }, () => startTripAction(truck.id)),
+    onEndTrip: (truck: FleetTruck) => run({ kind: "end-trip", truckId: truck.id }, () => endTripAction(truck.id)),
+    onOpen: (truck: FleetTruck) => openSheet({ kind: "truck", id: truck.id }),
+    onDrop: dropOn,
+  };
 
   const loadedPercent = summary.capacityKg > 0 ? Math.round((summary.usedKg / summary.capacityKg) * 100) : 0;
   const usedByBand = MATERIAL_IDS.map((material) => ({
     material,
-    kg: view.trucks.reduce((sum, truck) => sum + (truck.material === material ? truck.usedKg : 0), 0),
+    kg: view.trucks.reduce(
+      (sum, truck) => sum + truck.loads.filter((load) => load.material === material).reduce((total, load) => total + load.loadKg, 0),
+      0,
+    ),
   }));
 
   return (
-    <div className="space-y-6 pb-24 lg:pb-0">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-ink-950">Fleet</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Confirmed loads and the trucks carrying them. A truck frees up when its requests are marked Completed.
+            Choose a truck for each confirmed request. Start the trip when it leaves; ending it delivers everything on board.
           </p>
         </div>
         <button type="button" onClick={() => openSheet({ kind: "add" })} className={primaryButton}>
@@ -154,12 +222,18 @@ export function FleetBoard({
               <div
                 key={material}
                 className={cn("h-full w-(--w) transition-[width] duration-500", BAND_STYLES[material].fill)}
-                style={{ "--w": `${summary.capacityKg ? (kg / summary.capacityKg) * 100 : 0}%` } as CSSProperties}
+                style={{ "--w": `${summary.capacityKg ? Math.min(100, (kg / summary.capacityKg) * 100) : 0}%` } as CSSProperties}
               />
             ))}
           </div>
           <p className="mt-2 text-xs text-ink-500">
-            {formatCapacity(summary.usedKg)} of {formatCapacity(summary.capacityKg)} on available trucks
+            {formatCapacity(summary.usedKg)} of {formatCapacity(summary.capacityKg)}
+            {summary.overweight > 0 ? (
+              <span className="font-semibold text-danger">
+                {" "}
+                · {summary.overweight} {summary.overweight === 1 ? "truck" : "trucks"} over payload
+              </span>
+            ) : null}
           </p>
         </div>
         <div className={cn(card, "p-4", summary.waitingOrders > 0 && "border-saffron-400/60 bg-saffron-50/50")}>
@@ -170,17 +244,18 @@ export function FleetBoard({
           </p>
         </div>
         <div className={cn(card, "p-4")}>
-          <p className="caption text-ink-500">Free space</p>
-          <p className="mt-1 font-mono text-3xl font-semibold text-ink-950">{formatCapacity(summary.freeKg)}</p>
+          <p className="caption text-ink-500">On the road</p>
+          <p className="mt-1 font-mono text-3xl font-semibold text-ink-950">{summary.onTrip}</p>
           <p className="mt-2 text-xs text-ink-500">
-            {summary.emptyTrucks} empty {summary.emptyTrucks === 1 ? "truck" : "trucks"}
+            {summary.onTrip > 0 ? `${formatCapacity(summary.onTripKg)} on trips` : "No trips running"}
           </p>
         </div>
         <div className={cn(card, "col-span-2 p-4 lg:col-span-1")}>
           <p className="caption text-ink-500">Trucks</p>
           <p className="mt-1 font-mono text-3xl font-semibold text-ink-950">{summary.trucks}</p>
           <p className="mt-2 text-xs text-ink-500">
-            {summary.available} available
+            {summary.available} at the depot
+            {summary.emptyTrucks > 0 ? ` (${summary.emptyTrucks} empty)` : ""}
             {summary.maintenance > 0 ? ` · ${summary.maintenance} in maintenance` : ""}
           </p>
         </div>
@@ -190,25 +265,27 @@ export function FleetBoard({
         <Queue
           orders={view.waiting}
           confirmedCount={view.confirmedCount}
-          selectedId={selected?.id ?? null}
-          bands={bands}
-          today={today}
-          onSelect={(order) => setSelectedId((current) => (current === order.id ? null : order.id))}
-          onAuto={autoPlace}
-          onDragStart={(order) => setSelectedId(order.id)}
+          bandLabels={bandLabels}
+          today={view.today}
+          onChoose={openAssign}
+          onDragChange={setDragging}
         />
 
         <div className="min-w-0 space-y-8 lg:order-first">
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-500" aria-label="Temperature bands">
+          <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-500" aria-label="Key">
             {MATERIAL_IDS.map((material) => (
               <li key={material} className="inline-flex items-center gap-1.5">
                 <span aria-hidden="true" className={cn("size-2.5 rounded-sm", BAND_STYLES[material].fill)} />
-                {bands[material].label}
+                {bandLabels[material]}
               </li>
             ))}
             <li className="inline-flex items-center gap-1.5">
-              <span aria-hidden="true" className="size-2.5 rounded-sm border border-frost-300 bg-frost-50" />
+              <span aria-hidden="true" className="size-2.5 rounded-sm border border-frost-300 bg-frost-50 dark:bg-[#123d70]" />
               Free
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="size-2.5 rounded-sm bg-[repeating-linear-gradient(45deg,rgb(198_40_40/0.6)_0_2px,transparent_2px_4px)] ring-1 ring-danger" />
+              Over payload
             </li>
           </ul>
 
@@ -230,49 +307,21 @@ export function FleetBoard({
                 key={group.capacityKg}
                 group={group}
                 largest={largest}
-                selected={selected}
-                bestId={bestId}
-                bands={bands}
+                bandLabels={bandLabels}
+                dragging={dragging}
                 onAdd={() => openSheet({ kind: "add", capacityKg: group.capacityKg })}
-                onOpen={(truck) => openSheet({ kind: "truck", id: truck.id })}
-                onPlace={(truck) => placeOn(truck)}
-                onDropOrder={(truck, orderId) => placeOn(truck, view.waiting.find((order) => order.id === orderId) ?? null)}
+                actions={actions}
               />
             ))
           )}
         </div>
       </div>
 
-      {/* Phones: the selected request stays in view while scrolling to a truck. */}
-      {selected ? (
-        <div className="fixed inset-x-3 bottom-3 z-30 flex items-center gap-3 rounded-2xl bg-navy-950 p-3 pl-4 text-white shadow-2xl lg:hidden">
-          <span aria-hidden="true" className={cn("h-9 w-1 shrink-0 rounded-full", BAND_STYLES[selected.material].fill)} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-sm font-semibold">{selected.reference}</p>
-            <p className="truncate text-xs text-ink-300">{formatKg(remainingKg(selected))} left · tap a truck</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => autoPlace(selected)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-semibold text-navy-950"
-          >
-            <Sparkles aria-hidden="true" className="size-4" />
-            Auto
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedId(null)}
-            className="inline-flex size-10 items-center justify-center rounded-lg text-ink-300 hover:text-white"
-          >
-            <X aria-hidden="true" className="size-5" />
-            <span className="sr-only">Stop placing</span>
-          </button>
-        </div>
-      ) : null}
-
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 lg:bottom-6">
-        {toast && !sheet ? <ToastMessage key={toast.id} outcome={toast.outcome} floating /> : null}
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
+        {toast && !sheet && !picker ? <ToastMessage key={toast.id} outcome={toast.outcome} floating /> : null}
       </div>
+
+      <TruckPicker request={picker?.request ?? null} board={view} bandLabels={bandLabels} onPick={pick} onClose={() => setPicker(null)} />
 
       <Sheet
         open={sheet?.kind === "add"}
@@ -282,6 +331,7 @@ export function FleetBoard({
         {sheet?.kind === "add" ? (
           <TruckForm
             sizes={view.sizes}
+            bandLabels={bandLabels}
             defaultCapacityKg={sheet.capacityKg}
             submitLabel="Add truck"
             onSubmit={addVehicleAction}
@@ -297,15 +347,20 @@ export function FleetBoard({
         open={Boolean(sheetTruck)}
         onClose={() => setSheet(null)}
         title={sheetTruck ? <TruckSheetTitle truck={sheetTruck} /> : null}
-        status={toast && sheetTruck ? <ToastMessage key={toast.id} outcome={toast.outcome} /> : null}
+        status={toast && sheetTruck && !picker ? <ToastMessage key={toast.id} outcome={toast.outcome} /> : null}
       >
         {sheetTruck ? (
           <TruckSheetBody
             truck={sheetTruck}
             sizes={view.sizes}
-            bands={bands}
-            onUnassign={unassign}
-            onStatus={(status) => setStatus(sheetTruck, status)}
+            bandLabels={bandLabels}
+            onMove={(load, anchor) => openMove(sheetTruck, load, anchor)}
+            onRemove={remove}
+            onStatus={(status) =>
+              run({ kind: "status", truckId: sheetTruck.id, status }, () => setVehicleStatusAction(sheetTruck.id, status))
+            }
+            onStartTrip={() => actions.onStartTrip(sheetTruck)}
+            onEndTrip={() => actions.onEndTrip(sheetTruck)}
             onDone={() => setSheet(null)}
             notify={notify}
           />
@@ -322,7 +377,7 @@ function ToastMessage({ outcome, floating }: { outcome: FleetOutcome; floating?:
       className={cn(
         "flex items-start gap-2 text-sm font-medium transition duration-300 starting:translate-y-1 starting:opacity-0",
         floating && "pointer-events-auto max-w-md rounded-xl px-4 py-3 shadow-xl",
-        floating ? (outcome.ok ? "bg-ink-950 text-white" : "bg-danger text-white") : outcome.ok ? "text-success" : "text-danger",
+        floating ? (outcome.ok ? "bg-navy-950 text-white ring-1 ring-white/10" : "bg-danger text-white") : outcome.ok ? "text-success" : "text-danger",
       )}
     >
       {outcome.ok ? (
@@ -335,30 +390,33 @@ function ToastMessage({ outcome, floating }: { outcome: FleetOutcome; floating?:
   );
 }
 
+type TruckActions = {
+  onMove: (truck: FleetTruck, load: FleetLoad, anchor: HTMLElement) => void;
+  onRemove: (load: FleetLoad) => void;
+  onStartTrip: (truck: FleetTruck) => void;
+  onEndTrip: (truck: FleetTruck) => void;
+  onOpen: (truck: FleetTruck) => void;
+  onDrop: (truck: FleetTruck, orderId: string) => void;
+};
+
 function Group({
   group,
   largest,
-  selected,
-  bestId,
-  bands,
+  bandLabels,
+  dragging,
   onAdd,
-  onOpen,
-  onPlace,
-  onDropOrder,
+  actions,
 }: {
   group: CapacityGroup;
   largest: number;
-  selected: WaitingOrder | null;
-  bestId: string | undefined;
-  bands: Bands;
+  bandLabels: Record<MaterialId, string>;
+  dragging: boolean;
   onAdd: () => void;
-  onOpen: (truck: FleetTruck) => void;
-  onPlace: (truck: FleetTruck) => void;
-  onDropOrder: (truck: FleetTruck, orderId: string) => void;
+  actions: TruckActions;
 }) {
-  const available = group.trucks.filter((truck) => truck.status === "AVAILABLE");
-  const capacity = available.reduce((sum, truck) => sum + truck.capacityKg, 0);
-  const used = available.reduce((sum, truck) => sum + truck.usedKg, 0);
+  const running = group.trucks.filter((truck) => truck.status !== "MAINTENANCE");
+  const capacity = running.reduce((sum, truck) => sum + truck.capacityKg, 0);
+  const used = group.trucks.reduce((sum, truck) => sum + truck.usedKg, 0);
   const percent = capacity > 0 ? Math.round((used / capacity) * 100) : 0;
 
   return (
@@ -368,9 +426,7 @@ function Group({
           <h2 className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-mono text-xl font-semibold text-ink-950">{formatCapacity(group.capacityKg)}</span>
             {group.name ? <span className="truncate text-sm text-ink-500">{group.name}</span> : null}
-            {!group.listed ? (
-              <span className="rounded bg-frost-100 px-1.5 py-0.5 text-xs text-ink-500">Not a listed size</span>
-            ) : null}
+            {!group.listed ? <span className="rounded bg-frost-100 px-1.5 py-0.5 text-xs text-ink-500">Not a listed size</span> : null}
           </h2>
           <p className="mt-0.5 text-xs text-ink-500">
             {group.trucks.length === 0
@@ -405,12 +461,9 @@ function Group({
               key={truck.id}
               truck={truck}
               scale={truck.capacityKg / largest}
-              selected={selected}
-              best={truck.id === bestId}
-              bands={bands}
-              onOpen={() => onOpen(truck)}
-              onPlace={() => onPlace(truck)}
-              onDropOrder={(orderId) => onDropOrder(truck, orderId)}
+              bandLabels={bandLabels}
+              dragging={dragging}
+              actions={actions}
             />
           ))}
         </ul>
@@ -422,39 +475,24 @@ function Group({
 function TruckCard({
   truck,
   scale,
-  selected,
-  best,
-  bands,
-  onOpen,
-  onPlace,
-  onDropOrder,
+  bandLabels,
+  dragging,
+  actions,
 }: {
   truck: FleetTruck;
   scale: number;
-  selected: WaitingOrder | null;
-  best: boolean;
-  bands: Bands;
-  onOpen: () => void;
-  onPlace: () => void;
-  onDropOrder: (orderId: string) => void;
+  bandLabels: Record<MaterialId, string>;
+  dragging: boolean;
+  actions: TruckActions;
 }) {
   const [over, setOver] = useState(false);
-  const blocked = selected ? blockedReason(asTruckLoad(truck), selected.material) : null;
-  const kg = selected && !blocked ? placeableKg(truck, selected) : 0;
-  const whole = selected !== null && kg === remainingKg(selected);
-  const maintenance = truck.status === "MAINTENANCE";
-  const percent = Math.round((truck.usedKg / truck.capacityKg) * 100);
+  const overweight = overKg(truck);
   const free = Math.max(0, truck.capacityKg - truck.usedKg);
-  const placing = selected !== null;
-
-  const label = placing
-    ? blocked
-      ? `${truck.plateNumber}: ${blocked}`
-      : `Place ${kg.toLocaleString("en-IN")} kilograms of ${selected.reference} on ${truck.plateNumber}`
-    : `${truck.plateNumber}, ${maintenance ? "in maintenance" : `${percent}% loaded`}. Open details`;
+  const canTake = truck.status === "AVAILABLE";
+  const details = truckDetails(truck);
 
   function onDragOver(event: DragEvent) {
-    if (!event.dataTransfer.types.includes(DRAG_TYPE) || blocked) return;
+    if (!event.dataTransfer.types.includes(DRAG_TYPE) || !canTake) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     setOver(true);
@@ -464,7 +502,7 @@ function TruckCard({
     event.preventDefault();
     setOver(false);
     const orderId = event.dataTransfer.getData(DRAG_TYPE);
-    if (orderId && !blocked) onDropOrder(orderId);
+    if (orderId) actions.onDrop(truck, orderId);
   }
 
   return (
@@ -474,99 +512,99 @@ function TruckCard({
       onDrop={onDrop}
       className={cn(
         card,
-        "relative flex flex-col p-4 transition-[opacity,box-shadow,border-color,transform] duration-200",
-        !placing && "hover:border-ink-300 hover:shadow-sm",
-        placing && blocked && "opacity-45",
-        placing && !blocked && "border-ice-300 hover:-translate-y-0.5 hover:border-ice-500 hover:shadow-md",
-        best && "ring-2 ring-saffron-400 ring-offset-1",
+        "flex flex-col p-4 transition-[opacity,box-shadow,border-color,transform] duration-200",
+        overweight > 0 && "border-danger/50",
+        dragging && !canTake && "opacity-50",
+        dragging && canTake && "border-ice-300",
         over && "-translate-y-0.5 border-ice-500 shadow-lg ring-2 ring-ice-400",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <NumberPlate plate={truck.plateNumber} />
-        {best ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-saffron-50 px-2 py-0.5 text-xs font-semibold text-saffron-600">
-            <Sparkles aria-hidden="true" className="size-3" />
-            Best fit
-          </span>
-        ) : maintenance ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-frost-100 px-2 py-0.5 text-xs font-medium text-ink-600">
-            <Wrench aria-hidden="true" className="size-3" />
-            Maintenance
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-xs text-ink-500">
-            <span aria-hidden="true" className={cn("size-2 rounded-full", truck.usedKg > 0 ? BAND_STYLES[truck.material ?? "FROZEN"].fill : "bg-success")} />
-            {truck.usedKg === 0 ? "Empty" : truck.usedKg >= truck.capacityKg ? "Full" : truck.material ? bands[truck.material].label : "Loaded"}
-          </span>
-        )}
+        <button
+          type="button"
+          onClick={() => actions.onOpen(truck)}
+          className="rounded-md text-left"
+          aria-label={`${formatPlate(truck.plateNumber)}: open the truck`}
+        >
+          <NumberPlate plate={truck.plateNumber} />
+        </button>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {truck.temperature ? (
+            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium", BAND_STYLES[truck.temperature].soft, BAND_STYLES[truck.temperature].text)}>
+              <span aria-hidden="true" className={cn("size-1.5 rounded-full", BAND_STYLES[truck.temperature].fill)} />
+              {bandLabels[truck.temperature]}
+            </span>
+          ) : null}
+          {truck.status === "ON_TRIP" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-ice-50 px-2 py-0.5 text-xs font-semibold text-ice-700">
+              <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-ice-500" />
+              On trip
+            </span>
+          ) : truck.status === "MAINTENANCE" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-frost-100 px-2 py-0.5 text-xs font-medium text-ink-600">
+              <Wrench aria-hidden="true" className="size-3" />
+              Maintenance
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
+              {truck.usedKg > 0 ? "Loading" : "Available"}
+            </span>
+          )}
+        </div>
       </div>
-      <p className="mt-1.5 truncate text-xs text-ink-500">
-        {[truck.model, truck.driverName].filter(Boolean).join(" · ") || " "}
-      </p>
+      <p className="mt-1.5 truncate text-xs text-ink-500">{details || " "}</p>
 
-      <div className="mt-3">
-        <TruckGraphic
-          capacityKg={truck.capacityKg}
-          loads={truck.loads}
-          preview={selected && !blocked ? { kg, material: selected.material } : null}
-          maintenance={maintenance}
-          scale={scale}
-        />
-      </div>
+      <button type="button" tabIndex={-1} aria-hidden="true" onClick={() => actions.onOpen(truck)} className="mt-3 block w-full cursor-pointer">
+        <TruckGraphic capacityKg={truck.capacityKg} loads={truck.loads} status={truck.status} scale={scale} />
+      </button>
 
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="font-mono text-ink-700">
-          <span className="font-semibold text-ink-950">{truck.usedKg.toLocaleString("en-IN")}</span> / {formatKg(truck.capacityKg)}
+          <span className={cn("font-semibold", overweight > 0 ? "text-danger" : "text-ink-950")}>
+            {truck.usedKg.toLocaleString("en-IN")}
+          </span>{" "}
+          / {formatKg(truck.capacityKg)}
         </span>
-        <span className="font-mono text-ink-500">{maintenance ? "—" : free > 0 ? `${formatKg(free)} free` : "Full"}</span>
+        {overweight > 0 ? (
+          <span className="inline-flex items-center gap-1 font-mono font-semibold text-danger">
+            <CircleAlert aria-hidden="true" className="size-3.5" />
+            {formatKg(overweight)} over
+          </span>
+        ) : (
+          <span className="font-mono text-ink-500">{truck.status === "MAINTENANCE" ? "—" : `${formatKg(free)} free`}</span>
+        )}
       </div>
 
-      {placing ? (
-        <p
-          className={cn(
-            "mt-2 flex items-center gap-1.5 text-xs font-medium",
-            blocked ? "text-ink-500" : whole ? "text-success" : "text-ice-700",
-          )}
-        >
-          {blocked ? (
-            blocked
-          ) : whole ? (
-            <>
-              <CircleCheck aria-hidden="true" className="size-3.5" />
-              Takes the whole load
-            </>
-          ) : (
-            `Takes ${formatKg(kg)} of ${formatKg(remainingKg(selected))}`
-          )}
+      {truck.loads.length > 0 ? (
+        <LoadRows
+          loads={truck.loads}
+          bandLabels={bandLabels}
+          onMove={(load, anchor) => actions.onMove(truck, load, anchor)}
+          onRemove={actions.onRemove}
+          className="mt-2 border-t border-frost-200"
+        />
+      ) : (
+        <p className="mt-2 border-t border-frost-200 pt-2 text-xs text-ink-500">
+          {truck.status === "MAINTENANCE" ? "Off the road." : "Empty. Choose it for a request, or drag a request here."}
         </p>
-      ) : truck.loads.length > 0 ? (
-        <ul className="relative z-10 mt-2 flex flex-wrap gap-1.5">
-          {truck.loads.slice(0, 3).map((load) => (
-            <li key={load.assignmentId}>
-              <Link
-                href={`/admin/quotes/${load.quoteId}`}
-                className="inline-flex h-6 items-center gap-1 rounded-md bg-frost-100 px-1.5 font-mono text-[0.7rem] font-medium text-ink-700 hover:bg-frost-200 hover:text-ink-950"
-              >
-                <span aria-hidden="true" className={cn("size-1.5 rounded-full", BAND_STYLES[load.material].fill)} />
-                {load.reference}
-              </Link>
-            </li>
-          ))}
-          {truck.loads.length > 3 ? (
-            <li className="inline-flex h-6 items-center px-1 text-[0.7rem] text-ink-500">+{truck.loads.length - 3} more</li>
-          ) : null}
-        </ul>
-      ) : null}
+      )}
 
-      {/* The whole card is the button; the request links above sit on top of it. */}
-      <button
-        type="button"
-        aria-label={label}
-        disabled={placing && Boolean(blocked)}
-        onClick={placing ? onPlace : onOpen}
-        className="absolute inset-0 rounded-xl focus-visible:outline-offset-2 disabled:cursor-not-allowed"
-      />
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
+        <span className="text-xs text-ink-500">
+          {truck.status === "ON_TRIP" && truck.tripStartedAt ? tripSince(truck.tripStartedAt) : null}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <TripButton truck={truck} onStart={() => actions.onStartTrip(truck)} onEnd={() => actions.onEndTrip(truck)} />
+          <button
+            type="button"
+            onClick={() => actions.onOpen(truck)}
+            className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-ink-700 hover:bg-frost-100"
+          >
+            Details
+          </button>
+        </div>
+      </div>
     </li>
   );
 }
@@ -574,21 +612,17 @@ function TruckCard({
 function Queue({
   orders,
   confirmedCount,
-  selectedId,
-  bands,
+  bandLabels,
   today,
-  onSelect,
-  onAuto,
-  onDragStart,
+  onChoose,
+  onDragChange,
 }: {
   orders: WaitingOrder[];
   confirmedCount: number;
-  selectedId: string | null;
-  bands: Bands;
+  bandLabels: Record<MaterialId, string>;
   today: string;
-  onSelect: (order: WaitingOrder) => void;
-  onAuto: (order: WaitingOrder) => void;
-  onDragStart: (order: WaitingOrder) => void;
+  onChoose: (order: WaitingOrder, anchor: HTMLElement) => void;
+  onDragChange: (dragging: boolean) => void;
 }) {
   return (
     <aside aria-labelledby="fleet-queue" className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:pb-2">
@@ -601,7 +635,7 @@ function Queue({
         </span>
       </div>
       <p className="mt-1 text-xs text-ink-500">
-        Pick a request, then tap a truck<span className="hidden lg:inline">, or drag it onto one</span>.
+        Choose a truck for each one<span className="hidden lg:inline">, or drag it onto a truck</span>.
       </p>
 
       {orders.length === 0 ? (
@@ -614,35 +648,32 @@ function Queue({
       ) : (
         <ul className="-mx-5 mt-3 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:scroll-px-0 sm:px-0 lg:flex-col lg:overflow-visible lg:pb-0">
           {orders.map((order) => {
-            const isSelected = order.id === selectedId;
             const remaining = remainingKg(order);
             const soon = order.pickupDate !== null && order.pickupDate <= today;
             return (
               <li
                 key={order.id}
+                data-order={order.id}
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.setData(DRAG_TYPE, order.id);
                   event.dataTransfer.effectAllowed = "move";
-                  onDragStart(order);
+                  onDragChange(true);
                 }}
-                className={cn(
-                  card,
-                  "w-[17rem] shrink-0 snap-start overflow-hidden transition-[border-color,box-shadow] duration-200 lg:w-auto",
-                  isSelected ? "border-ice-500 shadow-md ring-2 ring-ice-400/40" : "hover:border-ink-300",
-                )}
+                onDragEnd={() => onDragChange(false)}
+                className={cn(card, "w-[17rem] shrink-0 snap-start overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-ink-300 lg:w-auto")}
               >
-                <button
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => onSelect(order)}
-                  className="block w-full cursor-grab p-4 text-left active:cursor-grabbing"
+                {/* The card opens the request in a side panel; drag it onto a truck to place it. */}
+                <IntentLink
+                  href={`/admin/quotes/${order.id}`}
+                  draggable={false}
+                  className="block cursor-grab p-4 transition-colors hover:bg-frost-50 active:cursor-grabbing"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-sm font-semibold text-ink-950">{order.reference}</span>
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-700">
                       <span aria-hidden="true" className={cn("size-2 rounded-full", BAND_STYLES[order.material].fill)} />
-                      {bands[order.material].label}
+                      {bandLabels[order.material]}
                     </span>
                   </div>
                   <p className="mt-1.5 truncate text-sm font-medium text-ink-950">
@@ -653,10 +684,7 @@ function Queue({
                   <p className="mt-0.5 truncate text-xs text-ink-500">
                     {order.contactName}
                     {order.pickupDate ? (
-                      <span className={cn(soon && "font-semibold text-saffron-600")}>
-                        {" "}
-                        · pickup {formatIsoDate(order.pickupDate)}
-                      </span>
+                      <span className={cn(soon && "font-semibold text-saffron-600")}> · pickup {formatIsoDate(order.pickupDate)}</span>
                     ) : null}
                   </p>
                   <div className="mt-3 flex items-baseline justify-between">
@@ -671,23 +699,16 @@ function Queue({
                       style={{ "--w": `${(order.assignedKg / order.quantityKg) * 100}%` } as CSSProperties}
                     />
                   </div>
+                </IntentLink>
+                <button
+                  type="button"
+                  data-choose
+                  onClick={(event) => onChoose(order, event.currentTarget)}
+                  className="flex h-11 w-full items-center justify-center gap-1.5 border-t border-frost-200 text-sm font-semibold text-ice-700 transition-colors hover:bg-ice-50"
+                >
+                  <Truck aria-hidden="true" className="size-4" />
+                  Choose truck
                 </button>
-                <div className="flex border-t border-frost-200">
-                  <button
-                    type="button"
-                    onClick={() => onAuto(order)}
-                    className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 text-sm font-semibold text-ice-700 transition-colors hover:bg-ice-50"
-                  >
-                    <Sparkles aria-hidden="true" className="size-4" />
-                    Place automatically
-                  </button>
-                  <Link
-                    href={`/admin/quotes/${order.id}`}
-                    className="inline-flex h-10 items-center border-l border-frost-200 px-4 text-sm font-medium text-ink-700 transition-colors hover:bg-frost-50"
-                  >
-                    Open
-                  </Link>
-                </div>
               </li>
             );
           })}

@@ -1,52 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { blockedReason, planAllocation, rankTrucks, type TruckLoad } from "./capacity";
+import { assessPlacement, bestFitId, freeKg, overKg, type TruckState } from "./capacity";
 
-function truck(id: string, capacityKg: number, usedKg = 0, extra: Partial<TruckLoad> = {}): TruckLoad {
-  return { id, plateNumber: id, capacityKg, usedKg, status: "AVAILABLE", material: usedKg > 0 ? "FROZEN" : null, ...extra };
+function truck(id: string, capacityKg: number, extra: Partial<TruckState> = {}): TruckState {
+  return { id, capacityKg, status: "AVAILABLE", usedKg: 0, temperature: null, bands: [], ...extra };
 }
 
-describe("rankTrucks", () => {
-  it("prefers the tightest truck that takes the whole load", () => {
-    const fleet = [truck("big", 22_000), truck("mid", 9_000), truck("small", 4_000)];
-    expect(rankTrucks(fleet, "FROZEN", 3_500).map((t) => t.id)).toEqual(["small", "mid", "big"]);
-    expect(rankTrucks(fleet, "FROZEN", 8_000).map((t) => t.id)).toEqual(["mid", "big", "small"]);
+describe("assessPlacement", () => {
+  it("allows going over the payload and says by how much", () => {
+    expect(assessPlacement(truck("a", 4000, { usedKg: 3000, bands: ["FROZEN"] }), "FROZEN", 2500)).toEqual({
+      blocked: null,
+      afterKg: 5500,
+      overKg: 1500,
+      warnings: [],
+    });
   });
 
-  it("skips trucks in maintenance, full ones, and ones carrying another band", () => {
-    const fleet = [
-      truck("repair", 9_000, 0, { status: "MAINTENANCE" }),
-      truck("full", 4_000, 4_000),
-      truck("chilled", 9_000, 2_000, { material: "CHILLED" }),
-      truck("ok", 9_000, 2_000),
-    ];
-    expect(rankTrucks(fleet, "FROZEN", 1_000).map((t) => t.id)).toEqual(["ok"]);
-    expect(blockedReason(fleet[0], "FROZEN")).toBe("In maintenance");
-    expect(blockedReason(fleet[1], "FROZEN")).toBe("Full");
-    expect(blockedReason(fleet[2], "FROZEN")).toBe("Carrying a different temperature band");
-    expect(blockedReason(fleet[3], "FROZEN")).toBeNull();
+  it("warns about a different band but does not block it", () => {
+    const placement = assessPlacement(truck("a", 4000, { temperature: "CHILLED", bands: ["AMBIENT"] }), "FROZEN", 500);
+    expect(placement.blocked).toBeNull();
+    expect(placement.warnings).toEqual(["Set up for chilled", "Carrying ambient loads"]);
+  });
+
+  it("blocks trucks on a trip or in maintenance", () => {
+    expect(assessPlacement(truck("a", 4000, { status: "ON_TRIP" }), "FROZEN", 1).blocked).toBe("On a trip");
+    expect(assessPlacement(truck("a", 4000, { status: "MAINTENANCE" }), "FROZEN", 1).blocked).toBe("In maintenance");
   });
 });
 
-describe("planAllocation", () => {
-  it("fits a load on one truck when it can", () => {
-    expect(planAllocation([truck("a", 16_000), truck("b", 9_000)], "CHILLED", 8_500)).toEqual([{ truckId: "b", loadKg: 8_500 }]);
+describe("bestFitId", () => {
+  it("picks the tightest truck that takes the load whole, in the right band", () => {
+    const trucks = [
+      truck("big", 22000),
+      truck("snug", 4000, { usedKg: 1000, bands: ["FROZEN"] }),
+      truck("wrong-band", 4000, { temperature: "CHILLED" }),
+      truck("away", 3000, { status: "ON_TRIP" }),
+      truck("small", 2000),
+    ];
+    expect(bestFitId(trucks, "FROZEN", 2500)).toBe("snug");
+    expect(bestFitId(trucks, "FROZEN", 30000)).toBeNull();
   });
+});
 
-  it("spreads a heavy load across trucks, roomiest first", () => {
-    expect(planAllocation([truck("a", 22_000), truck("b", 22_000), truck("c", 9_000)], "FROZEN", 44_000)).toEqual([
-      { truckId: "a", loadKg: 22_000 },
-      { truckId: "b", loadKg: 22_000 },
-    ]);
-  });
-
-  it("shares a part-loaded truck in the same band", () => {
-    expect(planAllocation([truck("shared", 9_000, 6_000), truck("empty", 9_000)], "FROZEN", 2_000)).toEqual([
-      { truckId: "shared", loadKg: 2_000 },
-    ]);
-  });
-
-  it("places what it can when the fleet runs out", () => {
-    expect(planAllocation([truck("a", 4_000)], "FROZEN", 10_000)).toEqual([{ truckId: "a", loadKg: 4_000 }]);
-    expect(planAllocation([], "FROZEN", 10_000)).toEqual([]);
+describe("freeKg and overKg", () => {
+  it("never go below zero", () => {
+    expect(freeKg({ capacityKg: 4000, usedKg: 5000 })).toBe(0);
+    expect(overKg({ capacityKg: 4000, usedKg: 5000 })).toBe(1000);
+    expect(overKg({ capacityKg: 4000, usedKg: 100 })).toBe(0);
   });
 });

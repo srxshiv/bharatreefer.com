@@ -142,7 +142,7 @@ export function ListEditor({
                     onClick={() => move(index, -1)}
                     disabled={index === 0}
                     aria-label={`Move ${rowLabel} ${index + 1} up`}
-                    className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-40"
+                    className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-surface text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-40"
                   >
                     <ArrowUp aria-hidden="true" className="size-4" />
                   </button>
@@ -151,7 +151,7 @@ export function ListEditor({
                     onClick={() => move(index, 1)}
                     disabled={index === rows.length - 1}
                     aria-label={`Move ${rowLabel} ${index + 1} down`}
-                    className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-40"
+                    className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-surface text-ink-500 transition-colors hover:border-ink-400 hover:text-ink-950 disabled:opacity-40"
                   >
                     <ArrowDown aria-hidden="true" className="size-4" />
                   </button>
@@ -161,7 +161,7 @@ export function ListEditor({
                 type="button"
                 onClick={() => remove(key)}
                 aria-label={`Remove ${rowLabel} ${index + 1}`}
-                className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-white text-ink-500 transition-colors hover:border-danger hover:text-danger"
+                className="inline-flex size-10 items-center justify-center rounded-lg border border-frost-300 bg-surface text-ink-500 transition-colors hover:border-danger hover:text-danger"
               >
                 <Trash2 aria-hidden="true" className="size-4" />
               </button>

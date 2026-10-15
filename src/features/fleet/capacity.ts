@@ -1,70 +1,69 @@
 import type { MaterialId } from "@/config/materials";
 
-/** A truck with what is already on it. */
-export type TruckLoad = {
+// How a load would sit on a truck. Pure, so the board, the truck picker and the tests share it.
+
+export type TruckState = {
   id: string;
-  plateNumber: string;
   capacityKg: number;
-  status: "AVAILABLE" | "MAINTENANCE";
+  status: "AVAILABLE" | "ON_TRIP" | "MAINTENANCE";
   usedKg: number;
-  /** Temperature band of what is on board, or null when empty. One band per truck. */
-  material: MaterialId | null;
+  /** The band the truck is set up for, or null when not fixed. */
+  temperature: MaterialId | null;
+  /** Bands of the loads on board. */
+  bands: MaterialId[];
 };
 
-export type Allocation = { truckId: string; loadKg: number };
+export type Placement = {
+  /** Why the truck cannot take loads right now, or null. */
+  blocked: string | null;
+  /** Weight on board after placing the load. */
+  afterKg: number;
+  /** How far over the payload that is; 0 when it fits. */
+  overKg: number;
+  /** Things the owner should know but may go ahead with. */
+  warnings: string[];
+};
 
-export function freeKg(truck: TruckLoad): number {
+export function freeKg(truck: Pick<TruckState, "capacityKg" | "usedKg">): number {
   return Math.max(0, truck.capacityKg - truck.usedKg);
 }
 
-/** Whether a load in this temperature band can go on the truck at all. */
-export function canCarry(truck: TruckLoad, material: MaterialId): boolean {
-  return truck.status === "AVAILABLE" && freeKg(truck) > 0 && (truck.material === null || truck.material === material);
+export function overKg(truck: Pick<TruckState, "capacityKg" | "usedKg">): number {
+  return Math.max(0, truck.usedKg - truck.capacityKg);
 }
 
-/** Why a truck cannot take a load, for showing next to it. Null when it can. */
-export function blockedReason(truck: TruckLoad, material: MaterialId): string | null {
-  if (truck.status === "MAINTENANCE") return "In maintenance";
-  if (freeKg(truck) === 0) return "Full";
-  if (truck.material !== null && truck.material !== material) return "Carrying a different temperature band";
-  return null;
-}
-
-/**
- * Orders trucks for a load: first those that take the whole remainder in one go, tightest
- * fit first (so big trucks stay free for big loads), then the roomiest of the rest.
- */
-export function rankTrucks(trucks: TruckLoad[], material: MaterialId, remainingKg: number): TruckLoad[] {
-  const usable = trucks.filter((truck) => canCarry(truck, material));
-  const whole = usable
-    .filter((truck) => freeKg(truck) >= remainingKg)
-    .sort((a, b) => freeKg(a) - freeKg(b) || a.plateNumber.localeCompare(b.plateNumber));
-  const partial = usable
-    .filter((truck) => freeKg(truck) < remainingKg)
-    .sort((a, b) => freeKg(b) - freeKg(a) || a.plateNumber.localeCompare(b.plateNumber));
-  return [...whole, ...partial];
-}
-
-/**
- * Spreads a load over the fleet using `rankTrucks`, one truck at a time, until it is placed
- * or no truck can take more. Returns what it placed; anything left over is unplaced.
- */
-export function planAllocation(trucks: TruckLoad[], material: MaterialId, kg: number): Allocation[] {
-  const state = trucks.map((truck) => ({ ...truck }));
-  const allocations: Allocation[] = [];
-  let remaining = kg;
-  while (remaining > 0) {
-    const [best] = rankTrucks(
-      state.filter((truck) => !allocations.some((allocation) => allocation.truckId === truck.id)),
-      material,
-      remaining,
-    );
-    if (!best) break;
-    const loadKg = Math.min(remaining, freeKg(best));
-    allocations.push({ truckId: best.id, loadKg });
-    best.usedKg += loadKg;
-    best.material = material;
-    remaining -= loadKg;
+/** What placing `kg` of a load in band `material` on the truck would mean. */
+export function assessPlacement(
+  truck: TruckState,
+  material: MaterialId,
+  kg: number,
+  bandLabel: (id: MaterialId) => string = (id) => id.toLowerCase(),
+): Placement {
+  const afterKg = truck.usedKg + kg;
+  const warnings: string[] = [];
+  if (truck.temperature !== null && truck.temperature !== material) {
+    warnings.push(`Set up for ${bandLabel(truck.temperature)}`);
   }
-  return allocations;
+  const others = [...new Set(truck.bands.filter((band) => band !== material))];
+  if (others.length > 0) warnings.push(`Carrying ${others.map(bandLabel).join(" and ")} loads`);
+
+  let blocked: string | null = null;
+  if (truck.status === "ON_TRIP") blocked = "On a trip";
+  if (truck.status === "MAINTENANCE") blocked = "In maintenance";
+
+  return { blocked, afterKg, overKg: Math.max(0, afterKg - truck.capacityKg), warnings };
+}
+
+/**
+ * The truck to suggest for a load: available, right band, takes it whole, least room left
+ * over. Null when none fits. Only a suggestion; the owner picks.
+ */
+export function bestFitId(trucks: TruckState[], material: MaterialId, kg: number): string | null {
+  let best: TruckState | null = null;
+  for (const truck of trucks) {
+    const placement = assessPlacement(truck, material, kg);
+    if (placement.blocked || placement.overKg > 0 || placement.warnings.length > 0) continue;
+    if (!best || freeKg(truck) < freeKg(best)) best = truck;
+  }
+  return best?.id ?? null;
 }

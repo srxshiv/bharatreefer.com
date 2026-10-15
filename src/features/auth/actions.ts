@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, describeDatabase } from "@/lib/db";
 import { serverEnv } from "@/lib/env";
@@ -89,6 +90,8 @@ export async function login(_previous: AuthFormState, formData: FormData): Promi
 
 export async function logout(): Promise<void> {
   await destroySession();
+  // Drops the admin pages this browser has cached or prefetched along with the session.
+  refresh();
   redirect(LOGIN_PATH);
 }
 

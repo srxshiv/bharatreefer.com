@@ -119,3 +119,12 @@ describe("board view", () => {
     expect(isFiltered({ ...DEFAULT_INBOX_FILTERS, view: "board" })).toBe(false);
   });
 });
+
+describe("rows per page", () => {
+  it("accepts the offered sizes and keeps the default out of the address", () => {
+    expect(parseInboxFilters({ size: "50" }).size).toBe(50);
+    expect(parseInboxFilters({ size: "37" }).size).toBe(25);
+    expect(inboxQuery({ ...DEFAULT_INBOX_FILTERS, size: 100, page: 2 })).toBe("?page=2&size=100");
+    expect(inboxQuery({ ...DEFAULT_INBOX_FILTERS, size: 25 })).toBe("");
+  });
+});

@@ -32,10 +32,11 @@ export function AdminNav() {
             <li key={link.href}>
               <Link
                 href={link.href}
+                prefetch
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative inline-flex h-9 items-center rounded-md px-3 transition-colors",
-                  active ? "bg-frost-100 text-navy-900" : "text-ink-500 hover:text-navy-900",
+                  active ? "bg-navy-900 text-white shadow-sm" : "text-ink-600 hover:bg-navy-50 hover:text-ink-950",
                 )}
               >
                 {link.label}
@@ -70,12 +71,13 @@ export function SiteNav() {
             <li key={link.href}>
               <Link
                 href={link.href}
+                prefetch
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium transition-colors",
                   active
                     ? "border-navy-900 bg-navy-900 text-white"
-                    : "border-frost-300 bg-white text-ink-700 hover:border-ink-400",
+                    : "border-frost-300 bg-surface text-ink-700 hover:border-ink-400",
                 )}
               >
                 {link.label}

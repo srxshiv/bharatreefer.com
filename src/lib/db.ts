@@ -6,6 +6,9 @@ import { serverEnv } from "@/lib/env";
 
 type CachedClient = { connectionString: string; client: PrismaClient };
 
+/** Bump when the pool settings below change, so a running dev server opens a new pool. */
+const POOL_VERSION = 2;
+
 const globalForPrisma = globalThis as unknown as { prismaClient?: CachedClient };
 
 /**
@@ -18,8 +21,9 @@ const globalForPrisma = globalThis as unknown as { prismaClient?: CachedClient }
  */
 export function db(): PrismaClient {
   const { DATABASE_URL } = serverEnv();
+  const key = `${POOL_VERSION}:${DATABASE_URL}`;
   const cached = globalForPrisma.prismaClient;
-  if (cached?.connectionString === DATABASE_URL) return cached.client;
+  if (cached?.connectionString === key) return cached.client;
 
   // Closing the old pool lets queries already running on it finish first.
   if (cached) cached.client.$disconnect().catch(() => {});
@@ -30,12 +34,22 @@ export function db(): PrismaClient {
       max: POOL_SIZE,
       // A new connection to a hosted database costs several round trips (TCP, TLS, auth),
       // about 650 ms to Neon from India. pg closes idle ones after 10 s by default, which
-      // made the first click after any pause slow. Keep them for 10 minutes instead.
-      idleTimeoutMillis: 10 * 60_000,
+      // made the first click after any pause slow. Keep them for 5 minutes instead.
+      idleTimeoutMillis: 5 * 60_000,
+      // Idle connections can die without notice: a router or mobile hotspot forgets the
+      // connection, or the network changes. A query sent on one then hangs. So:
+      // - probe idle connections every 10 s, which also keeps routers from forgetting them;
       keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000,
+      // - replace every connection after 5 minutes, however healthy it looks;
+      maxLifetimeSeconds: 300,
+      // - give up on a query after 20 s (they take well under 1 s), which also discards the
+      //   connection it was on, and on opening a connection after 10 s.
+      query_timeout: 20_000,
+      connectionTimeoutMillis: 10_000,
     }),
   });
-  globalForPrisma.prismaClient = { connectionString: DATABASE_URL, client };
+  globalForPrisma.prismaClient = { connectionString: key, client };
   warm(client);
   return client;
 }

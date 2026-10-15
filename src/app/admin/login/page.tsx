@@ -1,10 +1,11 @@
-import { Suspense } from "react";
+import { Suspense, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Globe, Inbox, MessageCircle, ShieldCheck, Snowflake } from "lucide-react";
 import { LoginForm } from "@/components/admin/login-form";
 import { Logo } from "@/components/site/logo";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 import { ADMIN_HOME } from "@/features/auth/cookie";
 import { getAdmin } from "@/features/auth/session";
 import { getSiteContent } from "@/features/content/data";
@@ -31,6 +32,23 @@ const FEATURES = [
   },
 ];
 
+/**
+ * The brand panel's colours, set on the element itself rather than in the stylesheet: the
+ * panel then stays dark with white text whatever stylesheet a deployment ends up serving.
+ * (A Vercel deployment showed it light, with its white text unreadable, while local builds
+ * were fine.) Navy 900 and 950 from the palette, with a cold glow and a saffron hint.
+ */
+const PANEL_STYLE: CSSProperties = {
+  backgroundColor: "#01183a",
+  backgroundImage: [
+    "radial-gradient(36rem 28rem at 85% 0%, rgb(42 111 196 / 0.28), transparent 65%)",
+    "radial-gradient(30rem 22rem at 0% 100%, rgb(255 122 0 / 0.1), transparent 60%)",
+    "linear-gradient(160deg, #012754 0%, #01183a 70%)",
+  ].join(", "),
+  color: "#ffffff",
+  colorScheme: "dark",
+};
+
 /** Skips the form for someone who is already signed in. */
 async function RedirectIfSignedIn() {
   if (await getAdmin()) redirect(ADMIN_HOME);
@@ -43,7 +61,8 @@ function RouteArt() {
     <svg
       aria-hidden="true"
       viewBox="0 0 600 600"
-      className="pointer-events-none absolute -right-20 -bottom-32 w-[24rem] text-ice-300 opacity-[0.14]"
+      className="pointer-events-none absolute -right-20 -bottom-32 w-[24rem]"
+      style={{ color: "#8db3e2", opacity: 0.14 }}
       fill="none"
     >
       <path
@@ -72,13 +91,15 @@ export default async function LoginPage() {
       {/* Brand panel */}
       <section
         aria-label={`About the ${business.name} admin panel`}
-        className="login-panel relative hidden overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16"
+        className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16"
+        style={PANEL_STYLE}
       >
         <div aria-hidden="true" className="dot-grid absolute inset-0" />
         <Snowflake
           aria-hidden="true"
           strokeWidth={0.6}
-          className="pointer-events-none absolute -top-24 -right-24 size-[26rem] text-white/[0.05]"
+          className="pointer-events-none absolute -top-24 -right-24 size-[26rem]"
+          style={{ color: "rgb(255 255 255 / 0.05)" }}
         />
         <RouteArt />
 
@@ -93,7 +114,7 @@ export default async function LoginPage() {
             <br />
             <span className="text-ice-300">ready to work.</span>
           </h2>
-          <p className="mt-5 max-w-md text-lg leading-8 text-ice-100/80">
+          <p className="mt-5 max-w-md text-lg leading-8 text-ice-200/85">
             The admin panel for {business.name}: see new requests as they arrive, follow up with
             customers and keep the website current.
           </p>
@@ -106,14 +127,14 @@ export default async function LoginPage() {
                 </span>
                 <div>
                   <p className="font-medium text-white">{feature.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-ice-100/70">{feature.body}</p>
+                  <p className="mt-1 text-sm leading-6 text-ice-200/75">{feature.body}</p>
                 </div>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="relative flex items-center justify-between gap-6 text-sm text-ice-100/60">
+        <div className="relative flex items-center justify-between gap-6 text-sm text-ice-200/65">
           <p>
             {business.name} · {business.tagline}
           </p>
@@ -122,19 +143,22 @@ export default async function LoginPage() {
       </section>
 
       {/* Sign-in panel */}
-      <section className="flex flex-col bg-white px-6 py-6 sm:px-10 lg:px-14">
-        <Link
-          href="/"
-          className="inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-ink-500 transition-colors hover:text-navy-900"
-        >
-          <ArrowLeft aria-hidden="true" className="size-4" />
-          Back to website
-        </Link>
+      <section className="flex flex-col bg-surface px-6 py-6 sm:px-10 lg:px-14">
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/"
+            className="inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-ink-500 transition-colors hover:text-ink-950"
+          >
+            <ArrowLeft aria-hidden="true" className="size-4" />
+            Back to website
+          </Link>
+          <ThemeToggle className="-mr-2" />
+        </div>
 
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
           <Logo name={business.name} priority className="h-16 lg:h-[4.5rem]" />
 
-          <h1 className="mt-10 text-3xl/tight font-semibold tracking-tight text-navy-950">
+          <h1 className="mt-10 text-3xl/tight font-semibold tracking-tight text-ink-950">
             Welcome back
           </h1>
           <p className="mt-2 text-[15px] leading-6 text-ink-500">

@@ -40,14 +40,14 @@ export default async function OpengraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: 64,
-          background: "linear-gradient(135deg, #ffffff 0%, #eef6fc 60%, #dcedf9 100%)",
-          color: "#061a30",
+          background: "linear-gradient(135deg, #ffffff 0%, #eef4fb 60%, #dce8f6 100%)",
+          color: "#01183a",
         }}
       >
         <img src={logoSrc} alt="" width={420} height={Math.round(420 * (569 / 1600))} />
 
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 22, letterSpacing: 3, color: "#1273c4", textTransform: "uppercase" }}>
+          <div style={{ display: "flex", fontSize: 22, letterSpacing: 3, color: "#1a5aa8", textTransform: "uppercase" }}>
             {business.tagline}
           </div>
           <div
@@ -59,14 +59,14 @@ export default async function OpengraphImage() {
               fontWeight: 600,
               lineHeight: 1.08,
               letterSpacing: -2,
-              color: "#0a2d57",
+              color: "#012754",
             }}
           >
             {copy.heroHeading.replace(/ (\d+(?:\.\d+)?) (kg|t|tonnes)/g, " $1 $2")}
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 40, fontSize: 26, color: "#2b4059" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 40, fontSize: 26, color: "#2d4363" }}>
           {MATERIAL_IDS.map((id) => (
             <div key={id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 16, height: 16, borderRadius: 8, background: BAND_COLORS[id] }} />

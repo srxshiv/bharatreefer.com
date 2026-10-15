@@ -1,25 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
-import { ArrowRight, MessageCircle, Phone, Trash2, Wrench } from "lucide-react";
+import { MessageCircle, Phone, Trash2, Wrench } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import type { MaterialId } from "@/config/materials";
 import type { TruckSizeInfo } from "@/features/content/types";
 import { deleteVehicleAction, updateVehicleAction } from "@/features/fleet/actions";
-import type { FleetOutcome, FleetTruck } from "@/features/fleet/types";
+import { overKg } from "@/features/fleet/capacity";
+import type { FleetLoad, FleetOutcome, FleetTruck } from "@/features/fleet/types";
 import { cn } from "@/lib/cn";
-import { formatIsoDate } from "@/lib/dates";
 import { formatCapacity, formatKg } from "@/lib/format";
 import { formatIndianMobile } from "@/lib/phone";
 import { whatsappLink } from "@/lib/whatsapp";
 import { secondaryButton } from "../ui";
+import { LoadRows } from "./load-rows";
 import { NumberPlate } from "./number-plate";
+import { TripButton, tripSince } from "./trip-button";
 import { TruckForm } from "./truck-form";
 import { TruckGraphic } from "./truck-graphic";
 
 const smallButton =
-  "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-frost-300 bg-white px-3 text-sm font-medium text-ink-900 transition-colors hover:border-ink-400 disabled:opacity-50";
+  "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-frost-300 bg-surface px-3 text-sm font-medium text-ink-900 transition-colors hover:border-ink-400 disabled:opacity-50";
 
 export function TruckSheetTitle({ truck }: { truck: FleetTruck }) {
   return (
@@ -30,28 +31,43 @@ export function TruckSheetTitle({ truck }: { truck: FleetTruck }) {
   );
 }
 
-/** Everything about one truck: what it carries, its status, its details. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-ink-500">{label}</dt>
+      <dd className="mt-0.5 text-sm font-medium text-ink-950">{children}</dd>
+    </div>
+  );
+}
+
+/** Everything about one truck: what it carries, its trip, its status, its details. */
 export function TruckSheetBody({
   truck,
   sizes,
-  bands,
-  onUnassign,
+  bandLabels,
+  onMove,
+  onRemove,
   onStatus,
+  onStartTrip,
+  onEndTrip,
   onDone,
   notify,
 }: {
   truck: FleetTruck;
   sizes: TruckSizeInfo[];
-  bands: Record<MaterialId, { label: string }>;
-  onUnassign: (assignmentId: string) => void;
-  onStatus: (status: FleetTruck["status"]) => void;
+  bandLabels: Record<MaterialId, string>;
+  onMove: (load: FleetLoad, anchor: HTMLElement) => void;
+  onRemove: (load: FleetLoad) => void;
+  onStatus: (status: "AVAILABLE" | "MAINTENANCE") => void;
+  onStartTrip: () => void;
+  onEndTrip: () => void;
   onDone: () => void;
   notify: (outcome: FleetOutcome) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
+  const over = overKg(truck);
   const percent = Math.round((truck.usedKg / truck.capacityKg) * 100);
-  const free = Math.max(0, truck.capacityKg - truck.usedKg);
 
   function remove() {
     startDelete(async () => {
@@ -68,42 +84,34 @@ export function TruckSheetBody({
   return (
     <div className="space-y-7">
       <section>
-        <TruckGraphic capacityKg={truck.capacityKg} loads={truck.loads} maintenance={truck.status === "MAINTENANCE"} size="lg" />
+        <TruckGraphic capacityKg={truck.capacityKg} loads={truck.loads} status={truck.status} size="lg" />
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm text-ink-700">
             <span className="font-mono font-semibold text-ink-950">{formatKg(truck.usedKg)}</span> of {formatKg(truck.capacityKg)}
           </p>
-          <p className="font-mono text-sm text-ink-500">{truck.status === "MAINTENANCE" ? "In maintenance" : `${percent}% · ${formatKg(free)} free`}</p>
+          <p className={cn("font-mono text-sm", over > 0 ? "font-semibold text-danger" : "text-ink-500")}>
+            {over > 0 ? `${formatKg(over)} over` : `${percent}% · ${formatKg(truck.capacityKg - truck.usedKg)} free`}
+          </p>
         </div>
       </section>
 
-      <section>
-        <h3 className="caption text-ink-500">Status</h3>
-        <div role="radiogroup" aria-label="Status" className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-frost-100 p-1">
-          {(["AVAILABLE", "MAINTENANCE"] as const).map((status) => {
-            const active = truck.status === status;
-            return (
-              <button
-                key={status}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => !active && onStatus(status)}
-                className={cn(
-                  "inline-flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-all",
-                  active ? "bg-white text-ink-950 shadow-sm" : "text-ink-500 hover:text-ink-950",
-                )}
-              >
-                {status === "AVAILABLE" ? (
-                  <span aria-hidden="true" className="size-2 rounded-full bg-success" />
-                ) : (
-                  <Wrench aria-hidden="true" className="size-4" />
-                )}
-                {status === "AVAILABLE" ? "Available" : "In maintenance"}
-              </button>
-            );
-          })}
-        </div>
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-frost-50 p-3">
+        <p className="text-sm text-ink-700">
+          {truck.status === "ON_TRIP" && truck.tripStartedAt ? (
+            <>
+              <span className="font-semibold text-ink-950">On a trip.</span> {tripSince(truck.tripStartedAt)}.
+            </>
+          ) : truck.status === "MAINTENANCE" ? (
+            <span className="font-semibold text-ink-950">In maintenance.</span>
+          ) : truck.loads.length > 0 ? (
+            <>
+              <span className="font-semibold text-ink-950">Loading.</span> Start the trip when it leaves.
+            </>
+          ) : (
+            <span className="font-semibold text-ink-950">Empty and available.</span>
+          )}
+        </p>
+        <TripButton truck={truck} onStart={onStartTrip} onEnd={onEndTrip} />
       </section>
 
       <section>
@@ -112,36 +120,62 @@ export function TruckSheetBody({
         </h3>
         {truck.loads.length === 0 ? (
           <p className="mt-2 rounded-lg border border-dashed border-frost-300 px-4 py-5 text-center text-sm text-ink-500">
-            Empty. Pick a confirmed request on the fleet page, then tap this truck.
+            Empty. Choose this truck for a confirmed request on the fleet page.
           </p>
         ) : (
-          <ul className="mt-2 divide-y divide-frost-200 rounded-xl border border-frost-200">
-            {truck.loads.map((load) => (
-              <li key={load.assignmentId} className="flex items-center gap-3 px-4 py-3">
-                <span aria-hidden="true" className={cn("h-9 w-1 shrink-0 rounded-full", BAND_STYLES[load.material].fill)} />
-                <div className="min-w-0 flex-1">
-                  <Link href={`/admin/quotes/${load.quoteId}`} className="font-mono text-sm font-semibold text-ink-950 hover:text-ice-700">
-                    {load.reference}
-                  </Link>
-                  <p className="truncate text-xs text-ink-500">
-                    {load.originCity} <ArrowRight aria-label="to" className="inline size-3" /> {load.destinationCity} · {bands[load.material].label}
-                    {load.pickupDate ? ` · ${formatIsoDate(load.pickupDate)}` : ""}
-                  </p>
-                </div>
-                <span className="font-mono text-sm font-semibold whitespace-nowrap text-ink-950">{formatKg(load.loadKg)}</span>
-                <button
-                  type="button"
-                  onClick={() => onUnassign(load.assignmentId)}
-                  disabled={load.assignmentId.startsWith("pending-")}
-                  className="inline-flex h-8 items-center rounded-md px-2 text-xs font-semibold text-ink-500 transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
-                >
-                  Take off
-                </button>
-              </li>
-            ))}
-          </ul>
+          <LoadRows loads={truck.loads} bandLabels={bandLabels} onMove={onMove} onRemove={onRemove} className="mt-1" />
         )}
       </section>
+
+      <section>
+        <h3 className="caption text-ink-500">Truck</h3>
+        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          <Fact label="Temperature">
+            {truck.temperature ? (
+              <span className={cn("inline-flex items-center gap-1.5", BAND_STYLES[truck.temperature].text)}>
+                <span aria-hidden="true" className={cn("size-2 rounded-full", BAND_STYLES[truck.temperature].fill)} />
+                {bandLabels[truck.temperature]}
+              </span>
+            ) : (
+              <span className="text-ink-500">Not fixed</span>
+            )}
+          </Fact>
+          <Fact label="Length">{truck.lengthFt !== null ? `${truck.lengthFt.toLocaleString("en-IN")} ft` : <span className="text-ink-500">—</span>}</Fact>
+          <Fact label="Tyres">{truck.tyres ?? <span className="text-ink-500">—</span>}</Fact>
+          <Fact label="Model">{truck.model ?? <span className="text-ink-500">—</span>}</Fact>
+        </dl>
+      </section>
+
+      {truck.status !== "ON_TRIP" ? (
+        <section>
+          <h3 className="caption text-ink-500">Status</h3>
+          <div role="radiogroup" aria-label="Status" className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-frost-100 p-1">
+            {(["AVAILABLE", "MAINTENANCE"] as const).map((status) => {
+              const active = truck.status === status;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => !active && onStatus(status)}
+                  className={cn(
+                    "inline-flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-all",
+                    active ? "bg-surface text-ink-950 shadow-sm dark:bg-frost-300" : "text-ink-500 hover:text-ink-950",
+                  )}
+                >
+                  {status === "AVAILABLE" ? (
+                    <span aria-hidden="true" className="size-2 rounded-full bg-success" />
+                  ) : (
+                    <Wrench aria-hidden="true" className="size-4" />
+                  )}
+                  {status === "AVAILABLE" ? "Available" : "In maintenance"}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {truck.driverName || truck.driverPhone ? (
         <section>
@@ -149,7 +183,9 @@ export function TruckSheetBody({
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <p className="font-medium text-ink-950">
               {truck.driverName ?? "Driver"}
-              {truck.driverPhone ? <span className="ml-2 font-mono text-sm font-normal text-ink-500">{formatIndianMobile(truck.driverPhone)}</span> : null}
+              {truck.driverPhone ? (
+                <span className="ml-2 font-mono text-sm font-normal text-ink-500">{formatIndianMobile(truck.driverPhone)}</span>
+              ) : null}
             </p>
             {truck.driverPhone ? (
               <div className="flex gap-2">
@@ -170,13 +206,16 @@ export function TruckSheetBody({
       <details className="group rounded-xl border border-frost-200">
         <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-ink-950 [&::-webkit-details-marker]:hidden">
           Edit details
-          <span aria-hidden="true" className="text-ink-400 transition-transform group-open:rotate-90">›</span>
+          <span aria-hidden="true" className="text-ink-400 transition-transform group-open:rotate-90">
+            ›
+          </span>
         </summary>
         <div className="border-t border-frost-200 p-4">
           <TruckForm
-            key={`${truck.plateNumber}:${truck.capacityKg}:${truck.model}:${truck.driverName}:${truck.driverPhone}`}
+            key={[truck.plateNumber, truck.capacityKg, truck.model, truck.driverName, truck.driverPhone, truck.temperature, truck.lengthFt, truck.tyres].join(":")}
             truck={truck}
             sizes={sizes}
+            bandLabels={bandLabels}
             submitLabel="Save truck"
             onSubmit={(formData) => updateVehicleAction(truck.id, formData)}
             onSaved={(message) => notify({ ok: true, message })}
