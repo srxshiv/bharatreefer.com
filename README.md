@@ -107,9 +107,9 @@ One page in two columns:
   a short summary in the fixed box under the weight, and notes open as one compact line on
   short screens. On phones it sits right under the introduction, and the header's "Get a
   quote" button jumps to it. Under the weight field a strip of the fleet lights up the
-  truck the load is planned on. **Promo code** beside "Add a note" opens a small field for
-  a team member's code (see Promo codes); a link such as `bharatreefer.com/?code=PRIYA`
-  fills it in.
+  truck the load is planned on. A small, optional **Promo code** field sits beside "Add a
+  note", for a team member's code (see Promo codes); a link such as
+  `bharatreefer.com/?code=PRIYA` fills it in.
 
 The site has two themes, on the public pages and in the admin panel alike, with a sun/moon
 switch in the header (and on the sign-in page):
