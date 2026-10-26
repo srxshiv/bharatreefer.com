@@ -13,6 +13,7 @@ import { DEFAULT_FLEET } from "../src/config/fleet";
 import type { MaterialId } from "../src/config/materials";
 import { DEFAULT_BUSINESS } from "../src/config/site";
 import { STATUS_LABELS, type QuoteStatusId } from "../src/features/quotes/status";
+import { choosePromoCode } from "../src/features/team/promo-code";
 import { PrismaClient, type Prisma } from "../src/generated/prisma/client";
 import { dateInIndia } from "../src/lib/dates";
 import { formatInr } from "../src/lib/format";
@@ -283,8 +284,18 @@ async function main() {
     const passwordHash = await hashPassword(ADMIN.password);
     const admin = await prisma.adminUser.upsert({
       where: { email: ADMIN.email },
-      create: { email: ADMIN.email, name: ADMIN.name, passwordHash },
-      update: { passwordHash },
+      create: {
+        email: ADMIN.email,
+        name: ADMIN.name,
+        passwordHash,
+        role: "ADMIN",
+        promoCode: await choosePromoCode(ADMIN.name, ADMIN.email, async (codes) =>
+          (await prisma.adminUser.findMany({ where: { promoCode: { in: codes } }, select: { promoCode: true } })).map(
+            (row) => row.promoCode,
+          ),
+        ),
+      },
+      update: { passwordHash, role: "ADMIN", disabledAt: null },
     });
 
     const now = Date.now();
@@ -296,7 +307,7 @@ async function main() {
     ]);
 
     console.log(`Seeded ${SAMPLES.length} quote requests.`);
-    console.log(`Sign in at /admin as ${ADMIN.email} with the password "${ADMIN.password}".`);
+    console.log(`Sign in at /desk as ${ADMIN.email} with the password "${ADMIN.password}".`);
   } finally {
     await prisma.$disconnect();
   }

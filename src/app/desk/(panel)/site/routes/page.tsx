@@ -33,7 +33,7 @@ export default async function RoutesPage() {
             ) : (
               <>
                 The Popular routes section is <strong>off</strong>. Switch it on in{" "}
-                <Link href="/admin/site/sections" className="font-semibold text-ice-700 underline underline-offset-4">
+                <Link href="/desk/site/sections" className="font-semibold text-ice-700 underline underline-offset-4">
                   Sections
                 </Link>{" "}
                 when the list is ready.

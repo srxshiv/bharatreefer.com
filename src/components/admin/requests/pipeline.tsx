@@ -37,7 +37,7 @@ export function Pipeline({ filters, counts, values }: { filters: InboxFilters; c
               href={
                 board && stage !== "COMPLETED"
                   ? `#stage-${stage.toLowerCase()}`
-                  : `/admin${inboxQuery({ ...filters, view: "list", status: stage, page: 1 })}`
+                  : `/desk${inboxQuery({ ...filters, view: "list", status: stage, page: 1 })}`
               }
               aria-current={active ? "page" : undefined}
               className={chip(active)}
@@ -60,7 +60,7 @@ export function Pipeline({ filters, counts, values }: { filters: InboxFilters; c
               return (
                 <IntentLink
                   key={status}
-                  href={`/admin${inboxQuery({ ...filters, status, page: 1 })}`}
+                  href={`/desk${inboxQuery({ ...filters, status, page: 1 })}`}
                   aria-current={active ? "page" : undefined}
                   className={cn(chip(active), "px-2")}
                 >

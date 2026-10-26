@@ -22,8 +22,8 @@ const step = "inline-flex size-9 items-center justify-center rounded-lg text-sm 
 export function Pagination({ filters, total, pageCount, shown }: { filters: InboxFilters; total: number; pageCount: number; shown: number }) {
   if (total === 0) return null;
   const first = (filters.page - 1) * filters.size + 1;
-  const href = (page: number) => `/admin${inboxQuery({ ...filters, page })}`;
-  const sizeHrefs = Object.fromEntries(PAGE_SIZES.map((size) => [size, `/admin${inboxQuery({ ...filters, size, page: 1 })}`]));
+  const href = (page: number) => `/desk${inboxQuery({ ...filters, page })}`;
+  const sizeHrefs = Object.fromEntries(PAGE_SIZES.map((size) => [size, `/desk${inboxQuery({ ...filters, size, page: 1 })}`]));
 
   return (
     <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-500">

@@ -1,20 +1,25 @@
 "use client";
 
-import { useEffect, useOptimistic, useRef, useState, useTransition, type CSSProperties, type DragEvent } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { ArrowRight, CircleAlert, CircleCheck, Plus, Truck, Wrench } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS, type MaterialId } from "@/config/materials";
 import {
   addVehicleAction,
+  approveLoadRequestAction,
   assignLoadAction,
+  cancelLoadRequestAction,
+  declineLoadRequestAction,
   endTripAction,
   moveLoadAction,
+  requestLoadAction,
   setVehicleStatusAction,
   startTripAction,
   unassignLoadAction,
 } from "@/features/fleet/actions";
 import {
   applyChange,
+  askableKg,
   groupTrucks,
   remainingKg,
   summarise,
@@ -23,7 +28,7 @@ import {
 } from "@/features/fleet/board-state";
 import { overKg } from "@/features/fleet/capacity";
 import { formatPlate } from "@/features/fleet/plate";
-import type { FleetBoard as Board, FleetLoad, FleetOutcome, FleetTruck, WaitingOrder } from "@/features/fleet/types";
+import type { FleetBoard as Board, FleetLoad, FleetLoadRequest, FleetOutcome, FleetTruck, WaitingOrder } from "@/features/fleet/types";
 import { cn } from "@/lib/cn";
 import { formatIsoDate } from "@/lib/dates";
 import { formatCapacity, formatKg } from "@/lib/format";
@@ -31,6 +36,7 @@ import { IntentLink } from "../intent-link";
 import { CHOOSE_TRUCK_EVENT } from "../requests/choose-truck-button";
 import { Sheet } from "../sheet";
 import { card, primaryButton } from "../ui";
+import { LoadRequests } from "./load-requests";
 import { LoadRows } from "./load-rows";
 import { NumberPlate } from "./number-plate";
 import { TripButton, tripSince } from "./trip-button";
@@ -44,7 +50,7 @@ type Toast = { id: number; outcome: FleetOutcome };
 type SheetState = { kind: "truck"; id: string } | { kind: "add"; capacityKg?: number } | null;
 type PickerState = {
   request: PickerRequest;
-  target: { kind: "assign"; orderId: string } | { kind: "move"; assignmentId: string };
+  target: { kind: "assign"; orderId: string } | { kind: "request"; orderId: string } | { kind: "move"; assignmentId: string };
 } | null;
 
 const DRAG_TYPE = "application/x-bharat-order";
@@ -68,6 +74,8 @@ export function FleetBoard({
   const toastCount = useRef(0);
   const openedFor = useRef<string | null>(null);
 
+  // Admins run the fleet. Staff see it, and ask for trucks for their own requests.
+  const canManage = view.canManage;
   const summary = summarise(view);
   const groups = groupTrucks(view.trucks, view.sizes);
   const largest = Math.max(1, ...groups.map((group) => group.capacityKg));
@@ -87,7 +95,7 @@ export function FleetBoard({
     openedFor.current = initialOrderId;
     const anchor = document.querySelector<HTMLElement>(`[data-order="${CSS.escape(order.id)}"] [data-choose]`);
     anchor?.scrollIntoView({ block: "nearest" });
-    openAssign(order, anchor);
+    openFor(order, anchor);
   });
 
   // "Choose truck" in a request's side panel, opened over this board, lands here.
@@ -97,7 +105,7 @@ export function FleetBoard({
       if (!order) return;
       const anchor = document.querySelector<HTMLElement>(`[data-order="${CSS.escape(order.id)}"] [data-choose]`);
       anchor?.scrollIntoView({ block: "nearest" });
-      openAssign(order, anchor);
+      openFor(order, anchor);
     }
     window.addEventListener(CHOOSE_TRUCK_EVENT, onChoose);
     return () => window.removeEventListener(CHOOSE_TRUCK_EVENT, onChoose);
@@ -139,6 +147,31 @@ export function FleetBoard({
     });
   }
 
+  /** Staff ask for a truck instead of placing the load: an admin approves it. */
+  function openRequest(order: WaitingOrder, anchor: HTMLElement | null) {
+    setToast(null);
+    const askable = askableKg(order);
+    if (askable <= 0) {
+      notify({ ok: false, error: `All of ${order.reference} is already waiting for approval.` });
+      return;
+    }
+    setPicker({
+      target: { kind: "request", orderId: order.id },
+      request: {
+        title: `Ask for a truck for ${order.reference}`,
+        material: order.material,
+        maxKg: askable,
+        fixedKg: false,
+        position: placeNear(anchor),
+      },
+    });
+  }
+
+  function openFor(order: WaitingOrder, anchor: HTMLElement | null) {
+    if (canManage) openAssign(order, anchor);
+    else openRequest(order, anchor);
+  }
+
   function openMove(truck: FleetTruck, load: FleetLoad, anchor: HTMLElement) {
     setToast(null);
     setPicker({
@@ -160,10 +193,21 @@ export function FleetBoard({
     setPicker(null);
     if (target.kind === "assign") {
       run({ kind: "assign", quoteId: target.orderId, truckId: truck.id, kg }, () => assignLoadAction(target.orderId, truck.id, kg));
+    } else if (target.kind === "request") {
+      run({ kind: "request", quoteId: target.orderId, truckId: truck.id, kg }, () => requestLoadAction(target.orderId, truck.id, kg));
     } else {
       run({ kind: "move", assignmentId: target.assignmentId, truckId: truck.id }, () => moveLoadAction(target.assignmentId, truck.id));
     }
   }
+
+  const decide = {
+    onApprove: (request: FleetLoadRequest) =>
+      run({ kind: "approve", requestId: request.id }, () => approveLoadRequestAction(request.id)),
+    onDecline: (request: FleetLoadRequest) =>
+      run({ kind: "drop-request", requestId: request.id }, () => declineLoadRequestAction(request.id)),
+    onCancel: (request: FleetLoadRequest) =>
+      run({ kind: "drop-request", requestId: request.id }, () => cancelLoadRequestAction(request.id)),
+  };
 
   function remove(load: FleetLoad) {
     run({ kind: "unassign", assignmentId: load.assignmentId }, () => unassignLoadAction(load.assignmentId));
@@ -204,13 +248,17 @@ export function FleetBoard({
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-ink-950">Fleet</h1>
           <p className="mt-1 text-sm text-ink-500">
-            Choose a truck for each confirmed request. Start the trip when it leaves; ending it delivers everything on board.
+            {canManage
+              ? "Choose a truck for each confirmed request. Start the trip when it leaves; ending it delivers everything on board."
+              : "Every truck and how full it is. You see your own customers' loads in full; ask for a truck for your confirmed requests and an admin approves it."}
           </p>
         </div>
-        <button type="button" onClick={() => openSheet({ kind: "add" })} className={primaryButton}>
-          <Plus aria-hidden="true" className="size-4" />
-          Add truck
-        </button>
+        {canManage ? (
+          <button type="button" onClick={() => openSheet({ kind: "add" })} className={primaryButton}>
+            <Plus aria-hidden="true" className="size-4" />
+            Add truck
+          </button>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -267,8 +315,18 @@ export function FleetBoard({
           confirmedCount={view.confirmedCount}
           bandLabels={bandLabels}
           today={view.today}
-          onChoose={openAssign}
+          canManage={canManage}
+          onChoose={openFor}
           onDragChange={setDragging}
+          header={
+            <LoadRequests
+              requests={view.loadRequests}
+              trucks={view.trucks}
+              canManage={canManage}
+              bandLabels={bandLabels}
+              {...decide}
+            />
+          }
         />
 
         <div className="min-w-0 space-y-8 lg:order-first">
@@ -294,12 +352,16 @@ export function FleetBoard({
               <Truck aria-hidden="true" className="size-10 text-ice-500" />
               <p className="mt-3 font-semibold text-ink-950">No trucks yet</p>
               <p className="mt-1 max-w-sm text-sm text-ink-500">
-                Add each truck by its number plate under its payload. Confirmed requests can then be placed on them.
+                {canManage
+                  ? "Add each truck by its number plate under its payload. Confirmed requests can then be placed on them."
+                  : "An admin adds the trucks. They will show here."}
               </p>
-              <button type="button" onClick={() => openSheet({ kind: "add" })} className={cn(primaryButton, "mt-5")}>
-                <Plus aria-hidden="true" className="size-4" />
-                Add your first truck
-              </button>
+              {canManage ? (
+                <button type="button" onClick={() => openSheet({ kind: "add" })} className={cn(primaryButton, "mt-5")}>
+                  <Plus aria-hidden="true" className="size-4" />
+                  Add your first truck
+                </button>
+              ) : null}
             </div>
           ) : (
             groups.map((group) => (
@@ -309,7 +371,8 @@ export function FleetBoard({
                 largest={largest}
                 bandLabels={bandLabels}
                 dragging={dragging}
-                onAdd={() => openSheet({ kind: "add", capacityKg: group.capacityKg })}
+                onAdd={canManage ? () => openSheet({ kind: "add", capacityKg: group.capacityKg }) : null}
+                canManage={canManage}
                 actions={actions}
               />
             ))
@@ -351,6 +414,7 @@ export function FleetBoard({
         {sheetTruck ? (
           <TruckSheetBody
             truck={sheetTruck}
+            canManage={canManage}
             sizes={view.sizes}
             bandLabels={bandLabels}
             onMove={(load, anchor) => openMove(sheetTruck, load, anchor)}
@@ -404,13 +468,16 @@ function Group({
   bandLabels,
   dragging,
   onAdd,
+  canManage,
   actions,
 }: {
   group: CapacityGroup;
   largest: number;
   bandLabels: Record<MaterialId, string>;
   dragging: boolean;
-  onAdd: () => void;
+  /** Adds a truck of this size; null for staff, who cannot. */
+  onAdd: (() => void) | null;
+  canManage: boolean;
   actions: TruckActions;
 }) {
   const running = group.trucks.filter((truck) => truck.status !== "MAINTENANCE");
@@ -433,26 +500,34 @@ function Group({
               : `${group.trucks.length} ${group.trucks.length === 1 ? "truck" : "trucks"} · ${percent}% loaded`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-ice-700 transition-colors hover:bg-ice-50"
-        >
-          <Plus aria-hidden="true" className="size-4" />
-          Add
-          <span className="sr-only"> a {formatCapacity(group.capacityKg)} truck</span>
-        </button>
+        {onAdd ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-ice-700 transition-colors hover:bg-ice-50"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Add
+            <span className="sr-only"> a {formatCapacity(group.capacityKg)} truck</span>
+          </button>
+        ) : null}
       </div>
 
       {group.trucks.length === 0 ? (
-        <button
-          type="button"
-          onClick={onAdd}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-frost-300 px-4 py-6 text-sm text-ink-500 transition-colors hover:border-ice-400 hover:text-ice-700"
-        >
-          <Plus aria-hidden="true" className="size-4" />
-          Add a {formatCapacity(group.capacityKg)} truck by its number plate
-        </button>
+        onAdd ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-frost-300 px-4 py-6 text-sm text-ink-500 transition-colors hover:border-ice-400 hover:text-ice-700"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Add a {formatCapacity(group.capacityKg)} truck by its number plate
+          </button>
+        ) : (
+          <p className="mt-3 rounded-xl border border-dashed border-frost-300 px-4 py-6 text-center text-sm text-ink-500">
+            No {formatCapacity(group.capacityKg)} trucks yet.
+          </p>
+        )
       ) : (
         <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
           {group.trucks.map((truck) => (
@@ -462,6 +537,7 @@ function Group({
               scale={truck.capacityKg / largest}
               bandLabels={bandLabels}
               dragging={dragging}
+              canManage={canManage}
               actions={actions}
             />
           ))}
@@ -476,18 +552,21 @@ function TruckCard({
   scale,
   bandLabels,
   dragging,
+  canManage,
   actions,
 }: {
   truck: FleetTruck;
   scale: number;
   bandLabels: Record<MaterialId, string>;
   dragging: boolean;
+  canManage: boolean;
   actions: TruckActions;
 }) {
   const [over, setOver] = useState(false);
   const overweight = overKg(truck);
   const free = Math.max(0, truck.capacityKg - truck.usedKg);
-  const canTake = truck.status === "AVAILABLE";
+  // Only admins drop requests onto trucks.
+  const canTake = canManage && truck.status === "AVAILABLE";
   const details = truckDetails(truck);
 
   function onDragOver(event: DragEvent) {
@@ -573,13 +652,18 @@ function TruckCard({
         <LoadRows
           loads={truck.loads}
           bandLabels={bandLabels}
+          canManage={canManage}
           onMove={(load, anchor) => actions.onMove(truck, load, anchor)}
           onRemove={actions.onRemove}
           className="mt-2 border-t border-frost-200"
         />
       ) : (
         <p className="mt-2 border-t border-frost-200 pt-2 text-xs text-ink-500">
-          {truck.status === "MAINTENANCE" ? "Off the road." : "Empty. Choose it for a request, or drag a request here."}
+          {truck.status === "MAINTENANCE"
+            ? "Off the road."
+            : canManage
+              ? "Empty. Choose it for a request, or drag a request here."
+              : "Empty."}
         </p>
       )}
 
@@ -588,7 +672,9 @@ function TruckCard({
           {truck.status === "ON_TRIP" && truck.tripStartedAt ? tripSince(truck.tripStartedAt) : null}
         </span>
         <div className="flex items-center gap-1.5">
-          <TripButton truck={truck} onStart={() => actions.onStartTrip(truck)} onEnd={() => actions.onEndTrip(truck)} />
+          {canManage ? (
+            <TripButton truck={truck} onStart={() => actions.onStartTrip(truck)} onEnd={() => actions.onEndTrip(truck)} />
+          ) : null}
           <button
             type="button"
             onClick={() => actions.onOpen(truck)}
@@ -607,106 +693,129 @@ function Queue({
   confirmedCount,
   bandLabels,
   today,
+  canManage,
   onChoose,
   onDragChange,
+  header,
 }: {
   orders: WaitingOrder[];
   confirmedCount: number;
   bandLabels: Record<MaterialId, string>;
   today: string;
+  canManage: boolean;
   onChoose: (order: WaitingOrder, anchor: HTMLElement) => void;
   onDragChange: (dragging: boolean) => void;
+  /** Shown above the queue: the truck requests. */
+  header: ReactNode;
 }) {
   return (
-    <aside aria-labelledby="fleet-queue" className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:pb-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 id="fleet-queue" className="font-semibold text-ink-950">
-          Waiting for a truck
-        </h2>
-        <span className="font-mono text-sm text-ink-500">
-          {orders.length} of {confirmedCount} confirmed
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-ink-500">
-        Choose a truck for each one<span className="hidden lg:inline">, or drag it onto a truck</span>.
-      </p>
-
-      {orders.length === 0 ? (
-        <div className={cn(card, "mt-3 flex items-center gap-3 p-4")}>
-          <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-success" />
-          <p className="text-sm text-ink-700">
-            {confirmedCount === 0 ? "No confirmed requests right now." : "Every confirmed load is on a truck."}
-          </p>
+    <aside aria-labelledby="fleet-queue" className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:pb-2">
+      {header}
+      <div>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 id="fleet-queue" className="font-semibold text-ink-950">
+            Waiting for a truck
+          </h2>
+          <span className="font-mono text-sm text-ink-500">
+            {orders.length} of {confirmedCount} confirmed
+          </span>
         </div>
-      ) : (
-        <ul className="-mx-5 mt-3 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:scroll-px-0 sm:px-0 lg:flex-col lg:overflow-visible lg:pb-0">
-          {orders.map((order) => {
-            const remaining = remainingKg(order);
-            const soon = order.pickupDate !== null && order.pickupDate <= today;
-            return (
-              <li
-                key={order.id}
-                data-order={order.id}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(DRAG_TYPE, order.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  onDragChange(true);
-                }}
-                onDragEnd={() => onDragChange(false)}
-                className={cn(card, "w-[17rem] shrink-0 snap-start overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-ink-300 lg:w-auto")}
-              >
-                {/* The card opens the request in a side panel; drag it onto a truck to place it. */}
-                <IntentLink
-                  href={`/admin/quotes/${order.id}`}
-                  draggable={false}
-                  className="block cursor-grab p-4 transition-colors hover:bg-frost-50 active:cursor-grabbing"
+        <p className="mt-1 text-xs text-ink-500">
+          {canManage ? (
+            <>
+              Choose a truck for each one<span className="hidden lg:inline">, or drag it onto a truck</span>.
+            </>
+          ) : (
+            "Ask for a truck for each one. It goes on once an admin approves."
+          )}
+        </p>
+
+        {orders.length === 0 ? (
+          <div className={cn(card, "mt-3 flex items-center gap-3 p-4")}>
+            <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-success" />
+            <p className="text-sm text-ink-700">
+              {confirmedCount === 0
+                ? canManage
+                  ? "No confirmed requests right now."
+                  : "None of your requests is confirmed right now."
+                : "Every confirmed load is on a truck."}
+            </p>
+          </div>
+        ) : (
+          <ul className="-mx-5 mt-3 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:scroll-px-0 sm:px-0 lg:flex-col lg:overflow-visible lg:pb-0">
+            {orders.map((order) => {
+              const remaining = remainingKg(order);
+              const askable = askableKg(order);
+              const soon = order.pickupDate !== null && order.pickupDate <= today;
+              return (
+                <li
+                  key={order.id}
+                  data-order={order.id}
+                  draggable={canManage}
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData(DRAG_TYPE, order.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    onDragChange(true);
+                  }}
+                  onDragEnd={() => onDragChange(false)}
+                  className={cn(card, "w-[17rem] shrink-0 snap-start overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-ink-300 lg:w-auto")}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-sm font-semibold text-ink-950">{order.reference}</span>
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-700">
-                      <span aria-hidden="true" className={cn("size-2 rounded-full", BAND_STYLES[order.material].fill)} />
-                      {bandLabels[order.material]}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 truncate text-sm font-medium text-ink-950">
-                    {order.originCity}
-                    <ArrowRight aria-label="to" className="mx-1 inline size-3.5 text-ink-400" />
-                    {order.destinationCity}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-ink-500">
-                    {order.contactName}
-                    {order.pickupDate ? (
-                      <span className={cn(soon && "font-semibold text-saffron-600")}> · pickup {formatIsoDate(order.pickupDate)}</span>
+                  {/* The card opens the request in a side panel; drag it onto a truck to place it. */}
+                  <IntentLink
+                    href={`/desk/quotes/${order.id}`}
+                    draggable={false}
+                    className={cn("block p-4 transition-colors hover:bg-frost-50", canManage && "cursor-grab active:cursor-grabbing")}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-sm font-semibold text-ink-950">{order.reference}</span>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-700">
+                        <span aria-hidden="true" className={cn("size-2 rounded-full", BAND_STYLES[order.material].fill)} />
+                        {bandLabels[order.material]}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 truncate text-sm font-medium text-ink-950">
+                      {order.originCity}
+                      <ArrowRight aria-label="to" className="mx-1 inline size-3.5 text-ink-400" />
+                      {order.destinationCity}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-ink-500">
+                      {order.contactName}
+                      {order.pickupDate ? (
+                        <span className={cn(soon && "font-semibold text-saffron-600")}> · pickup {formatIsoDate(order.pickupDate)}</span>
+                      ) : null}
+                    </p>
+                    <div className="mt-3 flex items-baseline justify-between">
+                      <span className="font-mono text-base font-semibold text-ink-950">{formatKg(remaining)}</span>
+                      <span className="text-xs text-ink-500">
+                        {order.assignedKg > 0 ? `${formatKg(order.assignedKg)} of ${formatKg(order.quantityKg)} placed` : "to place"}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-frost-100" aria-hidden="true">
+                      <div
+                        className={cn("h-full w-(--w) rounded-full transition-[width] duration-500", BAND_STYLES[order.material].fill)}
+                        style={{ "--w": `${(order.assignedKg / order.quantityKg) * 100}%` } as CSSProperties}
+                      />
+                    </div>
+                    {order.requestedKg > 0 ? (
+                      <p className="mt-2 text-xs font-medium text-saffron-600">{formatKg(order.requestedKg)} asked for, waiting for approval</p>
                     ) : null}
-                  </p>
-                  <div className="mt-3 flex items-baseline justify-between">
-                    <span className="font-mono text-base font-semibold text-ink-950">{formatKg(remaining)}</span>
-                    <span className="text-xs text-ink-500">
-                      {order.assignedKg > 0 ? `${formatKg(order.assignedKg)} of ${formatKg(order.quantityKg)} placed` : "to place"}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-frost-100" aria-hidden="true">
-                    <div
-                      className={cn("h-full w-(--w) rounded-full transition-[width] duration-500", BAND_STYLES[order.material].fill)}
-                      style={{ "--w": `${(order.assignedKg / order.quantityKg) * 100}%` } as CSSProperties}
-                    />
-                  </div>
-                </IntentLink>
-                <button
-                  type="button"
-                  data-choose
-                  onClick={(event) => onChoose(order, event.currentTarget)}
-                  className="flex h-11 w-full items-center justify-center gap-1.5 border-t border-frost-200 text-sm font-semibold text-ice-700 transition-colors hover:bg-ice-50"
-                >
-                  <Truck aria-hidden="true" className="size-4" />
-                  Choose truck
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  </IntentLink>
+                  <button
+                    type="button"
+                    data-choose
+                    disabled={!canManage && askable <= 0}
+                    onClick={(event) => onChoose(order, event.currentTarget)}
+                    className="flex h-11 w-full items-center justify-center gap-1.5 border-t border-frost-200 text-sm font-semibold text-ice-700 transition-colors hover:bg-ice-50 disabled:pointer-events-none disabled:text-ink-400"
+                  >
+                    <Truck aria-hidden="true" className="size-4" />
+                    {canManage ? "Choose truck" : askable > 0 ? "Request truck" : "Waiting for approval"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </aside>
   );
 }

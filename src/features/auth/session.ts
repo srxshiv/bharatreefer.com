@@ -4,20 +4,24 @@ import { cacheLife } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { LOGIN_PATH, SESSION_COOKIE, SESSION_COOKIE_OPTIONS, SESSION_TTL_MS } from "./cookie";
+import { LOGIN_PATH, PANEL_HOME, SESSION_COOKIE, SESSION_COOKIE_OPTIONS, SESSION_TTL_MS } from "./cookie";
+import type { Role } from "./roles";
 
-/** The signed-in admin, trimmed to what the UI needs. */
-export type Admin = {
+/** The signed-in team member, trimmed to what the UI needs. */
+export type User = {
   id: string;
   name: string;
   email: string;
+  role: Role;
+  /** What customers enter on the quote form to credit a request to this team member. */
+  promoCode: string;
 };
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-/** Signs the admin in: stores a session and sets its cookie. Call from a Server Action. */
+/** Signs a team member in: stores a session and sets its cookie. Call from a Server Action. */
 export async function createSession(userId: string): Promise<void> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
@@ -41,14 +45,15 @@ export const ADMIN_PAGE_CACHE = { stale: 30, revalidate: 300, expire: 3600 } as 
 export const ADMIN_DATA_TAG = "admin-data";
 
 /**
- * The signed-in admin, or null. Checked against the database on every request, so a
- * session that was signed out or expired stops working immediately.
+ * The signed-in team member, or null. Checked against the database on every request, so a
+ * session that was signed out or expired, or an account that was switched off, stops working
+ * immediately, and a change of role applies to the next page.
  *
  * Cached privately: the result is never stored on the server, only kept by this browser
- * with the pages that used it. That is what lets the admin pages be prefetched whole, data
+ * with the pages that used it. That is what lets the panel's pages be prefetched whole, data
  * included, so switching between them is instant.
  */
-export async function getAdmin(): Promise<Admin | null> {
+export async function getUser(): Promise<User | null> {
   "use cache: private";
   cacheLife(ADMIN_PAGE_CACHE);
 
@@ -57,18 +62,32 @@ export async function getAdmin(): Promise<Admin | null> {
 
   const session = await db().session.findUnique({
     where: { tokenHash: hashToken(token) },
-    select: { expiresAt: true, user: { select: { id: true, name: true, email: true } } },
+    select: {
+      expiresAt: true,
+      user: { select: { id: true, name: true, email: true, role: true, promoCode: true, disabledAt: true } },
+    },
   });
-  if (!session || session.expiresAt.getTime() <= Date.now()) return null;
+  if (!session || session.expiresAt.getTime() <= Date.now() || session.user.disabledAt) return null;
 
-  return session.user;
+  const { id, name, email, role, promoCode } = session.user;
+  return { id, name, email, role, promoCode };
 }
 
-/** The signed-in admin. Sends anyone else to the sign-in page. */
-export async function requireAdmin(): Promise<Admin> {
-  const admin = await getAdmin();
-  if (!admin) redirect(LOGIN_PATH);
-  return admin;
+/** The signed-in team member, admin or staff. Sends anyone else to the sign-in page. */
+export async function requireUser(): Promise<User> {
+  const user = await getUser();
+  if (!user) redirect(LOGIN_PATH);
+  return user;
+}
+
+/**
+ * The signed-in admin. Staff are sent to the requests page (the panel does not link them to
+ * admin pages, so only a typed or stale address lands here); anyone signed out goes to sign in.
+ */
+export async function requireAdmin(): Promise<User> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") redirect(PANEL_HOME);
+  return user;
 }
 
 /** Signs out the current browser. Call from a Server Action. */
@@ -80,7 +99,7 @@ export async function destroySession(): Promise<void> {
   store.set(SESSION_COOKIE, "", { ...SESSION_COOKIE_OPTIONS, maxAge: 0 });
 }
 
-/** Signs an admin out everywhere, optionally keeping the current browser signed in. */
+/** Signs a team member out everywhere, optionally keeping the current browser signed in. */
 export async function destroyAllSessions(userId: string, keepCurrent = false): Promise<void> {
   const token = keepCurrent ? (await cookies()).get(SESSION_COOKIE)?.value : undefined;
   await db().session.deleteMany({

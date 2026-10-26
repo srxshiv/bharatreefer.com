@@ -1,9 +1,15 @@
 import { overKg, type TruckState } from "./capacity";
-import type { FleetBoard, FleetLoad, FleetTruck, WaitingOrder } from "./types";
+import type { FleetBoard, FleetLoad, FleetLoadRequest, FleetTruck, WaitingOrder } from "./types";
 
 /** A change made on the board, shown straight away while the server catches up. */
 export type BoardChange =
   | { kind: "assign"; quoteId: string; truckId: string; kg: number }
+  /** Staff ask for a truck. */
+  | { kind: "request"; quoteId: string; truckId: string; kg: number }
+  /** An admin approves an ask: the load goes on its truck. */
+  | { kind: "approve"; requestId: string }
+  /** An ask declined or withdrawn. */
+  | { kind: "drop-request"; requestId: string }
   | { kind: "unassign"; assignmentId: string }
   | { kind: "move"; assignmentId: string; truckId: string }
   | { kind: "status"; truckId: string; status: FleetTruck["status"] }
@@ -12,6 +18,16 @@ export type BoardChange =
 
 export function remainingKg(order: WaitingOrder): number {
   return order.quantityKg - order.assignedKg;
+}
+
+/** What staff can still ask a truck for: what is left to place, less what is already asked for. */
+export function askableKg(order: WaitingOrder): number {
+  return remainingKg(order) - order.requestedKg;
+}
+
+/** Changes how much of an order is waiting for approval. */
+function adjustRequested(waiting: WaitingOrder[], quoteId: string, kg: number): WaitingOrder[] {
+  return waiting.map((item) => (item.id === quoteId ? { ...item, requestedKg: Math.max(0, item.requestedKg + kg) } : item));
 }
 
 /** What the placement rules need to know about a truck. */
@@ -63,6 +79,7 @@ export function applyChange(board: FleetBoard, change: BoardChange): FleetBoard 
       if (!order || change.kg <= 0) return board;
       const load: FleetLoad = {
         assignmentId: `pending-${++pendingIds}`,
+        visible: true,
         quoteId: order.id,
         reference: order.reference,
         loadKg: change.kg,
@@ -97,6 +114,7 @@ export function applyChange(board: FleetBoard, change: BoardChange): FleetBoard 
               material: load.material,
               quantityKg: load.quantityKg,
               assignedKg: load.quantityKg - load.loadKg,
+              requestedKg: 0,
               originCity: load.originCity,
               destinationCity: load.destinationCity,
               pickupDate: load.pickupDate,
@@ -114,6 +132,47 @@ export function applyChange(board: FleetBoard, change: BoardChange): FleetBoard 
           if (truck.id === change.truckId) return addLoad(truck, { ...found.load, assignmentId: `pending-${++pendingIds}` });
           return truck;
         }),
+      };
+    }
+    case "request": {
+      const order = board.waiting.find((item) => item.id === change.quoteId);
+      const truck = board.trucks.find((item) => item.id === change.truckId);
+      if (!order || !truck || change.kg <= 0) return board;
+      const request: FleetLoadRequest = {
+        id: `pending-${++pendingIds}`,
+        quoteId: order.id,
+        reference: order.reference,
+        material: order.material,
+        loadKg: change.kg,
+        truckId: truck.id,
+        plateNumber: truck.plateNumber,
+        requestedBy: null,
+        createdAt: new Date().toISOString(),
+        status: "PENDING",
+        decidedBy: null,
+      };
+      return {
+        ...board,
+        loadRequests: [...board.loadRequests, request],
+        waiting: adjustRequested(board.waiting, order.id, change.kg),
+      };
+    }
+    case "approve": {
+      const request = board.loadRequests.find((item) => item.id === change.requestId);
+      if (!request) return board;
+      const placed = applyChange(
+        { ...board, waiting: adjustRequested(board.waiting, request.quoteId, -request.loadKg) },
+        { kind: "assign", quoteId: request.quoteId, truckId: request.truckId, kg: request.loadKg },
+      );
+      return { ...placed, loadRequests: placed.loadRequests.filter((item) => item !== request) };
+    }
+    case "drop-request": {
+      const request = board.loadRequests.find((item) => item.id === change.requestId);
+      if (!request) return board;
+      return {
+        ...board,
+        loadRequests: board.loadRequests.filter((item) => item !== request),
+        waiting: adjustRequested(board.waiting, request.quoteId, -request.loadKg),
       };
     }
     case "status":

@@ -44,7 +44,7 @@ export default function AdminError({
         <button type="button" onClick={() => window.location.reload()} className={secondaryButton}>
           Reload page
         </button>
-        <Link href="/admin" className={secondaryButton}>
+        <Link href="/desk" className={secondaryButton}>
           Go to requests
         </Link>
       </div>

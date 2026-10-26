@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import { RouteSheet } from "@/components/admin/route-sheet";
 import { QuoteView } from "@/components/admin/requests/quote-view";
+import { describeCreator } from "@/components/admin/requests/creator";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { card } from "@/components/admin/ui";
 import { getQuoteRequest } from "@/features/quotes/admin";
 import { cn } from "@/lib/cn";
 import { formatDateTimeInIndia } from "@/lib/dates";
 
-type Params = PageProps<"/admin/quotes/[id]">["params"];
+type Params = PageProps<"/desk/quotes/[id]">["params"];
 
 /**
  * A request opened from another admin page (a row, a board card, the fleet queue) shows in a
@@ -15,7 +16,7 @@ type Params = PageProps<"/admin/quotes/[id]">["params"];
  * as the request loads (instantly when it was prefetched on hover). The address still
  * changes, so Back closes it and a reload shows the full page.
  */
-export default function QuotePanel({ params }: PageProps<"/admin/quotes/[id]">) {
+export default function QuotePanel({ params }: PageProps<"/desk/quotes/[id]">) {
   return (
     <RouteSheet
       title={
@@ -41,7 +42,10 @@ async function PanelTitle({ params }: { params: Params }) {
         <h2 className="font-mono text-xl font-semibold tracking-wide text-ink-950">{quote.reference}</h2>
         <StatusBadge status={quote.status} />
       </div>
-      <p className="mt-0.5 text-xs text-ink-500">Received {formatDateTimeInIndia(quote.createdAt)}</p>
+      <p className="mt-0.5 text-xs text-ink-500">
+        {quote.createdBy ? `Entered by ${describeCreator(quote.createdBy)}, ` : "Received "}
+        {formatDateTimeInIndia(quote.createdAt)}
+      </p>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 // the top of the panel shows a click was registered.
 export const instant = false;
 
-export default async function FleetPage({ searchParams }: PageProps<"/admin/fleet">) {
+export default async function FleetPage({ searchParams }: PageProps<"/desk/fleet">) {
   const [{ order }, board, { bands }] = await Promise.all([searchParams, getFleetBoard(), getSiteContent()]);
   const bandLabels = Object.fromEntries(MATERIAL_IDS.map((id) => [id, bands[id].label])) as Record<
     (typeof MATERIAL_IDS)[number],

@@ -1,5 +1,6 @@
 import { MATERIAL_IDS, type MaterialId } from "@/config/materials";
 import { isRegion } from "@/data/india-locations";
+import { isPromoCode } from "@/features/team/promo-code";
 import { isIsoDate } from "@/lib/dates";
 import type { LoadTypeId } from "@/lib/truck-plan";
 import { isQuoteStatus, type QuoteStatusId } from "./status";
@@ -34,6 +35,8 @@ export type InboxFilters = {
   /** Pickup date between these calendar days, "YYYY-MM-DD" or "". */
   pickupFrom: string;
   pickupTo: string;
+  /** Who brought the customer: a team member's promo code, "NONE" for no code, or "" for anyone. Admins only. */
+  referrer: string;
   sort: SortId;
   /** Free-text search, trimmed. */
   q: string;
@@ -56,6 +59,7 @@ export const DEFAULT_INBOX_FILTERS: InboxFilters = {
   to: "",
   pickupFrom: "",
   pickupTo: "",
+  referrer: "",
   sort: "newest",
   q: "",
   page: 1,
@@ -89,6 +93,7 @@ export function parseInboxFilters(params: RawParams): InboxFilters {
   const loadType = first(params.load).toUpperCase();
   const quoted = first(params.quoted).toUpperCase();
   const sort = first(params.sort).toLowerCase();
+  const referrer = first(params.by).toUpperCase();
   const page = Number.parseInt(first(params.page), 10);
   const size = Number.parseInt(first(params.size), 10);
   const [from, to] = orderedRange(isoDateOrEmpty(first(params.from)), isoDateOrEmpty(first(params.to)));
@@ -110,6 +115,7 @@ export function parseInboxFilters(params: RawParams): InboxFilters {
     to,
     pickupFrom,
     pickupTo,
+    referrer: referrer === "NONE" || isPromoCode(referrer) ? referrer : "",
     sort: (SORT_IDS as readonly string[]).includes(sort) ? (sort as SortId) : "newest",
     q: first(params.q).trim().slice(0, 100),
     page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -133,6 +139,7 @@ export function inboxQuery(filters: Partial<InboxFilters>): string {
   if (filters.to) params.set("to", filters.to);
   if (filters.pickupFrom) params.set("pickup_from", filters.pickupFrom);
   if (filters.pickupTo) params.set("pickup_to", filters.pickupTo);
+  if (filters.referrer) params.set("by", filters.referrer.toLowerCase());
   if (filters.sort && filters.sort !== "newest") params.set("sort", filters.sort);
   if (filters.q) params.set("q", filters.q);
   if (filters.page && filters.page > 1) params.set("page", String(filters.page));
@@ -153,6 +160,7 @@ export const ADVANCED_FILTER_KEYS = [
   "to",
   "pickupFrom",
   "pickupTo",
+  "referrer",
   "sort",
 ] as const satisfies ReadonlyArray<keyof InboxFilters>;
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, CircleAlert, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, CircleAlert, Plus, Tag } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import type { FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
@@ -34,6 +34,8 @@ export type QuoteFieldsProps = {
   fleet: FleetConfig;
   plan: TruckPlan | null;
   quantityKg: number | null;
+  /** Label of the name field. The panel asks for the customer's name instead of "your" name. */
+  nameLabel?: string;
 };
 
 /**
@@ -62,6 +64,7 @@ const FIELD_NAMES: Record<QuoteField, string> = {
   contactName: "Name",
   phone: "Mobile number",
   email: "Email",
+  promoCode: "Promo code",
 };
 
 /** "Enter a 10-digit Indian mobile number" -> "enter a 10-digit Indian mobile number" */
@@ -161,9 +164,19 @@ function describePlan(plan: TruckPlan): string {
 
 /** Every field of the quote form, laid out to fit the card on a laptop screen without scrolling. */
 export function QuoteFields(props: QuoteFieldsProps) {
-  const { id, values, errors, control, setField, bands, fleet, plan, quantityKg } = props;
+  const { id, values, errors, control, setField, bands, fleet, plan, quantityKg, nameLabel = "Your name" } = props;
   const [notesOpen, setNotesOpen] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
   const showNotes = notesOpen || values.notes !== "" || Boolean(errors.notes);
+  // Open whenever there is a code, such as one filled in from a shared link.
+  const showPromo = promoOpen || values.promoCode !== "" || Boolean(errors.promoCode);
+  const promoRef = useRef<HTMLInputElement>(null);
+
+  // Opened by a click: move to the field straight after it renders. Not when a shared link
+  // opened it, which would pull the page to the form as it loads.
+  useEffect(() => {
+    if (promoOpen) promoRef.current?.focus();
+  }, [promoOpen]);
   const hasErrors = Object.values(errors).some(Boolean);
 
   return (
@@ -292,7 +305,7 @@ export function QuoteFields(props: QuoteFieldsProps) {
         <div className="grid gap-4 sm:grid-cols-3 sm:gap-x-3">
           <div>
             <label htmlFor={`${id}-contactName`} className={fieldLabel}>
-              Your name
+              {nameLabel}
             </label>
             <input
               {...control("contactName")}
@@ -338,32 +351,67 @@ export function QuoteFields(props: QuoteFieldsProps) {
           </div>
         </div>
 
-        {showNotes ? (
-          <div className="mt-3 short:mt-2">
-            <label htmlFor={`${id}-notes`} className={cn(fieldLabel, "short:sr-only")}>
-              Notes
-              <Optional />
-            </label>
-            <textarea
-              {...control("notes")}
-              rows={2}
-              maxLength={1000}
-              placeholder="Notes: what the cargo is, packaging, loading hours"
-              onChange={(event) => setField("notes", event.target.value)}
-              className={cn(fieldInput, "mt-1.5 h-auto py-2 leading-5 short:mt-0 short:h-9 short:resize-none short:py-2 short:leading-5")}
-            />
-            <FieldError id={`${id}-notes-error`} message={errors.notes} />
+        {/* Notes and the promo code share a row: both stay out of the way until asked for. */}
+        <div className="mt-2.5 flex items-end gap-3 short:mt-2">
+          <div className="min-w-0 flex-1">
+            {showNotes ? (
+              <>
+                <label htmlFor={`${id}-notes`} className={cn(fieldLabel, "short:sr-only")}>
+                  Notes
+                  <Optional />
+                </label>
+                <textarea
+                  {...control("notes")}
+                  rows={2}
+                  maxLength={1000}
+                  placeholder="Notes: what the cargo is, packaging, loading hours"
+                  onChange={(event) => setField("notes", event.target.value)}
+                  className={cn(fieldInput, "mt-1.5 h-auto py-2 leading-5 short:mt-0 short:h-9 short:resize-none short:py-2 short:leading-5")}
+                />
+                <FieldError id={`${id}-notes-error`} message={errors.notes} />
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setNotesOpen(true)}
+                className="inline-flex items-center gap-1 rounded-md text-xs font-medium text-ice-600 transition-colors hover:text-ink-950"
+              >
+                <Plus aria-hidden="true" className="size-3.5" />
+                Add a note about the cargo
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setNotesOpen(true)}
-            className="mt-2.5 inline-flex items-center gap-1 rounded-md text-xs font-medium text-ice-600 transition-colors hover:text-ink-950"
-          >
-            <Plus aria-hidden="true" className="size-3.5" />
-            Add a note about the cargo
-          </button>
-        )}
+
+          {showPromo ? (
+            <div className="w-28 shrink-0">
+              <label htmlFor={`${id}-promoCode`} className="sr-only">
+                Promo code (optional)
+              </label>
+              <input
+                {...control("promoCode")}
+                ref={promoRef}
+                type="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                placeholder="Promo code"
+                maxLength={8}
+                onChange={(event) => setField("promoCode", event.target.value)}
+                className={cn(fieldInput, "font-mono uppercase placeholder:font-sans placeholder:normal-case")}
+              />
+              <FieldError id={`${id}-promoCode-error`} message={errors.promoCode} />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPromoOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md text-xs font-medium text-ice-600 transition-colors hover:text-ink-950"
+            >
+              <Tag aria-hidden="true" className="size-3.5" />
+              Promo code
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

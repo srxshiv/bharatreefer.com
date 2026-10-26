@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChange, groupTrucks, summarise } from "./board-state";
+import { applyChange, askableKg, groupTrucks, summarise } from "./board-state";
 import type { FleetBoard, FleetTruck, WaitingOrder } from "./types";
 
 function truck(id: string, capacityKg: number, extra: Partial<FleetTruck> = {}): FleetTruck {
@@ -27,6 +27,7 @@ function order(id: string, quantityKg: number, extra: Partial<WaitingOrder> = {}
     material: "FROZEN",
     quantityKg,
     assignedKg: 0,
+    requestedKg: 0,
     originCity: "Delhi",
     destinationCity: "Mumbai",
     pickupDate: null,
@@ -37,6 +38,8 @@ function order(id: string, quantityKg: number, extra: Partial<WaitingOrder> = {}
 
 function board(trucks: FleetTruck[], waiting: WaitingOrder[]): FleetBoard {
   return {
+    canManage: true,
+    loadRequests: [],
     trucks,
     waiting,
     sizes: [{ capacityKg: 4000, name: null }, { capacityKg: 9000, name: null }],
@@ -84,6 +87,28 @@ describe("applyChange", () => {
     const back = applyChange(onTrip, { kind: "end-trip", truckId: "1" });
     expect(back.trucks[0]).toMatchObject({ status: "AVAILABLE", usedKg: 0, loads: [], tripStartedAt: null });
     expect(back.waiting).toEqual([]);
+  });
+});
+
+describe("asking for a truck", () => {
+  it("holds the weight asked for until it is decided", () => {
+    const asked = applyChange(board([truck("1", 9000)], [order("A", 6000)]), { kind: "request", quoteId: "A", truckId: "1", kg: 4000 });
+    expect(asked.loadRequests).toEqual([expect.objectContaining({ quoteId: "A", truckId: "1", loadKg: 4000, status: "PENDING" })]);
+    expect(askableKg(asked.waiting[0])).toBe(2000);
+    // Nothing is on the truck until an admin approves.
+    expect(asked.trucks[0].usedKg).toBe(0);
+
+    const dropped = applyChange(asked, { kind: "drop-request", requestId: asked.loadRequests[0].id });
+    expect(dropped.loadRequests).toEqual([]);
+    expect(askableKg(dropped.waiting[0])).toBe(6000);
+  });
+
+  it("puts the load on the truck when approved", () => {
+    const asked = applyChange(board([truck("1", 9000)], [order("A", 6000)]), { kind: "request", quoteId: "A", truckId: "1", kg: 6000 });
+    const approved = applyChange(asked, { kind: "approve", requestId: asked.loadRequests[0].id });
+    expect(approved.trucks[0]).toMatchObject({ usedKg: 6000 });
+    expect(approved.loadRequests).toEqual([]);
+    expect(approved.waiting).toEqual([]);
   });
 });
 

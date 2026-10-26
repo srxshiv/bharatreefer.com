@@ -1,5 +1,7 @@
 /**
- * Creates an admin account, or resets the password of an existing one.
+ * Creates an admin account, or resets the password of an existing one. Either way the account
+ * ends up an admin that can sign in: this is also the way back in if no admin is left.
+ * Staff accounts are created by an admin on the Team page.
  *
  *   pnpm admin:create --email owner@example.com --name "Owner Name"
  *
@@ -10,6 +12,7 @@ import "dotenv/config";
 import { parseArgs } from "node:util";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { withExplicitSslMode } from "../src/lib/connection-string";
+import { choosePromoCode } from "../src/features/team/promo-code";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { hashPassword } from "../src/lib/password";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../src/lib/password-policy";
@@ -84,10 +87,17 @@ async function main() {
     if (!existing && !name) fail("A new account needs --name.");
 
     const passwordHash = await hashPassword(password);
+    const promoCode = existing
+      ? existing.promoCode
+      : await choosePromoCode(name ?? email, email, async (codes) =>
+          (await prisma.adminUser.findMany({ where: { promoCode: { in: codes } }, select: { promoCode: true } })).map(
+            (row) => row.promoCode,
+          ),
+        );
     const user = await prisma.adminUser.upsert({
       where: { email },
-      create: { email, name: name ?? email, passwordHash },
-      update: { passwordHash, ...(name ? { name } : {}) },
+      create: { email, name: name ?? email, passwordHash, role: "ADMIN", promoCode },
+      update: { passwordHash, role: "ADMIN", disabledAt: null, ...(name ? { name } : {}) },
     });
     // A password reset signs the account out everywhere.
     if (existing) await prisma.session.deleteMany({ where: { userId: user.id } });
@@ -97,8 +107,10 @@ async function main() {
     console.log(
       existing
         ? `Password reset for ${user.email} in database ${where}.`
-        : `Admin account created for ${user.email} in database ${where}.`,
+        : `Admin account created for ${user.email} in database ${where}, promo code ${user.promoCode}.`,
     );
+    if (existing && existing.role !== "ADMIN") console.log("The account was staff and is now an admin.");
+    if (existing?.disabledAt) console.log("The account was switched off and can sign in again.");
   } finally {
     await prisma.$disconnect();
   }

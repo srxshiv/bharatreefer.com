@@ -1,15 +1,21 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { Prisma, QuoteActivityType } from "@/generated/prisma/client";
-import { ADMIN_DATA_TAG, ADMIN_PAGE_CACHE, requireAdmin } from "@/features/auth/session";
+import type { Role } from "@/features/auth/roles";
+import { ADMIN_DATA_TAG, ADMIN_PAGE_CACHE, requireAdmin, requireUser } from "@/features/auth/session";
 import { startOfDayInIndia, startOfNextDayInIndia } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatInr } from "@/lib/format";
+import type { TruckPlan } from "@/lib/truck-plan";
+import { createQuoteRequest } from "./data";
 import type { InboxFilters } from "./filters";
+import type { QuoteRequestInput } from "./schema";
 import { QUOTE_STATUSES, STATUS_LABELS, type QuoteStatusId } from "./status";
+import { visibleTo } from "./visibility";
 
 // Every function here checks the session first. Pages, actions and the export route
 // all go through this file, so there is no way to reach quote data without signing in.
+// Staff only ever reach their own requests (see ./visibility): the rule is part of each query.
 
 /** Most rows a single CSV export will return. */
 const EXPORT_LIMIT = 5000;
@@ -31,6 +37,9 @@ const inboxSelect = {
   quotedAmount: true,
   pickupDate: true,
   createdAt: true,
+  createdById: true,
+  referrerId: true,
+  promoCode: true,
 } satisfies Prisma.QuoteRequestSelect;
 
 const exportSelect = {
@@ -44,8 +53,15 @@ const detailSelect = {
   updatedAt: true,
 } satisfies Prisma.QuoteRequestSelect;
 
-export type InboxRow = Prisma.QuoteRequestGetPayload<{ select: typeof inboxSelect }>;
-export type ExportRow = Prisma.QuoteRequestGetPayload<{ select: typeof exportSelect }>;
+/** The team member who entered a request for a customer. Null on requests from the website. */
+export type Creator = { name: string; role: Role } | null;
+/** The team member whose promo code the request is credited to: they brought the customer. */
+export type Referrer = { name: string; promoCode: string } | null;
+
+type WithPeople<T> = Omit<T, "createdById" | "referrerId"> & { createdBy: Creator; referrer: Referrer };
+
+export type InboxRow = WithPeople<Prisma.QuoteRequestGetPayload<{ select: typeof inboxSelect }>>;
+export type ExportRow = WithPeople<Prisma.QuoteRequestGetPayload<{ select: typeof exportSelect }>>;
 export type QuoteActivityEntry = {
   id: string;
   type: QuoteActivityType;
@@ -54,13 +70,55 @@ export type QuoteActivityEntry = {
   author: { name: string } | null;
 };
 
-export type QuoteDetail = Prisma.QuoteRequestGetPayload<{ select: typeof detailSelect }> & {
+export type QuoteDetail = WithPeople<Prisma.QuoteRequestGetPayload<{ select: typeof detailSelect }>> & {
   activities: QuoteActivityEntry[];
 };
 
 export type StatusCounts = Record<QuoteStatusId | "ALL", number>;
 /** Sum of the quoted amounts in each stage, in rupees. */
 export type StatusValues = Record<QuoteStatusId, number>;
+
+type TeamDirectory = Map<string, { name: string; role: Role; promoCode: string }>;
+
+/**
+ * Every account's name, role and code, read alongside a page's other queries to show who wrote
+ * a note, entered a request or brought the customer. One row per team member, so it stays
+ * small; switched-off accounts are included because their names stay on what they did.
+ */
+async function loadTeam(): Promise<TeamDirectory> {
+  const members = await db().adminUser.findMany({ select: { id: true, name: true, role: true, promoCode: true } });
+  return new Map(members.map(({ id, ...member }) => [id, member]));
+}
+
+function withPeople<T extends { createdById: string | null; referrerId: string | null }>(
+  { createdById, referrerId, ...row }: T,
+  team: TeamDirectory,
+): WithPeople<T> {
+  const creator = createdById ? team.get(createdById) : undefined;
+  const referrer = referrerId ? team.get(referrerId) : undefined;
+  return {
+    ...row,
+    createdBy: creator ? { name: creator.name, role: creator.role } : null,
+    referrer: referrer ? { name: referrer.name, promoCode: referrer.promoCode } : null,
+  };
+}
+
+/** A team member a request can be credited to, for the "Brought by" filter and picker. Admins only. */
+export type ReferrerOption = { id: string; name: string; promoCode: string; disabled: boolean };
+
+export async function listReferrers(): Promise<ReferrerOption[]> {
+  "use cache: private";
+  cacheLife(ADMIN_PAGE_CACHE);
+  cacheTag(ADMIN_DATA_TAG);
+  const [, members] = await Promise.all([
+    requireAdmin(),
+    db().adminUser.findMany({
+      orderBy: [{ disabledAt: { sort: "asc", nulls: "first" } }, { name: "asc" }],
+      select: { id: true, name: true, promoCode: true, disabledAt: true },
+    }),
+  ]);
+  return members.map(({ disabledAt, ...member }) => ({ ...member, disabled: disabledAt !== null }));
+}
 
 /** Every filter except status, which is applied separately so the tab counts ignore it. */
 function matching(filters: Omit<InboxFilters, "status" | "sort" | "page">): Prisma.QuoteRequestWhereInput {
@@ -71,6 +129,8 @@ function matching(filters: Omit<InboxFilters, "status" | "sort" | "page">): Pris
   if (filters.quoted === "NO") where.quotedAmount = null;
   if (filters.originState) where.originState = filters.originState;
   if (filters.destinationState) where.destinationState = filters.destinationState;
+  if (filters.referrer === "NONE") where.referrerId = null;
+  else if (filters.referrer) where.referrer = { promoCode: filters.referrer };
 
   // Received on calendar days in India time.
   if (filters.from || filters.to) {
@@ -130,13 +190,12 @@ export async function listQuoteRequests(filters: InboxFilters): Promise<{
   "use cache: private";
   cacheLife(ADMIN_PAGE_CACHE);
   cacheTag(ADMIN_DATA_TAG);
-  const base = matching(filters);
+  // Who is asking decides which requests are in play, so the session check comes first.
+  const user = await requireUser();
+  const base = { AND: [visibleTo(user), matching(filters)] };
   const where = { AND: [base, inStatus(filters.status)] };
 
-  // The session check runs alongside the queries rather than before them, saving a round
-  // trip. If it fails it throws a redirect and the rows never leave the server.
-  const [, rows, grouped] = await Promise.all([
-    requireAdmin(),
+  const [rows, grouped, team] = await Promise.all([
     db().quoteRequest.findMany({
       where,
       orderBy: ordering(filters.sort),
@@ -150,12 +209,19 @@ export async function listQuoteRequests(filters: InboxFilters): Promise<{
       _count: { _all: true },
       _sum: { quotedAmount: true },
     }),
+    loadTeam(),
   ]);
 
   const { counts, values } = tally(grouped);
   // The per-status counts already hold the total for the current tab.
   const total = counts[filters.status];
-  return { rows, total, pageCount: Math.max(1, Math.ceil(total / filters.size)), counts, values };
+  return {
+    rows: rows.map((row) => withPeople(row, team)),
+    total,
+    pageCount: Math.max(1, Math.ceil(total / filters.size)),
+    counts,
+    values,
+  };
 }
 
 function tally(
@@ -189,12 +255,13 @@ export async function listBoard(filters: InboxFilters): Promise<{
   "use cache: private";
   cacheLife(ADMIN_PAGE_CACHE);
   cacheTag(ADMIN_DATA_TAG);
-  const base = matching(filters);
-  const [, placed, grouped, ...columns] = await Promise.all([
-    requireAdmin(),
+  const user = await requireUser();
+  const base = { AND: [visibleTo(user), matching(filters)] };
+  const [team, placed, grouped, ...columns] = await Promise.all([
+    loadTeam(),
     db().truckAssignment.groupBy({
       by: ["quoteRequestId"],
-      where: { quoteRequest: { status: "CONFIRMED" } },
+      where: { quoteRequest: { status: "CONFIRMED", ...visibleTo(user) } },
       _sum: { loadKg: true },
     }),
     db().quoteRequest.groupBy({
@@ -217,7 +284,9 @@ export async function listBoard(filters: InboxFilters): Promise<{
   return {
     readAt: Date.now(),
     placedKg: Object.fromEntries(placed.map((row) => [row.quoteRequestId, row._sum.loadKg ?? 0])),
-    columns: Object.fromEntries(BOARD_STAGES.map((stage, index) => [stage, columns[index]])) as Record<BoardStage, InboxRow[]>,
+    columns: Object.fromEntries(
+      BOARD_STAGES.map((stage, index) => [stage, columns[index].map((row) => withPeople(row, team))]),
+    ) as Record<BoardStage, InboxRow[]>,
     counts,
     values,
   };
@@ -227,26 +296,25 @@ export async function getQuoteRequest(id: string): Promise<QuoteDetail | null> {
   "use cache: private";
   cacheLife(ADMIN_PAGE_CACHE);
   cacheTag(ADMIN_DATA_TAG);
-  // One round trip: the session check, the request, its timeline and the author names run
-  // together. Nested includes would be fetched one after another instead.
-  const [, quote, activities, admins] = await Promise.all([
-    requireAdmin(),
-    db().quoteRequest.findUnique({ where: { id }, select: detailSelect }),
+  // The request, its timeline and the team's names run together. Nested includes would be
+  // fetched one after another instead. A request the team member may not see is not found.
+  const user = await requireUser();
+  const [quote, activities, team] = await Promise.all([
+    db().quoteRequest.findFirst({ where: { id, ...visibleTo(user) }, select: detailSelect }),
     db().quoteActivity.findMany({
       where: { quoteRequestId: id },
       orderBy: { createdAt: "desc" },
       select: { id: true, type: true, body: true, createdAt: true, authorId: true },
     }),
-    db().adminUser.findMany({ select: { id: true, name: true } }),
+    loadTeam(),
   ]);
   if (!quote) return null;
 
-  const names = new Map(admins.map((admin) => [admin.id, admin.name]));
   return {
-    ...quote,
+    ...withPeople(quote, team),
     activities: activities.map(({ authorId, ...activity }) => {
-      const name = authorId ? names.get(authorId) : undefined;
-      return { ...activity, author: name ? { name } : null };
+      const author = authorId ? team.get(authorId) : undefined;
+      return { ...activity, author: author ? { name: author.name } : null };
     }),
   };
 }
@@ -256,16 +324,77 @@ export async function getQuoteRequest(id: string): Promise<QuoteDetail | null> {
  * those requests (the rows ticked in the list), whatever the filters.
  */
 export async function exportQuoteRequests(filters: InboxFilters, ids?: string[]): Promise<ExportRow[]> {
-  const [, rows] = await Promise.all([
-    requireAdmin(),
+  const user = await requireUser();
+  const [rows, team] = await Promise.all([
     db().quoteRequest.findMany({
-      where: ids ? { id: { in: ids } } : { AND: [matching(filters), inStatus(filters.status)] },
+      where: {
+        AND: [visibleTo(user), ids ? { id: { in: ids } } : { AND: [matching(filters), inStatus(filters.status)] }],
+      },
       orderBy: ordering(filters.sort),
       take: EXPORT_LIMIT,
       select: exportSelect,
     }),
+    loadTeam(),
   ]);
-  return rows;
+  return rows.map((row) => withPeople(row, team));
+}
+
+/**
+ * Enters a request for a customer who called, messaged or walked in. It is stored like one
+ * from the website, recorded as created by the signed-in team member and credited to the
+ * holder of `referrer`'s promo code (already checked by the caller), if any.
+ */
+export async function createQuoteRequestForCustomer(
+  input: QuoteRequestInput,
+  plan: TruckPlan,
+  referrer: { id: string; promoCode: string } | null,
+): Promise<{ id: string; reference: string; createdBy: { name: string; role: Role } }> {
+  const user = await requireUser();
+  const created = await createQuoteRequest(input, plan, {
+    ipHash: null,
+    userAgent: null,
+    createdById: user.id,
+    referrer,
+  });
+  return { ...created, createdBy: { name: user.name, role: user.role } };
+}
+
+/**
+ * Credits a request to another team member, or to nobody: for a customer who forgot the code,
+ * or one entered by mistake. Admins only, so staff cannot claim each other's customers.
+ */
+export async function setQuoteReferrer(
+  id: string,
+  referrerId: string | null,
+): Promise<"updated" | "unchanged" | "not-found" | "no-member"> {
+  const admin = await requireAdmin();
+
+  return db().$transaction(async (tx) => {
+    const current = await tx.quoteRequest.findUnique({ where: { id }, select: { referrerId: true } });
+    if (!current) return "not-found";
+    if (current.referrerId === referrerId) return "unchanged";
+
+    const referrer = referrerId
+      ? await tx.adminUser.findUnique({ where: { id: referrerId }, select: { name: true, promoCode: true } })
+      : null;
+    if (referrerId && !referrer) return "no-member";
+
+    await tx.quoteRequest.update({
+      where: { id },
+      data: {
+        referrerId,
+        promoCode: referrer?.promoCode ?? null,
+        activities: {
+          create: {
+            authorId: admin.id,
+            type: "REFERRER_CHANGE",
+            body: referrer ? `Credited to ${referrer.name} (${referrer.promoCode})` : "No longer credited to anyone",
+          },
+        },
+      },
+    });
+    return "updated";
+  });
 }
 
 function describePriceChange(from: number | null, to: number | null): string {
@@ -283,11 +412,11 @@ export async function updateQuoteRequest(
   id: string,
   update: { status: QuoteStatusId; quotedAmount?: number | null },
 ): Promise<"updated" | "unchanged" | "not-found"> {
-  const admin = await requireAdmin();
+  const admin = await requireUser();
 
   return db().$transaction(async (tx) => {
-    const current = await tx.quoteRequest.findUnique({
-      where: { id },
+    const current = await tx.quoteRequest.findFirst({
+      where: { id, ...visibleTo(admin) },
       select: { status: true, quotedAmount: true },
     });
     if (!current) return "not-found";
@@ -324,6 +453,16 @@ export async function updateQuoteRequest(
         changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Taken off its truck" : `Taken off its ${count} trucks` });
       }
     }
+    // Only confirmed requests go on trucks, so asks still waiting for an admin lapse.
+    if (current.status === "CONFIRMED" && update.status !== "CONFIRMED") {
+      const { count } = await tx.loadRequest.updateMany({
+        where: { quoteRequestId: id, status: "PENDING" },
+        data: { status: "CANCELLED", decidedAt: new Date() },
+      });
+      if (count > 0) {
+        changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Truck request withdrawn" : `${count} truck requests withdrawn` });
+      }
+    }
 
     await tx.quoteRequest.update({
       where: { id },
@@ -339,9 +478,9 @@ export async function updateQuoteRequest(
 
 /** Adds an internal note. Returns false when the request does not exist. */
 export async function addQuoteNote(id: string, body: string): Promise<boolean> {
-  const admin = await requireAdmin();
+  const admin = await requireUser();
 
-  const exists = await db().quoteRequest.findUnique({ where: { id }, select: { id: true } });
+  const exists = await db().quoteRequest.findFirst({ where: { id, ...visibleTo(admin) }, select: { id: true } });
   if (!exists) return false;
 
   await db().quoteActivity.create({

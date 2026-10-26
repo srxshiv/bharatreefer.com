@@ -45,8 +45,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
-      // Belt and braces with robots.txt: keep the admin panel out of search results.
-      { source: "/admin/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // Keep the panel out of search results. Not listed in robots.txt, which would advertise it.
+      { source: "/desk/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };

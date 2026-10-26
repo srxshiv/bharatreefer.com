@@ -3,7 +3,9 @@ import { siteUrl } from "@/config/site";
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/api"] },
+    // The panel at /desk is left out on purpose: listing it here would advertise it. Its pages
+    // send noindex themselves.
+    rules: { userAgent: "*", allow: "/", disallow: ["/api"] },
     sitemap: `${siteUrl}/sitemap.xml`,
   };
 }

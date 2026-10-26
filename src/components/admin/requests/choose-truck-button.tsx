@@ -22,7 +22,7 @@ export function ChooseTruckButton({ quoteId, label, className }: { quoteId: stri
       // After the panel has closed and the board has focus again.
       setTimeout(() => window.dispatchEvent(new CustomEvent(CHOOSE_TRUCK_EVENT, { detail: quoteId })), 80);
     } else {
-      router.push(`/admin/fleet?order=${encodeURIComponent(quoteId)}`);
+      router.push(`/desk/fleet?order=${encodeURIComponent(quoteId)}`);
     }
   }
 

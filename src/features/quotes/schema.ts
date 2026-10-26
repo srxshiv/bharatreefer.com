@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS } from "@/config/materials";
 import { isRegion } from "@/data/india-locations";
+import { isPromoCode, normalisePromoCode } from "@/features/team/promo-code";
 import { dateInIndia, isIsoDate } from "@/lib/dates";
 import { formatKg } from "@/lib/format";
 import { normaliseIndianMobile } from "@/lib/phone";
@@ -21,6 +22,7 @@ export const QUOTE_FIELDS = [
   "contactName",
   "phone",
   "email",
+  "promoCode",
 ] as const;
 
 export type QuoteField = (typeof QUOTE_FIELDS)[number];
@@ -42,6 +44,7 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
   contactName: "",
   phone: "",
   email: "",
+  promoCode: "",
 };
 
 const state = (message: string) => z.string().refine(isRegion, message);
@@ -55,6 +58,16 @@ const city = (message: string) =>
     .regex(/^[\p{L}\p{M}0-9 .,'()&/-]+$/u, "Use only letters, numbers and basic punctuation");
 
 const email = z.email();
+
+/** The quote form's fields from a submission, each as typed (empty when missing). */
+export function readQuoteForm(formData: FormData): QuoteFormValues {
+  const values = {} as QuoteFormValues;
+  for (const field of QUOTE_FIELDS) {
+    const value = formData.get(field);
+    values[field] = typeof value === "string" ? value : "";
+  }
+  return values;
+}
 
 /** Reads the weight field, tolerating "12,500" and "12 500". Returns null if it is not a whole number. */
 export function parseQuantityKg(raw: string): number | null {
@@ -135,8 +148,19 @@ export function createQuoteRequestSchema(limits: Pick<FleetConfig, "minQuantityK
         "Enter a valid email address, or leave it empty",
       )
       .transform((value) => (value === "" ? undefined : value.toLowerCase())),
+
+    // Only the shape is checked here. Whether a team member has the code is checked on the
+    // server, which then credits the request to them.
+    promoCode: z
+      .string()
+      .transform(normalisePromoCode)
+      .refine((value) => value === "" || isPromoCode(value), "Promo codes are 4 or 5 letters or digits")
+      .transform((value) => (value === "" ? undefined : value)),
   });
 }
+
+/** Shown when no team member that can still sign in has the code. */
+export const UNKNOWN_PROMO_CODE = "We do not recognise this code. Check it, or leave it empty";
 
 export type QuoteRequestSchema = ReturnType<typeof createQuoteRequestSchema>;
 

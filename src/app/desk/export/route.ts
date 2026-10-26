@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { describeCreator } from "@/components/admin/requests/creator";
 import { getSiteContent } from "@/features/content/data";
 import { exportQuoteRequests } from "@/features/quotes/admin";
 import { parseInboxFilters } from "@/features/quotes/filters";
@@ -27,6 +28,9 @@ const HEADER = [
   "Pickup date",
   "Quoted (INR)",
   "Customer notes",
+  "Entered by",
+  "Promo code",
+  "Brought by",
 ];
 
 /** Downloads the quote requests matching the inbox filters as a CSV file. */
@@ -56,6 +60,9 @@ export async function GET(request: NextRequest) {
     quote.pickupDate ? toIsoDate(quote.pickupDate) : "",
     quote.quotedAmount,
     quote.notes,
+    describeCreator(quote.createdBy) ?? "Website",
+    quote.promoCode,
+    quote.referrer?.name,
   ]);
 
   return new Response(toCsv([HEADER, ...rows]), {

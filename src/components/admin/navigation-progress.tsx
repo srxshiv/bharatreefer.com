@@ -40,8 +40,8 @@ export function NavigationProgress() {
       const link = (event.target as Element | null)?.closest("a");
       if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
       const target = new URL(link.href, location.href);
-      if (target.origin !== location.origin || !target.pathname.startsWith("/admin")) return;
-      if (target.pathname.startsWith("/admin/export")) return;
+      if (target.origin !== location.origin || !target.pathname.startsWith("/desk")) return;
+      if (target.pathname.startsWith("/desk/export")) return;
       if (`${target.pathname}${target.search}` === here()) return;
       setPending(true);
     }

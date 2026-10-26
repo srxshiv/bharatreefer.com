@@ -23,6 +23,7 @@ const valid: QuoteFormValues = {
   email: "Asha@Example.com",
   pickupDate: "",
   notes: "",
+  promoCode: "",
 };
 
 function errorsFor(overrides: Partial<QuoteFormValues>) {
@@ -127,6 +128,19 @@ describe("quoteRequestSchema", () => {
   it("caps the notes length", () => {
     expect(errorsFor({ notes: "x".repeat(1001) }).notes).toBeDefined();
     expect(errorsFor({ notes: "x".repeat(1000) })).toEqual({});
+  });
+});
+
+describe("promo code", () => {
+  it("is optional, and stored uppercase without spaces", () => {
+    expect(quoteRequestSchema.parse(valid).promoCode).toBeUndefined();
+    expect(quoteRequestSchema.parse({ ...valid, promoCode: " priya " }).promoCode).toBe("PRIYA");
+  });
+
+  it("must look like a code", () => {
+    expect(errorsFor({ promoCode: "PR" }).promoCode).toMatch(/4 or 5 letters/);
+    expect(errorsFor({ promoCode: "PRIYAS" }).promoCode).toMatch(/4 or 5 letters/);
+    expect(errorsFor({ promoCode: "PR!Y" }).promoCode).toMatch(/4 or 5 letters/);
   });
 });
 

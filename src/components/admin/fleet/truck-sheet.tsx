@@ -39,9 +39,13 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-/** Everything about one truck: what it carries, its trip, its status, its details. */
+/**
+ * Everything about one truck: what it carries, its trip, its status, its details. Admins can
+ * change all of it; staff (`canManage` false) only look.
+ */
 export function TruckSheetBody({
   truck,
+  canManage,
   sizes,
   bandLabels,
   onMove,
@@ -53,6 +57,7 @@ export function TruckSheetBody({
   notify,
 }: {
   truck: FleetTruck;
+  canManage: boolean;
   sizes: TruckSizeInfo[];
   bandLabels: Record<MaterialId, string>;
   onMove: (load: FleetLoad, anchor: HTMLElement) => void;
@@ -110,7 +115,7 @@ export function TruckSheetBody({
             <span className="font-semibold text-ink-950">Empty and available.</span>
           )}
         </p>
-        <TripButton truck={truck} onStart={onStartTrip} onEnd={onEndTrip} />
+        {canManage ? <TripButton truck={truck} onStart={onStartTrip} onEnd={onEndTrip} /> : null}
       </section>
 
       <section>
@@ -119,10 +124,10 @@ export function TruckSheetBody({
         </h3>
         {truck.loads.length === 0 ? (
           <p className="mt-2 rounded-lg border border-dashed border-frost-300 px-4 py-5 text-center text-sm text-ink-500">
-            Empty. Choose this truck for a confirmed request on the fleet page.
+            {canManage ? "Empty. Choose this truck for a confirmed request on the fleet page." : "Empty."}
           </p>
         ) : (
-          <LoadRows loads={truck.loads} bandLabels={bandLabels} onMove={onMove} onRemove={onRemove} className="mt-1" />
+          <LoadRows loads={truck.loads} bandLabels={bandLabels} canManage={canManage} onMove={onMove} onRemove={onRemove} className="mt-1" />
         )}
       </section>
 
@@ -135,7 +140,7 @@ export function TruckSheetBody({
         </dl>
       </section>
 
-      {truck.status !== "ON_TRIP" ? (
+      {canManage && truck.status !== "ON_TRIP" ? (
         <section>
           <h3 className="caption text-ink-500">Status</h3>
           <div role="radiogroup" aria-label="Status" className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-frost-100 p-1">
@@ -192,55 +197,59 @@ export function TruckSheetBody({
         </section>
       ) : null}
 
-      <details className="group rounded-xl border border-frost-200">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-ink-950 [&::-webkit-details-marker]:hidden">
-          Edit details
-          <span aria-hidden="true" className="text-ink-400 transition-transform group-open:rotate-90">
-            ›
-          </span>
-        </summary>
-        <div className="border-t border-frost-200 p-4">
-          <TruckForm
-            key={[truck.plateNumber, truck.capacityKg, truck.model, truck.driverName, truck.driverPhone, truck.lengthFt, truck.tyres].join(":")}
-            truck={truck}
-            sizes={sizes}
-            submitLabel="Save truck"
-            onSubmit={(formData) => updateVehicleAction(truck.id, formData)}
-            onSaved={(message) => notify({ ok: true, message })}
-          />
-        </div>
-      </details>
+      {canManage ? (
+        <>
+          <details className="group rounded-xl border border-frost-200">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-ink-950 [&::-webkit-details-marker]:hidden">
+              Edit details
+              <span aria-hidden="true" className="text-ink-400 transition-transform group-open:rotate-90">
+                ›
+              </span>
+            </summary>
+            <div className="border-t border-frost-200 p-4">
+              <TruckForm
+                key={[truck.plateNumber, truck.capacityKg, truck.model, truck.driverName, truck.driverPhone, truck.lengthFt, truck.tyres].join(":")}
+                truck={truck}
+                sizes={sizes}
+                submitLabel="Save truck"
+                onSubmit={(formData) => updateVehicleAction(truck.id, formData)}
+                onSaved={(message) => notify({ ok: true, message })}
+              />
+            </div>
+          </details>
 
-      <section className="border-t border-frost-200 pt-5">
-        {confirmDelete ? (
-          <div className="rounded-xl bg-danger-soft p-4">
-            <p className="text-sm font-medium text-ink-950">Remove this truck from the fleet?</p>
-            <p className="mt-1 text-sm text-ink-700">Its past trips are dropped. Request timelines keep a record.</p>
-            <div className="mt-3 flex gap-2">
+          <section className="border-t border-frost-200 pt-5">
+            {confirmDelete ? (
+              <div className="rounded-xl bg-danger-soft p-4">
+                <p className="text-sm font-medium text-ink-950">Remove this truck from the fleet?</p>
+                <p className="mt-1 text-sm text-ink-700">Its past trips are dropped. Request timelines keep a record.</p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={remove}
+                    disabled={deleting}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-danger px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {deleting ? "Removing" : "Yes, remove"}
+                  </button>
+                  <button type="button" onClick={() => setConfirmDelete(false)} className={secondaryButton.replace("h-11", "h-10")}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={remove}
-                disabled={deleting}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-danger px-4 text-sm font-semibold text-white disabled:opacity-60"
+                onClick={() => setConfirmDelete(true)}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-danger hover:underline"
               >
-                {deleting ? "Removing" : "Yes, remove"}
+                <Trash2 aria-hidden="true" className="size-4" />
+                Remove truck
               </button>
-              <button type="button" onClick={() => setConfirmDelete(false)} className={secondaryButton.replace("h-11", "h-10")}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-danger hover:underline"
-          >
-            <Trash2 aria-hidden="true" className="size-4" />
-            Remove truck
-          </button>
-        )}
-      </section>
+            )}
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

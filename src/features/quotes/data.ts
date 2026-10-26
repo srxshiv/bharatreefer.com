@@ -12,7 +12,22 @@ const REFERENCE_ATTEMPTS = 5;
 export type SubmissionMeta = {
   ipHash: string | null;
   userAgent: string | null;
+  /** The team member entering it for a customer. Left out for requests from the website. */
+  createdById?: string;
+  /** Whose promo code came with it, already checked with `findReferrer`. */
+  referrer?: { id: string; promoCode: string } | null;
 };
+
+/**
+ * The team member a promo code belongs to, or null when no account that can still sign in has
+ * it: a switched-off account's code stops working.
+ */
+export function findReferrer(promoCode: string): Promise<{ id: string; name: string; promoCode: string } | null> {
+  return db().adminUser.findFirst({
+    where: { promoCode, disabledAt: null },
+    select: { id: true, name: true, promoCode: true },
+  });
+}
 
 /** Number of quote requests received from one hashed IP since the given time. */
 export function countQuoteRequestsFrom(ipHash: string, since: Date): Promise<number> {
@@ -47,6 +62,9 @@ export async function createQuoteRequest(
           email: input.email ?? null,
           ipHash: meta.ipHash,
           userAgent: meta.userAgent,
+          createdById: meta.createdById ?? null,
+          referrerId: meta.referrer?.id ?? null,
+          promoCode: meta.referrer?.promoCode ?? null,
         },
         select: { id: true, reference: true },
       });

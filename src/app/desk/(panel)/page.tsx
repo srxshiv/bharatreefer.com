@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Columns3, Download, List, Search, X } from "lucide-react";
+import { Columns3, Download, List, Plus, Search, X } from "lucide-react";
 import { IntentLink } from "@/components/admin/intent-link";
 import { PendingHint } from "@/components/admin/pending-hint";
 import { PipelineBoard } from "@/components/admin/requests/board";
@@ -12,8 +12,16 @@ import { Pipeline } from "@/components/admin/requests/pipeline";
 import { input, label, primaryButton, secondaryButton } from "@/components/admin/ui";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import { REGION_NAMES } from "@/data/india-locations";
+import { requireUser, type User } from "@/features/auth/session";
 import { getSiteContent } from "@/features/content/data";
-import { BOARD_STAGES, listBoard, listQuoteRequests, type BoardStage } from "@/features/quotes/admin";
+import {
+  BOARD_STAGES,
+  listBoard,
+  listQuoteRequests,
+  listReferrers,
+  type BoardStage,
+  type ReferrerOption,
+} from "@/features/quotes/admin";
 import {
   ADVANCED_FILTER_KEYS,
   DEFAULT_INBOX_FILTERS,
@@ -38,8 +46,8 @@ export const instant = false;
 
 function Header({ filters }: { filters: InboxFilters }) {
   const views = [
-    { id: "list", label: "List", icon: List, href: `/admin${inboxQuery({ ...filters, view: "list" })}` },
-    { id: "board", label: "Board", icon: Columns3, href: `/admin${inboxQuery({ ...filters, view: "board", status: "ALL", page: 1 })}` },
+    { id: "list", label: "List", icon: List, href: `/desk${inboxQuery({ ...filters, view: "list" })}` },
+    { id: "board", label: "Board", icon: Columns3, href: `/desk${inboxQuery({ ...filters, view: "board", status: "ALL", page: 1 })}` },
   ] as const;
 
   return (
@@ -69,24 +77,42 @@ function Header({ filters }: { filters: InboxFilters }) {
           })}
         </nav>
         {/* A plain link: the browser downloads the file instead of navigating to it. */}
-        <a href={`/admin/export${inboxQuery({ ...filters, view: "list", page: 1 })}`} className={cn(secondaryButton, "h-9")}>
+        <a href={`/desk/export${inboxQuery({ ...filters, view: "list", page: 1 })}`} className={cn(secondaryButton, "h-9")}>
           <Download aria-hidden="true" className="size-4" />
           <span className="hidden sm:inline">Export CSV</span>
           <span className="sr-only sm:hidden">Export CSV</span>
         </a>
+        <Link href="/desk/new" prefetch aria-label="New request" className={cn(primaryButton, "relative h-9")}>
+          <Plus aria-hidden="true" className="size-4" />
+          <span className="sm:hidden">New</span>
+          <span className="hidden sm:inline">New request</span>
+          <PendingHint />
+        </Link>
       </div>
     </div>
   );
 }
 
-function EmptyState({ filters }: { filters: InboxFilters }) {
+function EmptyState({ filters, user }: { filters: InboxFilters; user: User }) {
   if (isFiltered(filters) || filters.status !== "ALL" || filters.page > 1) {
     return (
       <div className="px-5 py-16 text-center">
         <p className="font-medium text-ink-950">No requests match this view.</p>
-        <Link href="/admin" className={cn(secondaryButton, "mt-4")}>
+        <Link href="/desk" className={cn(secondaryButton, "mt-4")}>
           Show all requests
         </Link>
+      </div>
+    );
+  }
+  if (user.role !== "ADMIN") {
+    return (
+      <div className="px-5 py-16 text-center">
+        <p className="font-medium text-ink-950">No requests of yours yet.</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-ink-500">
+          Requests from customers who give your promo code{" "}
+          <span className="font-mono font-semibold text-ink-950">{user.promoCode}</span>, and the ones you enter with New
+          request, show up here.
+        </p>
       </div>
     );
   }
@@ -94,7 +120,7 @@ function EmptyState({ filters }: { filters: InboxFilters }) {
     <div className="px-5 py-16 text-center">
       <p className="font-medium text-ink-950">No quote requests yet.</p>
       <p className="mt-1 text-sm text-ink-500">
-        Requests sent from the website will appear here.
+        Requests sent from the website, or entered with New request, will appear here.
       </p>
     </div>
   );
@@ -111,6 +137,9 @@ function activeChips(filters: InboxFilters, bands: Record<MaterialId, Temperatur
   if (filters.quoted !== "ANY") chips.push({ label: filters.quoted === "YES" ? "Quoted" : "Not quoted", clear: { quoted: "ANY" } });
   if (filters.originState) chips.push({ label: `From ${filters.originState}`, clear: { originState: "" } });
   if (filters.destinationState) chips.push({ label: `To ${filters.destinationState}`, clear: { destinationState: "" } });
+  if (filters.referrer) {
+    chips.push({ label: filters.referrer === "NONE" ? "No promo code" : `Brought by ${filters.referrer}`, clear: { referrer: "" } });
+  }
   if (filters.from || filters.to) {
     const range = [filters.from && formatIsoDate(filters.from), filters.to && formatIsoDate(filters.to)].filter(Boolean).join(" to ");
     chips.push({ label: `Received ${filters.from && filters.to ? range : filters.from ? `from ${range}` : `until ${range}`}`, clear: { from: "", to: "" } });
@@ -126,8 +155,20 @@ function activeChips(filters: InboxFilters, bands: Record<MaterialId, Temperatur
 const selectField = cn(input, "mt-1 h-10");
 const dateField = cn(input, "mt-1 h-10 font-mono");
 
-/** Search, temperature and the filter panel in one row, with the active filters beneath. */
-function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<MaterialId, TemperatureBandInfo> }) {
+/**
+ * Search, temperature and the filter panel in one row, with the active filters beneath.
+ * `referrers` is the team for the "Brought by" filter, shown to admins only (null for staff,
+ * who only ever see their own requests).
+ */
+function Filters({
+  filters,
+  bands,
+  referrers,
+}: {
+  filters: InboxFilters;
+  bands: Record<MaterialId, TemperatureBandInfo>;
+  referrers: ReferrerOption[] | null;
+}) {
   const chips = activeChips(filters, bands);
   const advancedCount = ADVANCED_FILTER_KEYS.filter((key) => filters[key] !== DEFAULT_INBOX_FILTERS[key]).length;
   const advancedReset = Object.fromEntries(ADVANCED_FILTER_KEYS.map((key) => [key, DEFAULT_INBOX_FILTERS[key]]));
@@ -135,7 +176,7 @@ function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<Mate
   return (
     <div className="space-y-2">
       {/* Keyed on the filters so the fields reset when a link changes them. */}
-      <FilterForm key={inboxQuery(filters)} action="/admin" className="flex flex-wrap items-center gap-2">
+      <FilterForm key={inboxQuery(filters)} action="/desk" className="flex flex-wrap items-center gap-2">
         {filters.status !== "ALL" && filters.view === "list" ? (
           <input type="hidden" name="status" value={filters.status.toLowerCase()} />
         ) : null}
@@ -167,7 +208,7 @@ function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<Mate
             </option>
           ))}
         </select>
-        <FilterPanel activeCount={advancedCount} resetHref={`/admin${inboxQuery({ ...filters, ...advancedReset, page: 1 })}`}>
+        <FilterPanel activeCount={advancedCount} resetHref={`/desk${inboxQuery({ ...filters, ...advancedReset, page: 1 })}`}>
           <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block">
               <span className={label}>Received from</span>
@@ -234,6 +275,20 @@ function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<Mate
                 <option value="no">Not quoted yet</option>
               </select>
             </label>
+            {referrers ? (
+              <label className="block">
+                <span className={label}>Brought by</span>
+                <select name="by" defaultValue={filters.referrer.toLowerCase()} className={selectField}>
+                  <option value="">Anyone</option>
+                  <option value="none">No promo code</option>
+                  {referrers.map((referrer) => (
+                    <option key={referrer.id} value={referrer.promoCode.toLowerCase()}>
+                      {referrer.name} ({referrer.promoCode})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
         </FilterPanel>
         <button type="submit" className={cn(primaryButton, "h-10")}>
@@ -246,7 +301,7 @@ function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<Mate
           {chips.map((chip) => (
             <li key={chip.label}>
               <IntentLink
-                href={`/admin${inboxQuery({ ...filters, ...chip.clear, page: 1 })}`}
+                href={`/desk${inboxQuery({ ...filters, ...chip.clear, page: 1 })}`}
                 className="inline-flex h-7 items-center gap-1.5 rounded-full border border-frost-300 bg-surface pr-2 pl-3 text-xs font-medium text-ink-700 hover:border-ink-400"
               >
                 {chip.label}
@@ -256,7 +311,7 @@ function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<Mate
           ))}
           <li>
             <IntentLink
-              href={`/admin${inboxQuery({ ...DEFAULT_INBOX_FILTERS, status: filters.status, view: filters.view, size: filters.size })}`}
+              href={`/desk${inboxQuery({ ...DEFAULT_INBOX_FILTERS, status: filters.status, view: filters.view, size: filters.size })}`}
               className="inline-flex h-7 items-center rounded-full px-2 text-xs font-medium text-ink-500 hover:text-ink-950"
             >
               Clear all
@@ -268,13 +323,15 @@ function Filters({ filters, bands }: { filters: InboxFilters; bands: Record<Mate
   );
 }
 
-async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">) {
-  const filters = parseInboxFilters(await searchParams);
-  if (filters.view === "board") return <Board filters={filters} />;
+async function Inbox({ searchParams }: Pick<PageProps<"/desk">, "searchParams">) {
+  const [params, user] = await Promise.all([searchParams, requireUser()]);
+  const filters = parseInboxFilters(params);
+  if (filters.view === "board") return <Board filters={filters} user={user} />;
 
-  const [{ rows, total, pageCount, counts, values }, { bands }] = await Promise.all([
+  const [{ rows, total, pageCount, counts, values }, { bands }, referrers] = await Promise.all([
     listQuoteRequests(filters),
     getSiteContent(),
+    user.role === "ADMIN" ? listReferrers() : null,
   ]);
   const bandLabels = Object.fromEntries(MATERIAL_IDS.map((id) => [id, bands[id].label])) as Record<MaterialId, string>;
 
@@ -283,9 +340,9 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
       <Header filters={filters} />
       <Pipeline filters={filters} counts={counts} values={values} />
       <FilterScope>
-        <Filters filters={filters} bands={bands} />
+        <Filters filters={filters} bands={bands} referrers={referrers} />
         <FilterResults className="space-y-3">
-          <RequestTable key={inboxQuery(filters)} rows={rows} bandLabels={bandLabels} empty={<EmptyState filters={filters} />} />
+          <RequestTable key={inboxQuery(filters)} rows={rows} bandLabels={bandLabels} empty={<EmptyState filters={filters} user={user} />} />
           <Pagination filters={filters} total={total} pageCount={pageCount} shown={rows.length} />
         </FilterResults>
       </FilterScope>
@@ -293,11 +350,15 @@ async function Inbox({ searchParams }: Pick<PageProps<"/admin">, "searchParams">
   );
 }
 
-async function Board({ filters }: { filters: InboxFilters }) {
-  const [{ columns, counts, values, placedKg, readAt }, { bands }] = await Promise.all([listBoard(filters), getSiteContent()]);
+async function Board({ filters, user }: { filters: InboxFilters; user: User }) {
+  const [{ columns, counts, values, placedKg, readAt }, { bands }, referrers] = await Promise.all([
+    listBoard(filters),
+    getSiteContent(),
+    user.role === "ADMIN" ? listReferrers() : null,
+  ]);
   const bandLabels = Object.fromEntries(MATERIAL_IDS.map((id) => [id, bands[id].label])) as Record<MaterialId, string>;
   const listHref = Object.fromEntries(
-    BOARD_STAGES.map((stage) => [stage, `/admin${inboxQuery({ ...filters, view: "list", status: stage, page: 1 })}`]),
+    BOARD_STAGES.map((stage) => [stage, `/desk${inboxQuery({ ...filters, view: "list", status: stage, page: 1 })}`]),
   ) as Record<BoardStage, string>;
 
   return (
@@ -305,7 +366,7 @@ async function Board({ filters }: { filters: InboxFilters }) {
       <Header filters={filters} />
       <Pipeline filters={filters} counts={counts} values={values} />
       <FilterScope>
-      <Filters filters={filters} bands={bands} />
+      <Filters filters={filters} bands={bands} referrers={referrers} />
       <FilterResults>
       <PipelineBoard
         // Fresh state whenever the server sends new data, e.g. after a filter changes.
@@ -325,6 +386,6 @@ async function Board({ filters }: { filters: InboxFilters }) {
   );
 }
 
-export default function InboxPage({ searchParams }: PageProps<"/admin">) {
+export default function InboxPage({ searchParams }: PageProps<"/desk">) {
   return <Inbox searchParams={searchParams} />;
 }

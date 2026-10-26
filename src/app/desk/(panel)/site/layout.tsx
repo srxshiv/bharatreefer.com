@@ -1,6 +1,6 @@
 import { SiteNav } from "@/components/admin/admin-nav";
 
-export default function SiteSettingsLayout({ children }: LayoutProps<"/admin/site">) {
+export default function SiteSettingsLayout({ children }: LayoutProps<"/desk/site">) {
   return (
     <div className="space-y-6">
       <div>

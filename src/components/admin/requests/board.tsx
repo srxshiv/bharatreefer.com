@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition, type DragEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleAlert, CircleCheck, Ellipsis, Truck } from "lucide-react";
+import { ArrowRight, CircleAlert, CircleCheck, Ellipsis, Tag, Truck, UserRound } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import type { MaterialId } from "@/config/materials";
 import type { BoardStage, InboxRow, StatusCounts, StatusValues } from "@/features/quotes/admin";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { formatIsoDayMonth, toIsoDate } from "@/lib/dates";
 import { formatInr, formatInrShort, formatKg } from "@/lib/format";
 import { IntentLink } from "../intent-link";
+import { describeCreator, describeReferrer } from "./creator";
 import { STAGE_ACCENT } from "./stage-styles";
 
 type Columns = Record<BoardStage, InboxRow[]>;
@@ -280,7 +281,7 @@ function Card({
     >
       <div className="flex items-start justify-between gap-2">
         <IntentLink
-          href={`/admin/quotes/${row.id}`}
+          href={`/desk/quotes/${row.id}`}
           className="font-mono text-sm font-semibold text-ink-950 after:absolute after:inset-0 after:rounded-xl hover:text-ice-700"
         >
           {row.reference}
@@ -302,6 +303,17 @@ function Card({
           {row.pickupDate ? ` · pickup ${formatIsoDayMonth(toIsoDate(row.pickupDate))}` : ""}
         </span>
       </p>
+      {row.referrer ? (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+          <Tag aria-hidden="true" className="size-3 shrink-0" />
+          <span className="truncate">Brought by {describeReferrer(row.referrer)}</span>
+        </p>
+      ) : row.createdBy ? (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+          <UserRound aria-hidden="true" className="size-3 shrink-0" />
+          <span className="truncate">Entered by {describeCreator(row.createdBy)}</span>
+        </p>
+      ) : null}
 
       {row.quotedAmount !== null && !askingPrice ? (
         <p className="mt-2 font-mono text-base font-semibold text-ink-950">{formatInr(row.quotedAmount)}</p>
@@ -309,7 +321,7 @@ function Card({
 
       {stage === "CONFIRMED" && !pending ? (
         <Link
-          href={`/admin/fleet?order=${row.id}`}
+          href={`/desk/fleet?order=${row.id}`}
           className={cn(
             "relative z-10 mt-2 inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold",
             placedKg >= row.quantityKg ? "bg-success-soft text-success" : "bg-saffron-50 text-saffron-600 hover:bg-saffron-50/70",

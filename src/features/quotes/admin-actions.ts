@@ -1,14 +1,72 @@
 "use server";
 
+import { after } from "next/server";
 import { refreshAdminData } from "@/features/auth/refresh-admin";
+import { ROLE_LABELS } from "@/features/auth/roles";
+import { getSiteContent } from "@/features/content/data";
 import { formatInr } from "@/lib/format";
-import { addQuoteNote, updateQuoteRequest } from "./admin";
+import { planTrucks } from "@/lib/truck-plan";
+import { addQuoteNote, createQuoteRequestForCustomer, setQuoteReferrer, updateQuoteRequest } from "./admin";
+import { quoteEmailData } from "./emails";
+import { notifyNewQuoteRequest } from "./notify";
+import { findReferrer } from "./data";
+import {
+  UNKNOWN_PROMO_CODE,
+  createQuoteRequestSchema,
+  readQuoteForm,
+  toFieldErrors,
+  type QuoteFieldErrors,
+} from "./schema";
 import { isQuoteStatus } from "./status";
 
 export type AdminFormState = {
   error?: string;
   success?: string;
 };
+
+export type NewRequestState =
+  | { status: "idle" }
+  | { status: "error"; message?: string; fieldErrors?: QuoteFieldErrors }
+  | { status: "success"; id: string; reference: string; contactName: string };
+
+/** Name of the tick box that sends the customer the same confirmation email as the website does. */
+const CONFIRM_FIELD = "emailCustomer";
+
+/**
+ * Enters a request for a customer who called, messaged or walked in. Validated with the
+ * website form's rules, then handled like any other request: it starts as New, and dispatch
+ * is alerted with the name of whoever entered it.
+ */
+export async function createRequestForCustomer(formData: FormData): Promise<NewRequestState> {
+  const { fleet } = await getSiteContent();
+  const parsed = createQuoteRequestSchema(fleet).safeParse(readQuoteForm(formData));
+  if (!parsed.success) {
+    return { status: "error", message: "Check the highlighted fields.", fieldErrors: toFieldErrors(parsed.error) };
+  }
+
+  const input = parsed.data;
+  const plan = planTrucks(input.quantityKg, fleet);
+  if (!plan) return { status: "error", fieldErrors: { quantityKg: "Enter the weight in kilograms" } };
+
+  const referrer = input.promoCode ? await findReferrer(input.promoCode) : null;
+  if (input.promoCode && !referrer) {
+    return { status: "error", message: "Check the highlighted fields.", fieldErrors: { promoCode: UNKNOWN_PROMO_CODE } };
+  }
+
+  // Checks the session before anything is stored.
+  const { id, reference, createdBy } = await createQuoteRequestForCustomer(input, plan, referrer);
+
+  const emailData = {
+    ...quoteEmailData(reference, input, plan),
+    createdBy: `${createdBy.name} (${ROLE_LABELS[createdBy.role].toLowerCase()})`,
+    ...(referrer ? { promoCode: `${referrer.promoCode} (${referrer.name})` } : {}),
+  };
+  const confirmToCustomer = formData.get(CONFIRM_FIELD) === "on";
+  after(() => notifyNewQuoteRequest(id, emailData, { confirmToCustomer }));
+
+  refreshAdminData();
+  return { status: "success", id, reference, contactName: input.contactName };
+}
 
 /** Largest quote the panel accepts, to catch slips like an extra zero or a pasted phone number. */
 const MAX_QUOTE_INR = 10_000_000;
@@ -54,6 +112,22 @@ export async function saveQuoteNote(id: string, formData: FormData): Promise<Adm
 
   refreshAdminData();
   return { success: "Note added." };
+}
+
+/** Credits a request to a team member, or to nobody. Admins only, checked in `setQuoteReferrer`. */
+export async function saveQuoteReferrer(id: string, formData: FormData): Promise<AdminFormState> {
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { error: GONE };
+  const raw = formData.get("referrerId");
+  const referrerId = typeof raw === "string" && raw !== "" ? raw : null;
+  if (referrerId !== null && referrerId.length > 64) return { error: "Choose a team member." };
+
+  const outcome = await setQuoteReferrer(id, referrerId);
+  if (outcome === "not-found") return { error: GONE };
+  if (outcome === "no-member") return { error: "That team member no longer exists." };
+  if (outcome === "unchanged") return { success: "Nothing to save." };
+
+  refreshAdminData();
+  return { success: "Saved." };
 }
 
 /**

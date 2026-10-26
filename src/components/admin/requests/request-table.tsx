@@ -14,6 +14,7 @@ import { formatIndianMobile } from "@/lib/phone";
 import { IntentLink } from "../intent-link";
 import { StatusBadge } from "../status-badge";
 import { card } from "../ui";
+import { describeCreator, describeReferrer } from "./creator";
 import { STAGE_ACCENT } from "./stage-styles";
 
 /** Column widths shared by the header row and every row on wide screens. */
@@ -132,7 +133,7 @@ export function RequestTable({
                 </select>
               </span>
               <a
-                href={`/admin/export?ids=${[...selected].join(",")}`}
+                href={`/desk/export?ids=${[...selected].join(",")}`}
                 className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-medium text-ice-700 hover:bg-ice-50"
               >
                 <Download aria-hidden="true" className="size-4" />
@@ -185,12 +186,27 @@ export function RequestTable({
                 />
                 <div className="min-w-0">
                   <IntentLink
-                    href={`/admin/quotes/${row.id}`}
+                    href={`/desk/quotes/${row.id}`}
                     className="font-mono text-sm font-semibold text-ink-950 after:absolute after:inset-0 hover:text-ice-700"
                   >
                     {row.reference}
                   </IntentLink>
-                  <p className="text-xs text-ink-500">{formatShortDateTimeInIndia(row.createdAt)}</p>
+                  <p className="truncate text-xs text-ink-500">
+                    {formatShortDateTimeInIndia(row.createdAt)}
+                    {row.referrer ? (
+                      <span title={`Brought by ${describeReferrer(row.referrer)}`}>
+                        {" · "}
+                        <span className="sr-only">brought by </span>
+                        <span className="font-mono font-semibold text-ink-700">{row.referrer.promoCode}</span>
+                      </span>
+                    ) : row.createdBy ? (
+                      <span title={`Entered by ${describeCreator(row.createdBy)}`}>
+                        {" · "}
+                        <span className="sr-only">entered by </span>
+                        {row.createdBy.name.split(" ")[0]}
+                      </span>
+                    ) : null}
+                  </p>
                 </div>
                 <div className="col-start-2 row-start-2 min-w-0 lg:col-start-auto lg:row-start-auto">
                   <p className="truncate text-sm font-medium text-ink-950">{row.contactName}</p>

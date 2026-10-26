@@ -7,8 +7,10 @@ import { RefreshWhenVisible } from "@/components/admin/refresh-when-visible";
 import { Logo } from "@/components/site/logo";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { logout } from "@/features/auth/actions";
-import { getAdmin } from "@/features/auth/session";
+import { ROLE_LABELS } from "@/features/auth/roles";
+import { getUser } from "@/features/auth/session";
 import { getSiteContent } from "@/features/content/data";
+import { countPendingLoadRequests } from "@/features/fleet/data";
 
 async function BrandLogo() {
   const { business } = await getSiteContent();
@@ -16,12 +18,22 @@ async function BrandLogo() {
 }
 
 async function SignedInAs() {
-  const admin = await getAdmin();
-  if (!admin) return null;
-  return <span className="hidden text-sm text-ink-500 xl:inline">{admin.name}</span>;
+  const user = await getUser();
+  if (!user) return null;
+  return (
+    <span className="hidden text-sm text-ink-500 xl:inline">
+      {user.name} · {ROLE_LABELS[user.role]}
+    </span>
+  );
 }
 
-export default function PanelLayout({ children }: LayoutProps<"/admin">) {
+async function Nav() {
+  const user = await getUser();
+  const isAdmin = user?.role === "ADMIN";
+  return <AdminNav isAdmin={isAdmin} waitingAsks={isAdmin ? await countPendingLoadRequests() : 0} />;
+}
+
+export default function PanelLayout({ children }: LayoutProps<"/desk">) {
   return (
     <div className="flex flex-1 flex-col">
       <Suspense fallback={null}>
@@ -31,11 +43,11 @@ export default function PanelLayout({ children }: LayoutProps<"/admin">) {
       <header className="border-t-[3px] border-b border-t-navy-900 border-b-frost-200 bg-surface">
         {/* Phones: logo and account actions on top, the section links in a row beneath. */}
         <div className="shell flex flex-wrap items-center gap-x-3 sm:gap-x-6">
-          <Link href="/admin" className="flex h-16 shrink-0 items-center gap-3 rounded-md">
+          <Link href="/desk" className="flex h-16 shrink-0 items-center gap-3 rounded-md">
             <Suspense fallback={null}>
               <BrandLogo />
             </Suspense>
-            <span className="caption rounded bg-navy-900 px-1.5 py-0.5 text-white">Admin</span>
+            <span className="caption rounded bg-navy-900 px-1.5 py-0.5 text-white">Desk</span>
           </Link>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-3 md:order-last">
@@ -65,7 +77,7 @@ export default function PanelLayout({ children }: LayoutProps<"/admin">) {
           </div>
 
           <Suspense fallback={<div className="h-12 w-full md:hidden" />}>
-            <AdminNav />
+            <Nav />
           </Suspense>
         </div>
       </header>

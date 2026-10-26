@@ -14,6 +14,7 @@ export function ActionForm({
   submitLabel,
   pendingLabel = "Saving",
   encType,
+  resetOnSuccess = encType === "multipart/form-data",
   children,
   className,
 }: {
@@ -21,6 +22,8 @@ export function ActionForm({
   submitLabel: string;
   pendingLabel?: string;
   encType?: "multipart/form-data";
+  /** Clears the fields once saved, for forms that add something rather than edit it. */
+  resetOnSuccess?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -37,7 +40,7 @@ export function ActionForm({
       try {
         const result = await action(formData);
         setState(result);
-        if (result.success && encType === "multipart/form-data") form.reset();
+        if (result.success && resetOnSuccess) form.reset();
       } catch {
         setState({ error: "Could not save. Check your connection and try again." });
       }

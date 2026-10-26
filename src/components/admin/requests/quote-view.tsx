@@ -8,9 +8,10 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { card, secondaryButton } from "@/components/admin/ui";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS } from "@/config/materials";
+import { requireUser } from "@/features/auth/session";
 import { getSiteContent } from "@/features/content/data";
-import { getQuoteAssignments } from "@/features/fleet/data";
-import { getQuoteRequest } from "@/features/quotes/admin";
+import { getQuoteAssignments, getQuoteLoadRequests } from "@/features/fleet/data";
+import { getQuoteRequest, listReferrers } from "@/features/quotes/admin";
 import { dispatchWhatsappMessage } from "@/features/quotes/messages";
 import { cn } from "@/lib/cn";
 import { formatDateTimeInIndia, formatIsoDate, toIsoDate } from "@/lib/dates";
@@ -19,6 +20,8 @@ import { formatIndianMobile } from "@/lib/phone";
 import { parseTruckPlan } from "@/lib/truck-plan";
 import { whatsappLink } from "@/lib/whatsapp";
 import { ChooseTruckButton } from "./choose-truck-button";
+import { describeCreator } from "./creator";
+import { ReferrerForm } from "./referrer-form";
 
 const sectionTitle = "font-sans text-base font-semibold text-ink-950";
 
@@ -33,16 +36,21 @@ function Field({ label, wide, children }: { label: string; wide?: boolean; child
 
 /**
  * Everything about one request: the customer, the load, its trucks, status and price, notes
- * and timeline. Shown as a full page at /admin/quotes/[id], and in a side panel when a request
- * is opened from another admin page (`inPanel`), where the panel shows the reference instead.
+ * and timeline. Shown as a full page at /desk/quotes/[id], and in a side panel when a request
+ * is opened from another panel page (`inPanel`), where the panel shows the reference instead.
  */
 export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?: boolean }) {
-  const [quote, { business, bands }, assignments] = await Promise.all([
+  const user = await requireUser();
+  const isAdmin = user.role === "ADMIN";
+  const [quote, { business, bands }, assignments, asks, referrers] = await Promise.all([
     getQuoteRequest(id),
     getSiteContent(),
     getQuoteAssignments(id),
+    getQuoteLoadRequests(id),
+    isAdmin ? listReferrers() : [],
   ]);
   if (!quote) notFound();
+  const askedKg = asks.reduce((sum, ask) => sum + ask.loadKg, 0);
   const placedKg = assignments.reduce((sum, assignment) => sum + assignment.loadKg, 0);
   const showTrucks = quote.status === "CONFIRMED" || assignments.length > 0;
 
@@ -52,6 +60,7 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
     string
   >;
   const phone = formatIndianMobile(quote.phone);
+  const creator = describeCreator(quote.createdBy);
 
   return (
     <div className="space-y-6">
@@ -64,7 +73,8 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
             <StatusBadge status={quote.status} />
           </div>
           <p className="mt-1 text-sm text-ink-500">
-            Received {formatDateTimeInIndia(quote.createdAt)}
+            {creator ? `Entered by ${creator}, ` : "Received "}
+            {formatDateTimeInIndia(quote.createdAt)}
           </p>
         </div>
       )}
@@ -84,6 +94,20 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
                 ) : (
                   <span className="text-ink-500">Not given</span>
                 )}
+              </Field>
+              <Field label="Brought by" wide>
+                {quote.referrer ? (
+                  <>
+                    {quote.referrer.name} <span className="font-mono text-sm text-ink-500">· code {quote.referrer.promoCode}</span>
+                  </>
+                ) : (
+                  <span className="text-ink-500">Nobody: no promo code</span>
+                )}
+                {isAdmin ? (
+                  <div className="mt-2">
+                    <ReferrerForm quoteId={quote.id} referrerCode={quote.referrer?.promoCode ?? null} options={referrers} />
+                  </div>
+                ) : null}
               </Field>
             </dl>
             <div className="mt-5 flex flex-wrap gap-2">
@@ -207,10 +231,28 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
               ) : (
                 <p className="mt-4 text-sm text-ink-500">Not on a truck yet.</p>
               )}
+              {asks.length > 0 ? (
+                <ul className="mt-4 space-y-2">
+                  {asks.map((ask) => (
+                    <li key={ask.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-saffron-50 px-3 py-2 text-xs text-ink-700">
+                      <span className="font-semibold text-saffron-600">Waiting for approval:</span>
+                      <span className="font-mono font-semibold text-ink-950">{formatKg(ask.loadKg)}</span> on
+                      <NumberPlate plate={ask.plateNumber} />
+                      {ask.requestedBy ? <span>asked by {ask.requestedBy}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {quote.status === "CONFIRMED" ? (
                 <ChooseTruckButton
                   quoteId={quote.id}
-                  label={placedKg >= quote.quantityKg ? "View in fleet" : "Choose truck"}
+                  label={
+                    placedKg >= quote.quantityKg || (!isAdmin && placedKg + askedKg >= quote.quantityKg)
+                      ? "View in fleet"
+                      : isAdmin
+                        ? "Choose truck"
+                        : "Request truck"
+                  }
                   className={cn(secondaryButton, "mt-5 w-full")}
                 />
               ) : (
@@ -246,8 +288,11 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
                 </li>
               ))}
               <li>
-                <p className="text-sm text-ink-700">Request received from the website</p>
+                <p className="text-sm text-ink-700">
+                  {creator ? "Request entered for the customer" : "Request received from the website"}
+                </p>
                 <p className="mt-1 text-xs text-ink-500">
+                  {quote.createdBy ? `${quote.createdBy.name}, ` : null}
                   {formatDateTimeInIndia(quote.createdAt)}
                 </p>
               </li>

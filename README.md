@@ -2,8 +2,9 @@
 
 Customer-facing website and admin panel for a refrigerated transport business. Customers
 request a quote for a frozen, chilled or ambient load on a single screen. The business gets
-an email for each request, works through them in the admin panel at `/admin`, and edits
-everything the public site says from the same panel.
+an email for each request, works through them in the panel at `/desk`, and edits
+everything the public site says from the same panel. Two roles share the panel: staff work
+the requests and the fleet, admins also edit the website and manage the team's accounts.
 
 ## Stack
 
@@ -24,7 +25,7 @@ cp .env.example .env         # then fill in the values
 createdb bharatreefer_dev    # if you are using a local Postgres
 pnpm db:migrate              # create the tables
 pnpm admin:create --email you@example.com --name "Your Name"   # asks for a password
-pnpm dev                     # http://localhost:3000, admin panel at /admin
+pnpm dev                     # http://localhost:3000, panel at /desk
 ```
 
 ## Environment variables
@@ -34,7 +35,7 @@ pnpm dev                     # http://localhost:3000, admin panel at /admin
 | `DATABASE_URL` | yes | Postgres connection the app uses at runtime. |
 | `DIRECT_URL` | no | Postgres connection the Prisma CLI uses for migrations. Falls back to `DATABASE_URL`. |
 | `IP_HASH_SALT` | yes | Secret for hashing visitor IPs (rate limiting). Generate with `openssl rand -hex 32`. |
-| `NEXT_PUBLIC_SITE_URL` | in production | Public origin, e.g. `https://bharatreefer.com`. Drives canonical URLs, the sitemap, social previews and the admin links in emails. |
+| `NEXT_PUBLIC_SITE_URL` | in production | Public origin, e.g. `https://bharatreefer.com`. Drives canonical URLs, the sitemap, social previews and the panel links in emails. |
 | `RESEND_API_KEY` | no | Turns on email notifications through [Resend](https://resend.com). Without it emails are logged, not sent. |
 | `EMAIL_FROM` | with the key | Sender, e.g. `Bharat Reefer <quotes@bharatreefer.com>`. The domain must be verified in Resend. |
 
@@ -60,7 +61,7 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 | `pnpm lint` | ESLint. |
 | `pnpm typecheck` | Generate route types, then `tsc --noEmit`. |
 | `pnpm test` | Unit tests. |
-| `pnpm admin:create` | Create an admin account, or reset the password of an existing one. |
+| `pnpm admin:create` | Create an admin account, or reset the password of an existing one (it becomes an active admin either way). Staff accounts are made on the Team page. |
 | `pnpm db:migrate` | Create and apply a migration in development. |
 | `pnpm db:deploy` | Apply pending migrations in production. |
 | `pnpm db:studio` | Browse the database in Prisma Studio. |
@@ -71,20 +72,21 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 ```
 prisma/schema.prisma          Database schema; migrations live beside it
 prisma7.config.ts             Prisma CLI configuration
-scripts/create-admin.ts       Creates admin accounts and resets passwords
+scripts/create-admin.ts       Creates admin accounts and resets passwords; the way back in if no admin is left
 prisma/seed.ts                Sample requests, trucks and truck loads (pnpm db:seed)
 scripts/seed-dev.ts           Older local-only seed that also creates a test admin (pnpm exec tsx scripts/seed-dev.ts)
-src/proxy.ts                  Sends signed-out visitors away from /admin
+src/proxy.ts                  Sends signed-out visitors away from /desk
 src/app/(site)/               The public site (one page)
-src/app/admin/                Admin panel: sign-in, requests, fleet, website settings, account, CSV export
+src/app/desk/                 The panel: sign-in, requests, new request, fleet, website settings, team, account, CSV export
 src/app/media/fleet/[id]/     Serves uploaded fleet photos
 src/app/api/health/           Uptime probe that checks the database
 src/components/console/       The public screen: quote form, live summary, information tabs
-src/components/admin/         Admin forms and shared UI; fleet/ and requests/ hold the two boards
+src/components/admin/         Panel forms and shared UI; fleet/ and requests/ hold the two boards, team/ the accounts
 src/config/                   Default business details, fleet and temperature bands
 src/data/india-locations.ts   States and city suggestions
 src/features/content/         Editable site content: loader, admin actions, automatic copy
-src/features/auth/            Sessions, sign-in, password change, login throttling
+src/features/auth/            Sessions, roles, sign-in, password change and reset by email, login throttling
+src/features/team/            Accounts: list, create, change role, reset password, switch off
 src/features/quotes/          Validation, public and admin data access, emails, WhatsApp text
 src/features/fleet/           Trucks, loads and the placement rules (capacity.ts is pure and tested)
 src/lib/                      Truck planner, hours, formatting, CSV, email, password hashing, Prisma client
@@ -105,7 +107,9 @@ One page in two columns:
   a short summary in the fixed box under the weight, and notes open as one compact line on
   short screens. On phones it sits right under the introduction, and the header's "Get a
   quote" button jumps to it. Under the weight field a strip of the fleet lights up the
-  truck the load is planned on.
+  truck the load is planned on. **Promo code** beside "Add a note" opens a small field for
+  a team member's code (see Promo codes); a link such as `bharatreefer.com/?code=PRIYA`
+  fills it in.
 
 The site has two themes, on the public pages and in the admin panel alike, with a sun/moon
 switch in the header (and on the sign-in page):
@@ -131,7 +135,7 @@ Logo.png`); the favicons in `src/app/icon.png` and `apple-icon.png` are cut from
 
 ## Editable content
 
-`/admin/site` lets the business change what the public site shows. Changes go live the
+`/desk/site` lets an admin change what the public site shows. Changes go live the
 moment they are saved; no deploy is needed.
 
 | Page | What it controls |
@@ -174,10 +178,85 @@ How it works underneath:
 A hidden honeypot field catches basic bots: they see a normal confirmation and nothing is
 stored. Raw IP addresses are never stored, only a keyed hash.
 
-## Admin panel
+Staff and admins can also enter a request for a customer who called, sent a message or came
+in: **New request** on the requests page opens the same form, with the same rules and the same
+truck plan. It is stored and handled like any other request (it starts as New, dispatch gets
+the usual alert) and records who entered it (`created_by_id`). The alert says "Priya Sharma
+(staff) entered this request for …", and a tick box decides whether the customer also gets the
+confirmation email. The rate limit and honeypot apply only to the public form. The form
+starts with the team member's own promo code filled in, so the customer counts as theirs;
+they can change it to a colleague's or clear it.
 
-`/admin` is for the business only. It is not linked from the public site and is excluded
-from search engines.
+## The panel
+
+`/desk` is for the business only. It is not linked from the public site, not listed in
+`robots.txt` (which would advertise it), and every page sends `noindex`. The old `/admin`
+address no longer exists, so links to it in emails sent before the move return a 404.
+
+It lives on the main domain rather than a subdomain such as `admin.bharatreefer.com`: the
+request side panel is an intercepting route, which does not mix well with the host-based
+rewrites a subdomain needs; preview deployments keep working; and the session cookie is
+host-only either way. A subdomain can still be pointed at `/desk` with a plain redirect.
+
+### Roles
+
+| | Staff | Admin |
+| --- | --- | --- |
+| Requests: list, board, detail, status, price, notes, CSV export | their own | all |
+| New request for a customer | yes | yes |
+| Fleet: every truck and how full it is | yes | yes |
+| Fleet: load details | their own loads | all |
+| Fleet: place, move and remove loads; trucks; trips | asks, an admin approves | yes |
+| Credit a request to someone else's promo code | | yes |
+| Account (own password, own promo code) | yes | yes |
+| Website settings | | yes |
+| Team (accounts, promo codes) | | yes |
+
+"Their own" requests are the ones credited to their promo code and the ones they entered
+themselves. Staff never see anyone else's: not in the list, the board, the counts, search,
+the CSV export or a request's own address. The rule is one function,
+`visibleTo()` in `src/features/quotes/visibility.ts`, and every read and save of quote data
+puts it in the query itself.
+
+Staff do not see the Website and Team links. Opening one of those pages directly sends them
+to the requests page, and every admin-only read and action checks the role itself
+(`requireAdmin()` in `src/features/auth/session.ts`); `requireUser()` is the check for anyone
+signed in.
+
+### Team
+
+**Team** (admins only) lists every account and adds new ones: name, email, password and role.
+The admin chooses the password and passes it on; the new member can change it under Account.
+**Manage** on an account changes its role, sets a new password (for someone who forgot
+theirs; it signs them out everywhere), or switches the account off. A switched-off account is
+signed out at once and cannot sign in, but is never deleted, so its name stays on the
+requests and notes it wrote; it can be switched back on. An admin cannot change their own
+role or switch themselves off, so there is always at least one admin. If that ever goes wrong,
+`pnpm admin:create --email ...` makes the account an active admin again.
+
+Requests a team member entered show who did it: "Entered by Priya Sharma (staff)" on the
+request and in its timeline, the first name next to the time in the list, a line on the board
+card, and an "Entered by" column in the CSV export ("Website" for the rest).
+
+### Promo codes
+
+Every account has a promo code of 4 or 5 letters or digits, made from the name when the
+account is created: Priya Sharma gets PRIYA, or PRISH, PRIYS and so on if that is taken, and
+a random pair after the first three letters once every combination is
+(`src/features/team/promo-code.ts`). Admins can change a code under Manage on the Team page.
+
+- Customers give the code on the quote form. It is checked on the server: an unknown code,
+  or the code of a switched-off account, is pointed out so the customer can fix it or leave
+  it empty. The request is credited to that team member (`referrer_id`) and keeps the code as
+  given (`promo_code`), even if the code changes later.
+- Each team member finds their code, and a link that fills it in, under Account.
+- The request shows "Brought by Priya Sharma · code PRIYA"; the list shows the code next to
+  the time, the board card says who brought it, the CSV has "Promo code" and "Brought by"
+  columns, and dispatch's alert email names the code. Admins can credit a request to someone
+  else (a customer who forgot the code) from the request itself, and filter the list by
+  **Brought by** (anyone, a team member, or no code).
+- The Team page shows how many requests each code brought, and how many went ahead
+  (Confirmed or Completed).
 
 - **Requests**: one slim strip shows how many requests sit at each stage, what the quoted
   ones are worth, and the win rate; below it, search, a temperature dropdown and a
@@ -204,7 +283,9 @@ from search engines.
   cyan, ambient saffron) and the empty room left clear; past the payload the box keeps going
   and the excess is marked red, with "2,000 kg over" beside it. Each
   truck lists the loads on board with **Move** (to another truck) and **Remove** (back to
-  the queue, still Confirmed).
+  the queue, still Confirmed). Staff see every truck and how full it is, but only their own
+  customers' loads in full: anyone else's shows as its weight and temperature ("Another
+  customer"), and only that leaves the server.
   - Confirmed requests waiting for a truck are listed beside the trucks. **Choose truck**
     opens a searchable list of every truck, grouped by payload: type a plate, driver, model
     or size. Set how much of the load goes (all of it by default, or part, to split it), and
@@ -212,6 +293,14 @@ from search engines.
     this load, and whether it fits or by how much it goes over. The best fit (takes it all
     with the least room to spare) is pinned at the top as a suggestion. On a
     computer, a request can also be dragged onto a truck.
+  - **Truck requests**: staff cannot place loads. On their confirmed requests the button is
+    **Request truck**, which opens the same list and sends an ask instead. Asks wait at the
+    top of the fleet page, with a count on the Fleet link for admins, who see whether the
+    load would fit and **Approve** (the load goes on, with every check a direct placement
+    has, and the request's timeline says whose ask it was) or **Decline**. Staff can withdraw
+    an ask still waiting, and see how their last week's asks were decided. What staff can
+    ask for is what is left to place, less what their asks are already waiting for. A
+    request that leaves Confirmed drops its waiting asks.
   - **Start trip** when a loaded truck leaves. **End trip** asks first, then delivers
     everything on board and empties the truck; a request whose whole weight has been
     delivered is marked Completed.
@@ -230,16 +319,19 @@ How the fleet rules work:
   working at once cannot place more than a request weighs.
 - Plates are stored without spaces (`DL01LA4521`) and shown as printed (`DL 01 LA 4521`).
   Bharat-series plates (`22 BH 1234 AA`) are accepted too.
-- **Account**: change your password. Doing so signs out your other devices.
+- **Account**: your name, email and role, and changing your password. Doing so signs out
+  your other devices.
 
-Accounts are created from the command line, not from the browser:
+The first admin account is created from the command line; after that, admins add everyone
+else on the Team page:
 
 ```bash
 pnpm admin:create --email owner@example.com --name "Owner Name"
 ```
 
-Run the same command with an existing email to reset that password. To create an account
-on the production database, run it with `DATABASE_URL` pointing there.
+Run the same command with an existing email to reset that password; the account also becomes
+an active admin. To create an account on the production database, run it with `DATABASE_URL`
+pointing there.
 
 How sign-in is secured:
 
@@ -247,21 +339,43 @@ How sign-in is secured:
   database, held in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie, and last 14 days.
 - Five wrong passwords from the same IP address lock that address out of the account for
   15 minutes. Wider limits per account and per address slow down distributed guessing.
-- Every admin page, action and export checks the session against the database itself.
-  `src/proxy.ts` only gives signed-out visitors a fast redirect; it is not the security
-  boundary.
+- Every panel page, action and export checks the session, and the account's role and
+  whether it is switched off, against the database itself. `src/proxy.ts` only gives
+  signed-out visitors a fast redirect; it is not the security boundary.
+- A switched-off account is told so only after the right password, so the message reveals
+  nothing to someone guessing.
+- **Forgot your password?** on the sign-in page emails a link to choose a new one. The page
+  says the same thing whether or not the address has an account, and sends nothing to a
+  switched-off one. A link works once, for 30 minutes; an account can have at most three
+  open at a time. Using one signs the account in on that device and out everywhere else.
+  Only a hash of the link's token is stored. Without email set up, an admin can still set a
+  new password on the Team page.
 
 ## Notifications
 
-Email goes through [Resend](https://resend.com). To turn it on:
+Email goes through [Resend](https://resend.com). The site sends:
 
-1. Create a Resend account and verify the sending domain.
-2. Set `RESEND_API_KEY` and `EMAIL_FROM`.
-3. In the admin panel, under Business details, set "Alerts go to" if alerts should go
+- **A new-request alert to dispatch** for every quote request. Replying to it writes to the
+  customer, if they left an email.
+- **A confirmation to the customer** with their reference and load, if they left an email.
+  For a request a team member enters, the confirmation goes out only if they tick the box.
+- **Password reset links** to team members who use "Forgot your password?".
+
+To turn it on:
+
+1. Create a Resend account. Under Domains, add the domain you will send from (for example
+   `bharatreefer.com`) and add the DNS records Resend lists at your DNS provider. Wait
+   until the domain shows as verified.
+2. Under API Keys, create a key with sending access, limited to that domain.
+3. Set `RESEND_API_KEY` to the key and `EMAIL_FROM` to a sender on the verified domain, such
+   as `Bharat Reefer <desk@bharatreefer.com>`, in `.env` and in the hosting dashboard. Set
+   `NEXT_PUBLIC_SITE_URL` to the live origin too: the links in the emails are built from it.
+4. In the admin panel, under Business details, set "Alerts go to" if alerts should go
    somewhere other than the public email.
 
-Until the key is set nothing is sent; each email is written to the server log instead. A
-failed send never affects the customer's request, and shows up in that request's timeline.
+Until the key is set nothing is sent; each email is written to the server log instead, and
+in development the password reset link is printed there so the flow can be tried. A failed
+send never affects the customer's request, and shows up in that request's timeline.
 
 WhatsApp links use the WhatsApp number from Business details. Leave it empty to hide them.
 In the admin panel, the WhatsApp button on a request opens a chat with that customer with
@@ -282,7 +396,16 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   live site because a seeded truck was "on trip" before the code that knows trips was
   deployed. Changes that remove things (a column, an index) go in a later migration, after
   the code that stops using them is live.
-- Create the first admin account with `pnpm admin:create` (see Admin panel).
+- Create the first admin account with `pnpm admin:create` (see The panel).
+- The roles migration (`20261015180000_team_roles`) only adds columns and is safe to apply
+  before its code is deployed. It makes every existing account an admin; accounts created
+  afterwards default to staff. Apply it, then deploy.
+- The password reset migration (`20261024120000_password_reset`) only adds a table and is
+  safe to apply before its code is deployed.
+- The promo code migration (`20261026120000_promo_codes_load_requests`) gives every existing
+  account a code from its first name and adds the truck requests table. Apply it right
+  before deploying, and do not create accounts in between: the code before it creates
+  accounts without a promo code, which this migration makes required.
 - The database must be reachable during `next build`, because the public page prerenders
   with the content from it.
 - Serve the site over HTTPS. The admin session cookie is `Secure` in production and
@@ -352,6 +475,12 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   pg driver already does, to stop its warning on every connection.
 - `next dev` keeps `use cache` results in memory across code changes. If you change the
   shape of `SiteContent`, restart the dev server. A new build always starts fresh.
+- In `next dev`, a role change, sign-out or switched-off account can take one extra page load
+  to show, because the dev server reuses `use cache: private` results. A production build
+  checks the session on every request (measured with `next start`).
+- In production a redirect thrown inside a page (signed out, or staff on an admin page) is
+  streamed: the response is a 200 whose shell holds no private data, and the browser follows
+  the redirect as it loads.
 
 ## Roadmap
 
@@ -372,5 +501,12 @@ The app runs on any Node host; Vercel with a Neon database is the intended setup
   trucks from a searchable list, splitting and moving loads, overweight shown in red;
   trips that deliver loads and complete requests; prefetched admin pages; filters that
   apply as you change them; a hardened database pool; functions next to the database.
+- **Team update (done).** The panel moved to `/desk`; admin and staff roles; the Team page
+  for creating accounts, changing roles, resetting passwords and switching accounts off;
+  requests entered for customers, marked with who entered them.
+- **Promo code update (done).** A promo code per team member that customers give on the
+  quote form; staff see only the requests their code brought in or they entered; the fleet
+  shows staff every truck but only their own loads in full, and their asks for a truck wait
+  for an admin's approval.
 - **Phase 5: launch.** Neon and Vercel production setup, the domain, error monitoring,
   analytics, CAPTCHA if spam appears, backups, and a pre-launch checklist.

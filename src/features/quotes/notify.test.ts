@@ -29,10 +29,10 @@ const quote: QuoteEmailData = {
   email: "asha@example.com",
 };
 
-async function notify(data: QuoteEmailData) {
+async function notify(data: QuoteEmailData, options?: { confirmToCustomer?: boolean }) {
   vi.resetModules();
   const { notifyNewQuoteRequest } = await import("./notify");
-  await notifyNewQuoteRequest("quote-id-1", data);
+  await notifyNewQuoteRequest("quote-id-1", data, options);
 }
 
 describe("notifyNewQuoteRequest", () => {
@@ -65,7 +65,7 @@ describe("notifyNewQuoteRequest", () => {
 
     expect(toDispatch.to).toBe("desk@bharatreefer.com");
     expect(toDispatch.replyTo).toBe("asha@example.com");
-    expect(toDispatch.text).toContain("https://bharatreefer.com/admin/quotes/quote-id-1");
+    expect(toDispatch.text).toContain("https://bharatreefer.com/desk/quotes/quote-id-1");
 
     expect(toCustomer.to).toBe("asha@example.com");
     expect(toCustomer.replyTo).toBe("desk@bharatreefer.com");
@@ -91,6 +91,18 @@ describe("notifyNewQuoteRequest", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail.mock.calls[0][0].replyTo).toBeUndefined();
     expect(recordNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the customer out when the team member entering the request says so", async () => {
+    sendEmail.mockResolvedValue({ status: "sent" });
+    await notify({ ...quote, createdBy: "Priya Sharma (staff)" }, { confirmToCustomer: false });
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [toDispatch] = sendEmail.mock.calls[0];
+    expect(toDispatch.to).toBe("desk@bharatreefer.com");
+    // Dispatch can still reply to the customer.
+    expect(toDispatch.replyTo).toBe("asha@example.com");
+    expect(toDispatch.text).toContain("Priya Sharma (staff) entered this request for Asha Verma.");
   });
 
   it("records a failed send in the timeline so dispatch can see it", async () => {

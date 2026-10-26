@@ -6,8 +6,8 @@ import { ArrowLeft, Globe, Inbox, MessageCircle, ShieldCheck, Snowflake } from "
 import { LoginForm } from "@/components/admin/login-form";
 import { Logo } from "@/components/site/logo";
 import { ThemeToggle } from "@/components/site/theme-toggle";
-import { ADMIN_HOME } from "@/features/auth/cookie";
-import { getAdmin } from "@/features/auth/session";
+import { FORGOT_PASSWORD_PATH, PANEL_HOME } from "@/features/auth/cookie";
+import { getUser } from "@/features/auth/session";
 import { getSiteContent } from "@/features/content/data";
 
 export const metadata: Metadata = {
@@ -51,7 +51,7 @@ const PANEL_STYLE: CSSProperties = {
 
 /** Skips the form for someone who is already signed in. */
 async function RedirectIfSignedIn() {
-  if (await getAdmin()) redirect(ADMIN_HOME);
+  if (await getUser()) redirect(PANEL_HOME);
   return null;
 }
 
@@ -90,7 +90,7 @@ export default async function LoginPage() {
 
       {/* Brand panel */}
       <section
-        aria-label={`About the ${business.name} admin panel`}
+        aria-label={`About the ${business.name} dispatch desk`}
         className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16"
         style={PANEL_STYLE}
       >
@@ -115,7 +115,7 @@ export default async function LoginPage() {
             <span className="text-ice-300">ready to work.</span>
           </h2>
           <p className="mt-5 max-w-md text-lg leading-8 text-ice-200/85">
-            The admin panel for {business.name}: see new requests as they arrive, follow up with
+            The dispatch desk for {business.name}: see new requests as they arrive, follow up with
             customers and keep the website current.
           </p>
 
@@ -162,13 +162,19 @@ export default async function LoginPage() {
             Welcome back
           </h1>
           <p className="mt-2 text-[15px] leading-6 text-ink-500">
-            Sign in to manage quote requests and the website.
+            Sign in to work on quote requests and the fleet.
           </p>
 
           <LoginForm className="mt-8" />
 
           <p className="mt-8 border-t border-frost-200 pt-6 text-sm leading-6 text-ink-500">
-            Forgot your password? Ask whoever looks after this website to reset it for you.
+            Forgot your password?{" "}
+            <Link
+              href={FORGOT_PASSWORD_PATH}
+              className="font-semibold text-ice-700 underline underline-offset-4"
+            >
+              Get a reset link by email
+            </Link>
           </p>
         </div>
 

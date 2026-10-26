@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, useTransition, type FormEvent } from "react";
 import { ArrowRight, CircleAlert, LoaderCircle, Snowflake } from "lucide-react";
 import type { FleetConfig } from "@/config/fleet";
 import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
@@ -17,6 +17,7 @@ import {
   type QuoteFormValues,
 } from "@/features/quotes/schema";
 import { INITIAL_QUOTE_FORM_STATE, type QuoteFormState } from "@/features/quotes/state";
+import { isPromoCode, normalisePromoCode } from "@/features/team/promo-code";
 import { citiesIn } from "@/data/india-locations";
 import { cn } from "@/lib/cn";
 import { formatIndianMobile } from "@/lib/phone";
@@ -25,6 +26,23 @@ import { Confirmation } from "./confirmation";
 import { QuoteFields, type ControlProps } from "./quote-fields";
 import { ROUTE_EVENT, type RoutePrefill } from "./route-prefill";
 import { card, primaryButton } from "./ui";
+
+const noSubscription = () => () => {};
+
+/**
+ * The promo code in a link a team member shared (bharatreefer.com/?code=PRIYA), or "". The
+ * page is prerendered, so the server never sees the address and renders without one.
+ */
+function useLinkPromoCode(): string {
+  return useSyncExternalStore(
+    noSubscription,
+    () => {
+      const code = normalisePromoCode(new URLSearchParams(window.location.search).get("code") ?? "");
+      return isPromoCode(code) ? code : "";
+    },
+    () => "",
+  );
+}
 
 /** The one thing a visitor does here: the quote form, in a single card. */
 export function QuoteCard({
@@ -39,7 +57,11 @@ export function QuoteCard({
   className?: string;
 }) {
   const id = useId();
-  const [values, setValues] = useState<QuoteFormValues>(EMPTY_QUOTE_FORM);
+  const [typed, setValues] = useState<QuoteFormValues>(EMPTY_QUOTE_FORM);
+  // The code from a shared link stands until the visitor changes the field themselves.
+  const linkPromoCode = useLinkPromoCode();
+  const [promoEdited, setPromoEdited] = useState(false);
+  const values = promoEdited ? typed : { ...typed, promoCode: linkPromoCode };
   const [errors, setErrors] = useState<QuoteFieldErrors>({});
   const [result, setResult] = useState<QuoteFormState>(INITIAL_QUOTE_FORM_STATE);
   const [pending, startTransition] = useTransition();
@@ -52,6 +74,7 @@ export function QuoteCard({
   const confirmation = result.status === "success" ? result.confirmation : null;
 
   function setField(field: QuoteField, value: string) {
+    if (field === "promoCode") setPromoEdited(true);
     setValues((current) => ({ ...current, [field]: value }));
     if (errors[field]) {
       setErrors((current) => {
@@ -161,6 +184,7 @@ export function QuoteCard({
 
   function reset() {
     setValues(EMPTY_QUOTE_FORM);
+    setPromoEdited(false);
     setErrors({});
     setResult(INITIAL_QUOTE_FORM_STATE);
   }

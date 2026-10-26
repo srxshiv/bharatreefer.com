@@ -1,5 +1,6 @@
 import "server-only";
 import { siteUrl } from "@/config/site";
+import { PANEL_HOME } from "@/features/auth/cookie";
 import { getSiteContent } from "@/features/content/data";
 import { sendEmail, type EmailOutcome } from "@/lib/email";
 import { recordNotification } from "./data";
@@ -23,23 +24,28 @@ async function log(quoteId: string, what: string, to: string, outcome: EmailOutc
 
 /**
  * Emails dispatch about a new request and confirms to the customer if they left an
- * address. Runs after the customer already has their confirmation screen, and never
+ * address (unless `confirmToCustomer` is false: a team member entering a request can leave
+ * the confirmation out). Runs after the confirmation screen is already showing, and never
  * throws, so a mail problem cannot affect the request itself.
  */
-export async function notifyNewQuoteRequest(quoteId: string, quote: QuoteEmailData) {
+export async function notifyNewQuoteRequest(
+  quoteId: string,
+  quote: QuoteEmailData,
+  { confirmToCustomer = true }: { confirmToCustomer?: boolean } = {},
+) {
   try {
     const { business, bands } = await getSiteContent();
     const context = { business, bands };
     const dispatchAddress = business.alertEmail ?? business.email;
-    const adminUrl = `${siteUrl}/admin/quotes/${quoteId}`;
+    const panelUrl = `${siteUrl}${PANEL_HOME}/quotes/${quoteId}`;
 
     const [toDispatch, toCustomer] = await Promise.all([
       sendEmail({
         to: dispatchAddress,
         replyTo: quote.email ?? undefined,
-        ...dispatchNotificationEmail(quote, context, adminUrl),
+        ...dispatchNotificationEmail(quote, context, panelUrl),
       }),
-      quote.email
+      quote.email && confirmToCustomer
         ? sendEmail({
             to: quote.email,
             replyTo: dispatchAddress,

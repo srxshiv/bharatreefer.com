@@ -29,7 +29,7 @@ const quote: QuoteEmailData = {
   email: "asha@example.com",
 };
 
-const ADMIN_URL = "https://bharatreefer.com/admin/quotes/abc123";
+const ADMIN_URL = "https://bharatreefer.com/desk/quotes/abc123";
 
 describe("dispatchNotificationEmail", () => {
   const email = dispatchNotificationEmail(quote, context, ADMIN_URL);
@@ -51,6 +51,20 @@ describe("dispatchNotificationEmail", () => {
       expect(body).toContain("12 Oct 2026");
       expect(body).toContain(ADMIN_URL);
     }
+  });
+
+  it("says the request came from the website, or who entered it for the customer", () => {
+    expect(email.text).toContain("Asha Verma asked for a quote from the website.");
+    const entered = dispatchNotificationEmail({ ...quote, createdBy: "Priya Sharma (staff)" }, context, ADMIN_URL);
+    expect(entered.text).toContain("Priya Sharma (staff) entered this request for Asha Verma.");
+    expect(entered.text).not.toContain("from the website");
+  });
+
+  it("names the promo code and whose it is, when one was given", () => {
+    expect(email.text).not.toContain("Promo code:");
+    const credited = dispatchNotificationEmail({ ...quote, promoCode: "PRIYA (Priya Sharma)" }, context, ADMIN_URL);
+    expect(credited.text).toContain("Promo code: PRIYA (Priya Sharma)");
+    expect(credited.html).toContain("PRIYA (Priya Sharma)");
   });
 
   it("keeps line breaks in the customer's notes", () => {
@@ -99,7 +113,7 @@ describe("customerConfirmationEmail", () => {
   });
 
   it("does not expose the admin panel or repeat the customer's own contact details", () => {
-    expect(email.html).not.toContain("/admin");
+    expect(email.html).not.toContain("/desk");
     expect(email.text).not.toContain("asha@example.com");
   });
 });

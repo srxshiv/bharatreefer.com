@@ -14,12 +14,12 @@ export const instant = false;
  * A request as a full page: what opens from a shared link or a reload. Opened from another
  * admin page, the same view shows in a side panel instead (see @modal/(.)quotes/[id]).
  */
-export default async function QuotePage({ params }: PageProps<"/admin/quotes/[id]">) {
+export default async function QuotePage({ params }: PageProps<"/desk/quotes/[id]">) {
   const { id } = await params;
   return (
     <div className="space-y-6">
       <Link
-        href="/admin"
+        href="/desk"
         prefetch
         className="inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ice-700 hover:text-ink-950"
       >

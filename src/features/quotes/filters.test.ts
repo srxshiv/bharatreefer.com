@@ -128,3 +128,16 @@ describe("rows per page", () => {
     expect(inboxQuery({ ...DEFAULT_INBOX_FILTERS, size: 25 })).toBe("");
   });
 });
+
+describe("brought by", () => {
+  it("reads a promo code or 'none' and keeps it in links", () => {
+    expect(parseInboxFilters({ by: "priya" }).referrer).toBe("PRIYA");
+    expect(parseInboxFilters({ by: "None" }).referrer).toBe("NONE");
+    expect(inboxQuery({ ...DEFAULT_INBOX_FILTERS, referrer: "PRIYA" })).toBe("?by=priya");
+  });
+
+  it("ignores anything that cannot be a code, and counts as an advanced filter", () => {
+    expect(parseInboxFilters({ by: "not a code" }).referrer).toBe("");
+    expect(hasAdvancedFilters({ ...DEFAULT_INBOX_FILTERS, referrer: "NONE" })).toBe(true);
+  });
+});

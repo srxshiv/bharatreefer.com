@@ -5,19 +5,26 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { PendingHint } from "./pending-hint";
 
+const SECTIONS = ["/desk/fleet", "/desk/site", "/desk/team", "/desk/account"];
+
 const LINKS = [
   {
-    href: "/admin",
+    href: "/desk",
     label: "Requests",
-    match: (path: string) =>
-      !path.startsWith("/admin/site") && !path.startsWith("/admin/account") && !path.startsWith("/admin/fleet"),
+    // Everything else: the inbox, a request, a new request.
+    match: (path: string) => !SECTIONS.some((section) => path.startsWith(section)),
   },
-  { href: "/admin/fleet", label: "Fleet", match: (path: string) => path.startsWith("/admin/fleet") },
-  { href: "/admin/site", label: "Website", match: (path: string) => path.startsWith("/admin/site") },
-  { href: "/admin/account", label: "Account", match: (path: string) => path.startsWith("/admin/account") },
+  { href: "/desk/fleet", label: "Fleet", match: (path: string) => path.startsWith("/desk/fleet") },
+  { href: "/desk/site", label: "Website", adminOnly: true, match: (path: string) => path.startsWith("/desk/site") },
+  { href: "/desk/team", label: "Team", adminOnly: true, match: (path: string) => path.startsWith("/desk/team") },
+  { href: "/desk/account", label: "Account", match: (path: string) => path.startsWith("/desk/account") },
 ];
 
-export function AdminNav() {
+/**
+ * The panel's sections. Staff do not see the ones only admins can open. `waitingAsks` is how
+ * many truck requests wait for an admin, shown on the Fleet link.
+ */
+export function AdminNav({ isAdmin, waitingAsks = 0 }: { isAdmin: boolean; waitingAsks?: number }) {
   const pathname = usePathname();
 
   return (
@@ -26,7 +33,7 @@ export function AdminNav() {
       className="-mx-5 w-[calc(100%+2.5rem)] overflow-x-auto border-t border-frost-200 px-3 sm:-mx-8 sm:w-[calc(100%+4rem)] sm:px-6 md:mx-0 md:w-auto md:overflow-visible md:border-0 md:px-0"
     >
       <ul className="flex h-12 items-center gap-1 text-sm font-medium md:h-16">
-        {LINKS.map((link) => {
+        {LINKS.filter((link) => isAdmin || !link.adminOnly).map((link) => {
           const active = link.match(pathname);
           return (
             <li key={link.href}>
@@ -40,6 +47,17 @@ export function AdminNav() {
                 )}
               >
                 {link.label}
+                {link.href === "/desk/fleet" && waitingAsks > 0 ? (
+                  <span
+                    className={cn(
+                      "ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-mono text-xs font-semibold",
+                      active ? "bg-white text-navy-900" : "bg-saffron-500 text-white",
+                    )}
+                  >
+                    {waitingAsks}
+                    <span className="sr-only"> truck {waitingAsks === 1 ? "request" : "requests"} waiting</span>
+                  </span>
+                ) : null}
                 <PendingHint />
               </Link>
             </li>
@@ -51,12 +69,12 @@ export function AdminNav() {
 }
 
 const SITE_LINKS: Array<{ href: string; label: string; beta?: boolean }> = [
-  { href: "/admin/site", label: "Business details" },
-  { href: "/admin/site/sections", label: "Sections" },
-  { href: "/admin/site/content", label: "Page text" },
-  { href: "/admin/site/temperature", label: "Temperature bands" },
-  { href: "/admin/site/fleet", label: "Fleet and photos" },
-  { href: "/admin/site/routes", label: "Routes", beta: true },
+  { href: "/desk/site", label: "Business details" },
+  { href: "/desk/site/sections", label: "Sections" },
+  { href: "/desk/site/content", label: "Page text" },
+  { href: "/desk/site/temperature", label: "Temperature bands" },
+  { href: "/desk/site/fleet", label: "Fleet and photos" },
+  { href: "/desk/site/routes", label: "Routes", beta: true },
 ];
 
 export function SiteNav() {
