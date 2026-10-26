@@ -20,8 +20,7 @@ import { formatInr } from "../src/lib/format";
 import { hashPassword } from "../src/lib/password";
 import { planTrucks } from "../src/lib/truck-plan";
 
-// Shorter than PASSWORD_MIN_LENGTH on purpose. Signing in does not check the length, but
-// the account page will ask for a longer one if you change it.
+// A short, known password: this script refuses to run against anything but a local database.
 const ADMIN = { email: "admin@test.com", name: "Test Admin", password: "motilulli" };
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
