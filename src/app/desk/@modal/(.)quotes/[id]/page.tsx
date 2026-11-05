@@ -16,7 +16,7 @@ type Params = PageProps<"/desk/quotes/[id]">["params"];
  * as the request loads (instantly when it was prefetched on hover). The address still
  * changes, so Back closes it and a reload shows the full page.
  */
-export default function QuotePanel({ params }: PageProps<"/desk/quotes/[id]">) {
+export default function QuotePanel({ params, searchParams }: PageProps<"/desk/quotes/[id]">) {
   return (
     <RouteSheet
       title={
@@ -26,7 +26,7 @@ export default function QuotePanel({ params }: PageProps<"/desk/quotes/[id]">) {
       }
     >
       <Suspense fallback={<PanelSkeleton />}>
-        <PanelBody params={params} />
+        <PanelBody params={params} searchParams={searchParams} />
       </Suspense>
     </RouteSheet>
   );
@@ -50,11 +50,12 @@ async function PanelTitle({ params }: { params: Params }) {
   );
 }
 
-async function PanelBody({ params }: { params: Params }) {
-  const { id } = await params;
+async function PanelBody({ params, searchParams }: { params: Params; searchParams: PageProps<"/desk/quotes/[id]">["searchParams"] }) {
+  const [{ id }, { quote }] = await Promise.all([params, searchParams]);
   // Read once here so a missing request shows a message instead of a "not found" page.
   if (!(await getQuoteRequest(id))) return <p className="text-sm text-ink-500">This request no longer exists.</p>;
-  return <QuoteView id={id} inPanel />;
+  // ?quote=1: opened from the list to quote it, with its Status and quote box already at Quoted.
+  return <QuoteView id={id} inPanel quoting={quote === "1"} />;
 }
 
 function PanelSkeleton() {

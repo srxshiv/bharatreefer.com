@@ -60,7 +60,7 @@ function Place({ label, city, state, end = false }: { label: string; city: strin
  * and timeline. Shown as a full page at /desk/quotes/[id], and in a side panel when a request
  * is opened from another panel page (`inPanel`), where the panel shows the reference instead.
  */
-export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?: boolean }) {
+export async function QuoteView({ id, inPanel = false, quoting = false }: { id: string; inPanel?: boolean; quoting?: boolean }) {
   const user = await requireUser();
   const isAdmin = user.role === "ADMIN";
   const [quote, { business, bands }, assignments, asks, referrers] = await Promise.all([
@@ -204,6 +204,7 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
             status={quote.status}
             quotedAmount={quote.quotedAmount}
             pickupDate={quote.pickupDate ? toIsoDate(quote.pickupDate) : null}
+            startAt={quoting && quote.status !== "QUOTED" ? "QUOTED" : undefined}
           />
         </section>
       </div>

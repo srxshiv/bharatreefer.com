@@ -158,3 +158,11 @@ describe("customerQuoteEmail", () => {
     expect(email.text).toContain("the truck and driver the day before pickup");
   });
 });
+
+describe("the vehicle", () => {
+  it("is only a suggestion for dispatch, not something the customer is told before their truck is chosen", () => {
+    expect(dispatchNotificationEmail(quote, context, ADMIN_URL).text).toContain("Suggested vehicle: 1 × 16 t, full load");
+    expect(customerConfirmationEmail(quote, context).text).not.toContain("vehicle");
+    expect(customerQuoteEmail({ ...quote, quotedAmount: 48_500 }, context).text).not.toMatch(/Vehicle:/);
+  });
+});

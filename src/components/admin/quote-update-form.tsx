@@ -19,11 +19,11 @@ type Saved = {
 };
 
 /** The inputs. Remounted whenever the saved values change, so they always start from them. */
-function Fields({ status, quotedAmount, pickupDate }: Saved) {
+function Fields({ status, quotedAmount, pickupDate, startAt }: Saved & { startAt?: QuoteStatusId }) {
   // Generated ids: Next.js keeps recently visited pages mounted, so two quotes can be in
   // the document at once and fixed ids would collide.
   const id = useId();
-  const [selected, setSelected] = useState(status);
+  const [selected, setSelected] = useState(startAt ?? status);
   // Quoted means booked: it needs the price and the pickup date, so both are asked for.
   const booking = selected === "QUOTED";
 
@@ -36,7 +36,7 @@ function Fields({ status, quotedAmount, pickupDate }: Saved) {
         <select
           id={`${id}-status`}
           name="status"
-          defaultValue={status}
+          defaultValue={startAt ?? status}
           onChange={(event) => setSelected(event.target.value as QuoteStatusId)}
           aria-describedby={`${id}-status-hint`}
           className={`${input} mt-2`}
@@ -67,6 +67,8 @@ function Fields({ status, quotedAmount, pickupDate }: Saved) {
             inputMode="numeric"
             autoComplete="off"
             defaultValue={quotedAmount ?? ""}
+            // Opened to quote it: the price is what is needed first.
+            autoFocus={startAt === "QUOTED" && quotedAmount === null}
             placeholder="Not quoted yet"
             maxLength={12}
             className={`${input} pl-8 font-mono`}
@@ -98,7 +100,11 @@ function Fields({ status, quotedAmount, pickupDate }: Saved) {
   );
 }
 
-export function QuoteUpdateForm({ id, status, quotedAmount, pickupDate }: Saved & { id: string }) {
+/**
+ * Status, quoted amount and pickup date. `startAt` opens it at another stage, unsaved: the
+ * list sends a request here at Quoted when it still needs its quote and pickup date.
+ */
+export function QuoteUpdateForm({ id, status, quotedAmount, pickupDate, startAt }: Saved & { id: string; startAt?: QuoteStatusId }) {
   const [state, setState] = useState<AdminFormState>({});
   const [pending, startTransition] = useTransition();
 
@@ -120,7 +126,13 @@ export function QuoteUpdateForm({ id, status, quotedAmount, pickupDate }: Saved 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Fields key={`${status}:${quotedAmount}:${pickupDate}`} status={status} quotedAmount={quotedAmount} pickupDate={pickupDate} />
+      <Fields
+        key={`${status}:${quotedAmount}:${pickupDate}:${startAt}`}
+        status={status}
+        quotedAmount={quotedAmount}
+        pickupDate={pickupDate}
+        startAt={startAt}
+      />
       <FormMessage state={state} />
       <PendingButton pending={pending} pendingLabel="Saving" className="w-full">
         Save changes

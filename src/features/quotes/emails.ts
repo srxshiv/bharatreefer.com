@@ -64,14 +64,18 @@ function vehicle(quote: QuoteEmailData): string {
   return `${formatTrucks(quote.trucks)}, ${LOAD_TYPE_LABELS[quote.loadType].toLowerCase()}`;
 }
 
-function loadRows(quote: QuoteEmailData, context: EmailContext): EmailRow[] {
+/**
+ * The load as the emails describe it. The truck plan is only the form's suggestion, so only
+ * dispatch sees it (`suggestedVehicle`); customers learn their truck the day before pickup.
+ */
+function loadRows(quote: QuoteEmailData, context: EmailContext, { suggestedVehicle = false } = {}): EmailRow[] {
   const band = context.bands[quote.material];
   return [
     { label: "From", value: `${quote.originCity}, ${quote.originState}` },
     { label: "To", value: `${quote.destinationCity}, ${quote.destinationState}` },
     { label: "Cargo", value: `${band.label} (${band.range})` },
     { label: "Weight", value: formatKg(quote.quantityKg) },
-    { label: "Vehicle", value: vehicle(quote) },
+    ...(suggestedVehicle ? [{ label: "Suggested vehicle", value: vehicle(quote) }] : []),
     ...(quote.pickupDate ? [{ label: "Pickup", value: formatIsoDate(quote.pickupDate) }] : []),
     ...(quote.notes ? [{ label: "Notes", value: quote.notes }] : []),
   ];
@@ -97,7 +101,7 @@ export function dispatchNotificationEmail(
       { label: "Phone", value: `+91 ${formatIndianMobile(quote.phone)}` },
       ...(quote.email ? [{ label: "Email", value: quote.email }] : []),
       ...(quote.promoCode ? [{ label: "Promo code", value: quote.promoCode }] : []),
-      ...loadRows(quote, context),
+      ...loadRows(quote, context, { suggestedVehicle: true }),
     ],
     action: { label: "Open request", url: panelUrl },
     footer: quote.email

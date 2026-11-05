@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight, CircleAlert, CircleCheck, Download, Ellipsis, Phone, X } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import type { MaterialId } from "@/config/materials";
@@ -48,6 +49,7 @@ export function RequestTable({
     },
   );
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const [toast, setToast] = useState<Toast | null>(null);
   const toastCount = useRef(0);
   const bulkId = useId();
@@ -68,6 +70,18 @@ export function RequestTable({
       else next.add(id);
       return next;
     });
+  }
+
+  /**
+   * One request from its menu. Quoted means booked, so a request still missing its quote or
+   * pickup date opens instead, ready to quote: its Status and quote box already at Quoted.
+   */
+  function moveOne(row: InboxRow, status: QuoteStatusId) {
+    if (status === "QUOTED" && (row.quotedAmount === null || row.pickupDate === null)) {
+      router.push(`/desk/quotes/${row.id}?quote=1`);
+      return;
+    }
+    move([row.id], status);
   }
 
   function move(ids: string[], status: QuoteStatusId) {
@@ -247,7 +261,7 @@ export function RequestTable({
                   <StatusBadge status={status} />
                 </div>
                 <div className="relative z-10 col-start-3 row-start-2 justify-self-end lg:col-start-auto lg:row-start-auto">
-                  <RowMenu row={row} status={status} onMove={(next) => move([row.id], next)} />
+                  <RowMenu row={row} status={status} onMove={(next) => moveOne(row, next)} />
                 </div>
               </li>
             );

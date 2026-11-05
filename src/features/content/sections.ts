@@ -56,8 +56,9 @@ export const SECTION_DEFAULTS: Record<SectionId, SectionDefault> = {
   about: {
     name: "About us",
     about: "Who Bharat Reefer is: the vision, the mission, who you serve and why.",
-    eyebrow: "About Bharat Reefer",
-    title: "Linking Bharat.",
+    // One heading only: the title. (The slogan is already the opening scene's.)
+    eyebrow: "",
+    title: "About Bharat Reefer",
     intro: "At Bharat Reefer, we believe that a business's growth should never be limited by its location and volume.",
     visible: true,
   },

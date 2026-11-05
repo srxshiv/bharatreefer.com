@@ -7,7 +7,7 @@ import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
 import { customerWhatsappMessage, type BandLabels } from "@/features/quotes/messages";
 import type { QuoteConfirmation } from "@/features/quotes/state";
 import { formatIsoDate } from "@/lib/dates";
-import { LOAD_TYPE_LABELS, formatKg, formatTrucks } from "@/lib/format";
+import { formatKg } from "@/lib/format";
 import { formatHours } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
 import { cn } from "@/lib/cn";
@@ -41,10 +41,6 @@ export function Confirmation({
     { label: "To", value: `${confirmation.destinationCity}, ${confirmation.destinationState}` },
     { label: "Cargo", value: `${band.label}, ${band.range}` },
     { label: "Weight", value: formatKg(confirmation.quantityKg) },
-    {
-      label: "Vehicle",
-      value: `${formatTrucks(confirmation.trucks)}, ${LOAD_TYPE_LABELS[confirmation.loadType].toLowerCase()}`,
-    },
     ...(confirmation.pickupDate ? [{ label: "Pickup", value: formatIsoDate(confirmation.pickupDate) }] : []),
   ];
 
