@@ -204,13 +204,16 @@ type LoadedContent = {
 };
 
 async function load(): Promise<LoadedContent> {
-  const [row, bandRows, truckRows, photos, routes] = await Promise.all([
+  const [row, bandRows, payloads, photos, routes] = await Promise.all([
     db().siteSettings.findUnique({ where: { id: SETTINGS_ID }, select: settingsSelect }),
     db().temperatureBand.findMany({ select: bandSelect }),
-    db().truckSize.findMany({ orderBy: { capacityKg: "asc" }, select: { capacityKg: true, name: true } }),
+    // The truck sizes are the payloads of the trucks on the Fleet page: adding a truck with a
+    // new payload adds the size. The fleet actions expire this cache when trucks change.
+    db().vehicle.groupBy({ by: ["capacityKg"], orderBy: { capacityKg: "asc" } }),
     db().fleetPhoto.findMany({ orderBy: { position: "asc" }, select: photoSelect }),
     db().route.findMany({ orderBy: { position: "asc" }, select: routeSelect }),
   ]);
+  const truckRows = payloads.map(({ capacityKg }) => ({ capacityKg, name: null }));
   return { ...assemble(row, bandRows, truckRows, photos, routes), fromDefaults: false };
 }
 
@@ -361,7 +364,6 @@ export async function saveRoutes(routes: RouteInfo[]): Promise<void> {
 }
 
 export type FleetInput = {
-  trucks: TruckSizeInfo[];
   minQuantityKg: number;
   maxQuantityKg: number;
   dedicatedFillPercent: number;
@@ -369,8 +371,6 @@ export type FleetInput = {
 
 export async function saveFleet(fleet: FleetInput): Promise<void> {
   await db().$transaction(async (tx) => {
-    await tx.truckSize.deleteMany();
-    await tx.truckSize.createMany({ data: fleet.trucks });
     await tx.siteSettings.upsert({
       where: { id: SETTINGS_ID },
       create: {

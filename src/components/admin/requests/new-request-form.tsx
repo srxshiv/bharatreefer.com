@@ -180,7 +180,7 @@ export function NewRequestForm({
         <span className="text-sm text-ink-900">
           Email the customer a confirmation with the reference
           <span className="block text-xs text-ink-500">
-            The same email the website sends. Only if you entered their email address.
+            The same email the website sends.
           </span>
         </span>
       </label>

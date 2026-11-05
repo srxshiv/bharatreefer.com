@@ -6,7 +6,6 @@ import { normaliseIndianMobile } from "@/lib/phone";
 import type { CopyInput, FleetInput } from "./data";
 import type { Faq, Step } from "./types";
 
-export const MAX_TRUCK_SIZES = 12;
 export const MAX_STEPS = 6;
 export const MAX_FAQS = 12;
 export const MAX_EXAMPLES = 8;
@@ -140,18 +139,8 @@ export const bandsSchema = z.object(
 
 export type BandsInput = Record<MaterialId, Omit<TemperatureBandInfo, "id">>;
 
-const truckSchema = z.object({
-  capacityKg: z.coerce
-    .number()
-    .int("Capacity must be a whole number of kilograms")
-    .min(100, "Capacity must be at least 100 kg")
-    .max(60_000, "Capacity must be 60,000 kg or less"),
-  name: text(40, 0).transform((value) => (value === "" ? null : value)),
-});
-
 export const fleetSchema = z
   .object({
-    trucks: z.array(truckSchema).min(1, "Add at least one truck size").max(MAX_TRUCK_SIZES),
     minQuantityKg: z.coerce.number().int().min(1, "Minimum must be at least 1 kg"),
     maxQuantityKg: z.coerce.number().int().max(200_000, "Maximum must be 2,00,000 kg or less"),
     dedicatedFillPercent: z.coerce.number().int().min(1).max(100),
@@ -159,15 +148,10 @@ export const fleetSchema = z
   .refine((value) => value.minQuantityKg < value.maxQuantityKg, {
     message: "The minimum must be below the maximum",
     path: ["maxQuantityKg"],
-  })
-  .refine(
-    (value) => new Set(value.trucks.map((truck) => truck.capacityKg)).size === value.trucks.length,
-    { message: "Each truck size needs a different capacity", path: ["trucks"] },
-  );
+  });
 
 export function toFleetInput(value: z.infer<typeof fleetSchema>): FleetInput {
   return {
-    trucks: [...value.trucks].sort((a, b) => a.capacityKg - b.capacityKg),
     minQuantityKg: value.minQuantityKg,
     maxQuantityKg: value.maxQuantityKg,
     dedicatedFillPercent: value.dedicatedFillPercent,

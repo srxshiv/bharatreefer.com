@@ -32,7 +32,7 @@ export function parseVehicleForm(
   const capacity = text(formData, "capacityKg").replace(/[,\s]/g, "");
   const capacityKg = /^\d{1,6}$/.test(capacity) ? Number(capacity) : NaN;
   if (!(capacityKg >= MIN_VEHICLE_KG && capacityKg <= MAX_VEHICLE_KG)) {
-    return { ok: false, error: "Choose the truck's payload." };
+    return { ok: false, error: "Enter the truck's payload in kilograms, between 100 and 60,000." };
   }
 
   const model = text(formData, "model");

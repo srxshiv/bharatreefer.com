@@ -11,8 +11,9 @@ import { cn } from "@/lib/cn";
 import { formatIndianMobile } from "@/lib/phone";
 import { whatsappLink } from "@/lib/whatsapp";
 import { DeskStatus } from "./desk-status";
+import { Intro, IntroBackdrop } from "./intro";
 import { QuoteCard } from "./quote-card";
-import { Bands, Contact, Faqs, Fleet, Hero, Routes, Steps, formatAddress } from "./sections";
+import { About, Bands, Contact, Faqs, Fleet, Hero, Routes, Steps, formatAddress } from "./sections";
 import { primaryButton } from "./ui";
 
 /**
@@ -31,6 +32,7 @@ export function Home({ content }: { content: SiteContent }) {
     fleet: (section) => <Fleet section={section} trucks={trucks} fleet={fleet} photos={photos} />,
     routes: (section) => (routes.length > 0 ? <Routes section={section} routes={routes} /> : null),
     steps: (section) => (copy.steps.length > 0 ? <Steps section={section} copy={copy} /> : null),
+    about: (section) => <About section={section} />,
     contact: (section) => <Contact section={section} business={business} />,
     faqs: (section) => (copy.faqs.length > 0 ? <Faqs section={section} faqs={copy.faqs} /> : null),
   };
@@ -41,9 +43,15 @@ export function Home({ content }: { content: SiteContent }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <IntroBackdrop business={business} />
       {announcement ? <AnnouncementBar announcement={announcement} /> : null}
       {/* A navy band along the top in the logo's colour. */}
-      <header className="sticky top-0 z-30 border-t-[3px] border-b border-t-navy-900 border-b-frost-200 bg-surface/90 backdrop-blur-sm">
+      {/* Dark while it is over the opening scene (IntroMotion switches it), light after. */}
+      <header
+        data-site-header=""
+        data-theme="dark"
+        className="sticky top-0 z-30 border-t-[3px] border-b border-t-navy-900 border-b-frost-200 bg-surface/80 backdrop-blur-xl backdrop-saturate-150 transition-colors duration-500"
+      >
         <div className="shell flex h-16 items-center justify-between gap-4 lg:h-20">
           <Link href="/" className="rounded-lg">
             <Logo name={business.name} priority />
@@ -77,7 +85,14 @@ export function Home({ content }: { content: SiteContent }) {
         </div>
       </header>
 
-      <main className="frost-glow flex-1">
+      <Intro fleet={fleet} bands={bands} showStory={shown.some((item) => item.id === "about")} />
+
+      {/* Frosted glass that slides up over the photo: the truck stays softly behind the page.
+          The blur is the photo's own blurred copy (IntroBackdrop), not a backdrop filter: Safari
+          drops backdrop filters on an element as tall as the page, showing the sharp photo.
+          It overlaps the scene by its corner radius, so the corners show the scene's dark edge
+          rather than the lighter photo below it. */}
+      <main className="frost-glow relative -mt-8 flex-1 rounded-t-[2rem] bg-frost-50/80 shadow-[0_-30px_80px_-30px_rgb(0_0_0/0.45)]">
         <div className="shell grid grid-cols-1 gap-x-10 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:pt-6 lg:pb-10 xl:gap-x-14">
           <div className="lg:col-start-1 lg:pt-4">
             <Hero business={business} copy={copy} fleet={fleet} bands={bands} showFacts={showFacts} />

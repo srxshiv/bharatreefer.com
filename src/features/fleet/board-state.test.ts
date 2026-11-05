@@ -32,6 +32,8 @@ function order(id: string, quantityKg: number, extra: Partial<WaitingOrder> = {}
     destinationCity: "Mumbai",
     pickupDate: null,
     contactName: "Asha",
+    phone: "+919871094268",
+    email: null,
     ...extra,
   };
 }
@@ -42,7 +44,6 @@ function board(trucks: FleetTruck[], waiting: WaitingOrder[]): FleetBoard {
     loadRequests: [],
     trucks,
     waiting,
-    sizes: [{ capacityKg: 4000, name: null }, { capacityKg: 9000, name: null }],
     confirmedCount: waiting.length,
     today: "2026-10-14",
   };
@@ -88,6 +89,26 @@ describe("applyChange", () => {
     expect(back.trucks[0]).toMatchObject({ status: "AVAILABLE", usedKg: 0, loads: [], tripStartedAt: null });
     expect(back.waiting).toEqual([]);
   });
+
+  it("removes an empty truck, dropping its asks", () => {
+    const asked = applyChange(board([truck("1", 9000), truck("2", 9000)], [order("A", 6000)]), {
+      kind: "request",
+      quoteId: "A",
+      truckId: "1",
+      kg: 4000,
+    });
+    const next = applyChange(asked, { kind: "delete", truckId: "1" });
+    expect(next.trucks.map((item) => item.id)).toEqual(["2"]);
+    expect(next.loadRequests).toEqual([]);
+    expect(askableKg(next.waiting[0])).toBe(6000);
+  });
+
+  it("keeps a truck with loads on board or on a trip", () => {
+    const placed = applyChange(board([truck("1", 9000)], [order("A", 6000)]), { kind: "assign", quoteId: "A", truckId: "1", kg: 6000 });
+    expect(applyChange(placed, { kind: "delete", truckId: "1" })).toBe(placed);
+    const onTrip = board([truck("1", 9000, { status: "ON_TRIP" })], []);
+    expect(applyChange(onTrip, { kind: "delete", truckId: "1" })).toBe(onTrip);
+  });
 });
 
 describe("asking for a truck", () => {
@@ -127,12 +148,11 @@ describe("summarise and groupTrucks", () => {
     expect(summary).toMatchObject({ trucks: 3, available: 1, onTrip: 1, maintenance: 1, capacityKg: 13000, usedKg: 8000, onTripKg: 3000, overweight: 1, waitingKg: 500 });
   });
 
-  it("keeps listed sizes with no trucks and adds unlisted payloads", () => {
-    const groups = groupTrucks([truck("1", 7000)], [{ capacityKg: 4000, name: null }, { capacityKg: 9000, name: null }]);
-    expect(groups.map((group) => [group.capacityKg, group.listed, group.trucks.length])).toEqual([
-      [4000, true, 0],
-      [7000, false, 1],
-      [9000, true, 0],
+  it("groups trucks by payload, with a group only for payloads a truck has", () => {
+    const groups = groupTrucks([truck("1", 9000), truck("2", 3000), truck("3", 9000)]);
+    expect(groups.map((group) => [group.capacityKg, group.trucks.map((item) => item.id)])).toEqual([
+      [3000, ["2"]],
+      [9000, ["1", "3"]],
     ]);
   });
 });

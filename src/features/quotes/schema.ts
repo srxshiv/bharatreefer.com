@@ -139,15 +139,14 @@ export function createQuoteRequestSchema(limits: Pick<FleetConfig, "minQuantityK
       return normalised;
     }),
 
+    // Required: the confirmation, and later the trip's tracking link, are sent by email.
     email: z
       .string()
       .trim()
+      .min(1, "Enter your email address")
       .max(254, "Keep the email under 254 characters")
-      .refine(
-        (value) => value === "" || email.safeParse(value).success,
-        "Enter a valid email address, or leave it empty",
-      )
-      .transform((value) => (value === "" ? undefined : value.toLowerCase())),
+      .refine((value) => email.safeParse(value).success, "Enter a valid email address")
+      .transform((value) => value.toLowerCase()),
 
     // Only the shape is checked here. Whether a team member has the code is checked on the
     // server, which then credits the request to them.

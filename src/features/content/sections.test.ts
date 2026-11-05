@@ -28,7 +28,7 @@ describe("readSectionsSetting", () => {
       ],
     });
     expect(setting.showFacts).toBe(false);
-    expect(setting.list.map((entry) => entry.id)).toEqual(["fleet", "routes", "steps", "contact", "bands", "faqs"]);
+    expect(setting.list.map((entry) => entry.id)).toEqual(["fleet", "routes", "steps", "about", "contact", "bands", "faqs"]);
     expect(setting.list.find((entry) => entry.id === "bands")).toMatchObject({ visible: true, eyebrow: "Cold chain" });
   });
 });

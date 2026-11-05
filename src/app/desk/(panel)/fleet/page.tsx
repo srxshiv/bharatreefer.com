@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export const instant = false;
 
 export default async function FleetPage({ searchParams }: PageProps<"/desk/fleet">) {
-  const [{ order }, board, { bands }] = await Promise.all([searchParams, getFleetBoard(), getSiteContent()]);
+  const [{ order }, board, { bands, business }] = await Promise.all([searchParams, getFleetBoard(), getSiteContent()]);
   const bandLabels = Object.fromEntries(MATERIAL_IDS.map((id) => [id, bands[id].label])) as Record<
     (typeof MATERIAL_IDS)[number],
     string
@@ -23,6 +23,7 @@ export default async function FleetPage({ searchParams }: PageProps<"/desk/fleet
     <FleetBoard
       board={board}
       bandLabels={bandLabels}
+      businessName={business.name}
       initialOrderId={typeof order === "string" ? order : undefined}
     />
   );

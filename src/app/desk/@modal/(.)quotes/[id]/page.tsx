@@ -58,19 +58,23 @@ async function PanelBody({ params }: { params: Params }) {
 }
 
 function PanelSkeleton() {
-  return (
-    <div aria-hidden="true" className="grid gap-6 md:grid-cols-[minmax(0,1fr)_21rem]">
-      {[0, 1].map((column) => (
-        <div key={column} className="space-y-6">
-          {[0, 1].map((block) => (
-            <div key={block} className={cn(card, "space-y-3 p-6")}>
-              <div className="h-4 w-28 animate-pulse rounded bg-frost-100" />
-              <div className="h-3 w-full animate-pulse rounded bg-frost-100" />
-              <div className="h-3 w-2/3 animate-pulse rounded bg-frost-100" />
-            </div>
-          ))}
-        </div>
+  const block = (lines: number) => (
+    <div className={cn(card, "space-y-3 p-6")}>
+      <div className="h-4 w-28 animate-pulse rounded bg-frost-100" />
+      {Array.from({ length: lines }, (_, index) => (
+        <div key={index} className={cn("h-3 animate-pulse rounded bg-frost-100", index % 2 ? "w-2/3" : "w-full")} />
       ))}
+    </div>
+  );
+  // The same rows as the request: the load across the top, two boxes side by side, then activity.
+  return (
+    <div aria-hidden="true" className="@container space-y-5">
+      {block(3)}
+      <div className="grid gap-5 @2xl:grid-cols-2">
+        {block(4)}
+        {block(4)}
+      </div>
+      {block(2)}
     </div>
   );
 }

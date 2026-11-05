@@ -18,14 +18,15 @@ describe("parseSectionsForm", () => {
   }));
 
   it("stores only what differs from the defaults, in the order given", () => {
-    const reordered = [list[4], ...list.slice(0, 4), list[5]].map((item) =>
+    // Contact moved to the top.
+    const reordered = [list.find((item) => item.id === "contact")!, ...list.filter((item) => item.id !== "contact")].map((item) =>
       item.id === "bands" ? { ...item, title: "Cold, colder, coldest", visible: false } : item,
     );
     const result = parseSectionsForm(form({ sections: JSON.stringify({ showFacts: false, list: reordered }) }));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.showFacts).toBe(false);
-    expect(result.value.list.map((item) => item.id)).toEqual(["contact", "bands", "fleet", "routes", "steps", "faqs"]);
+    expect(result.value.list.map((item) => item.id)).toEqual(["contact", "bands", "fleet", "routes", "steps", "about", "faqs"]);
     expect(result.value.list[1]).toEqual({ id: "bands", visible: false, eyebrow: null, title: "Cold, colder, coldest", intro: null });
   });
 

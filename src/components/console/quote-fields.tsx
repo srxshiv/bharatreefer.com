@@ -326,7 +326,6 @@ export function QuoteFields(props: QuoteFieldsProps) {
           <div>
             <label htmlFor={`${id}-email`} className={fieldLabel}>
               Email
-              <Optional />
             </label>
             <input
               {...control("email")}
@@ -372,7 +371,8 @@ export function QuoteFields(props: QuoteFieldsProps) {
             )}
           </div>
 
-          <div className="w-28 shrink-0">
+          {/* Wider on phones, where the text is 16px so iOS does not zoom in. */}
+          <div className="w-32 shrink-0 sm:w-28">
             <label htmlFor={`${id}-promoCode`} className="sr-only">
               Promo code (optional)
             </label>

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageCircle, Phone, Trash2, Wrench } from "lucide-react";
+import { MessageCircle, Phone, Send, Trash2, Wrench } from "lucide-react";
 import type { MaterialId } from "@/config/materials";
-import type { TruckSizeInfo } from "@/features/content/types";
 import { deleteVehicleAction, updateVehicleAction } from "@/features/fleet/actions";
 import { overKg } from "@/features/fleet/capacity";
 import type { FleetLoad, FleetOutcome, FleetTruck } from "@/features/fleet/types";
@@ -46,24 +45,29 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 export function TruckSheetBody({
   truck,
   canManage,
-  sizes,
+  capacities,
   bandLabels,
   onMove,
   onRemove,
   onStatus,
   onStartTrip,
+  onTrack,
   onEndTrip,
   onDone,
   notify,
 }: {
   truck: FleetTruck;
   canManage: boolean;
-  sizes: TruckSizeInfo[];
+  /** Payloads the fleet has, offered when editing. */
+  capacities: number[];
   bandLabels: Record<MaterialId, string>;
   onMove: (load: FleetLoad, anchor: HTMLElement) => void;
   onRemove: (load: FleetLoad) => void;
   onStatus: (status: "AVAILABLE" | "MAINTENANCE") => void;
+  /** Asks for the tracking link, then starts the trip. */
   onStartTrip: () => void;
+  /** Sends the tracking link to the customers on board. */
+  onTrack: () => void;
   onEndTrip: () => void;
   onDone: () => void;
   notify: (outcome: FleetOutcome) => void;
@@ -115,7 +119,17 @@ export function TruckSheetBody({
             <span className="font-semibold text-ink-950">Empty and available.</span>
           )}
         </p>
-        {canManage ? <TripButton truck={truck} onStart={onStartTrip} onEnd={onEndTrip} /> : null}
+        {canManage ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {truck.loads.length > 0 ? (
+              <button type="button" onClick={onTrack} className={smallButton}>
+                <Send aria-hidden="true" className="size-4" />
+                Send tracking link
+              </button>
+            ) : null}
+            <TripButton truck={truck} onStart={onStartTrip} onEnd={onEndTrip} />
+          </div>
+        ) : null}
       </section>
 
       <section>
@@ -210,7 +224,7 @@ export function TruckSheetBody({
               <TruckForm
                 key={[truck.plateNumber, truck.capacityKg, truck.model, truck.driverName, truck.driverPhone, truck.lengthFt, truck.tyres].join(":")}
                 truck={truck}
-                sizes={sizes}
+                capacities={capacities}
                 submitLabel="Save truck"
                 onSubmit={(formData) => updateVehicleAction(truck.id, formData)}
                 onSaved={(message) => notify({ ok: true, message })}

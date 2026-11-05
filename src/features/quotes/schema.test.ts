@@ -48,9 +48,8 @@ describe("quoteRequestSchema", () => {
     });
   });
 
-  it("treats email, pickup date and notes as optional", () => {
-    const parsed = quoteRequestSchema.parse({ ...valid, email: "  ", pickupDate: "", notes: " " });
-    expect(parsed.email).toBeUndefined();
+  it("treats pickup date and notes as optional", () => {
+    const parsed = quoteRequestSchema.parse({ ...valid, pickupDate: "", notes: " " });
     expect(parsed.pickupDate).toBeUndefined();
     expect(parsed.notes).toBeUndefined();
   });
@@ -63,6 +62,7 @@ describe("quoteRequestSchema", () => {
       "contactName",
       "destinationCity",
       "destinationState",
+      "email",
       "originCity",
       "originState",
       "phone",
@@ -106,7 +106,8 @@ describe("quoteRequestSchema", () => {
 
   it("validates the phone number and email", () => {
     expect(errorsFor({ phone: "12345" }).phone).toBe("Enter a 10-digit Indian mobile number");
-    expect(errorsFor({ email: "not-an-email" }).email).toBeDefined();
+    expect(errorsFor({ email: "not-an-email" }).email).toBe("Enter a valid email address");
+    expect(errorsFor({ email: "  " }).email).toBe("Enter your email address");
   });
 
   it("accepts a pickup date from today up to a year ahead", () => {

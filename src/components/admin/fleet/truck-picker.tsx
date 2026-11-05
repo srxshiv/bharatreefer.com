@@ -61,7 +61,7 @@ export function TruckPicker({
   onClose,
 }: {
   request: PickerRequest | null;
-  board: Pick<FleetBoard, "trucks" | "sizes">;
+  board: Pick<FleetBoard, "trucks">;
   bandLabels: Record<MaterialId, string>;
   onPick: (truck: FleetTruck, kg: number) => void;
   onClose: () => void;
@@ -116,7 +116,6 @@ export function TruckPicker({
         .replace(/\s+/g, "");
       return haystack.includes(needle);
     }),
-    board.sizes,
   ).filter((group) => group.trucks.length > 0);
 
   // Sizes that can take the whole load come first; smaller ones follow under their own
@@ -131,7 +130,6 @@ export function TruckPicker({
         <h3 className="sticky top-0 z-10 flex items-baseline gap-2 bg-surface/95 px-2 py-1.5 backdrop-blur-sm">
           <span className="font-mono text-sm font-semibold text-ink-950">{formatCapacity(group.capacityKg)}</span>
           <span className="truncate text-xs text-ink-500">
-            {group.name ? `${group.name} · ` : ""}
             {group.trucks.length} {group.trucks.length === 1 ? "truck" : "trucks"}
           </span>
         </h3>

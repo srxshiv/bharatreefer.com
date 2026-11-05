@@ -104,32 +104,22 @@ describe("copySchema", () => {
 
 describe("fleetSchema", () => {
   const valid = {
-    trucks: [
-      { capacityKg: "22000", name: "" },
-      { capacityKg: "900", name: "Tata Ace" },
-    ],
     minQuantityKg: "10",
     maxQuantityKg: "50000",
     dedicatedFillPercent: "50",
   };
 
-  it("sorts the sizes and converts the numbers", () => {
+  it("converts the numbers", () => {
     expect(toFleetInput(fleetSchema.parse(valid))).toEqual({
-      trucks: [
-        { capacityKg: 900, name: "Tata Ace" },
-        { capacityKg: 22_000, name: null },
-      ],
       minQuantityKg: 10,
       maxQuantityKg: 50_000,
       dedicatedFillPercent: 50,
     });
   });
 
-  it("rejects duplicate sizes, an empty fleet and inverted limits", () => {
-    expect(fleetSchema.safeParse({ ...valid, trucks: [valid.trucks[0], valid.trucks[0]] }).success).toBe(false);
-    expect(fleetSchema.safeParse({ ...valid, trucks: [] }).success).toBe(false);
+  it("rejects inverted limits and fractions", () => {
     expect(fleetSchema.safeParse({ ...valid, minQuantityKg: "60000" }).success).toBe(false);
-    expect(fleetSchema.safeParse({ ...valid, trucks: [{ capacityKg: "12.5", name: "" }] }).success).toBe(false);
+    expect(fleetSchema.safeParse({ ...valid, minQuantityKg: "12.5" }).success).toBe(false);
   });
 });
 

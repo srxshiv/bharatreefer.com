@@ -139,7 +139,6 @@ export async function saveFleetAction(formData: FormData): Promise<ContentFormSt
   await requireAdmin();
 
   const parsed = fleetSchema.safeParse({
-    trucks: readRows(formData, "trucks"),
     minQuantityKg: field(formData, "minQuantityKg"),
     maxQuantityKg: field(formData, "maxQuantityKg"),
     dedicatedFillPercent: field(formData, "dedicatedFillPercent"),

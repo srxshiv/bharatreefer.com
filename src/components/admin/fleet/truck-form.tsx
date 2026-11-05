@@ -2,7 +2,6 @@
 
 import { useId, useState, useTransition, type FormEvent } from "react";
 import type { FleetOutcome, FleetTruck } from "@/features/fleet/types";
-import type { TruckSizeInfo } from "@/features/content/types";
 import { formatPlate } from "@/features/fleet/plate";
 import { formatCapacity } from "@/lib/format";
 import { formatIndianMobile } from "@/lib/phone";
@@ -13,14 +12,15 @@ import { input, label } from "../ui";
 /** Add or edit a truck. Submits by hand so the fields keep what was typed when it fails. */
 export function TruckForm({
   truck,
-  sizes,
+  capacities,
   defaultCapacityKg,
   submitLabel,
   onSubmit,
   onSaved,
 }: {
   truck?: FleetTruck;
-  sizes: TruckSizeInfo[];
+  /** Payloads already in the fleet, suggested while typing. A new payload makes a new size. */
+  capacities: number[];
   defaultCapacityKg?: number;
   submitLabel: string;
   onSubmit: (formData: FormData) => Promise<FleetOutcome>;
@@ -30,11 +30,7 @@ export function TruckForm({
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
-  const capacities = sizes.map((size) => size.capacityKg);
   const current = truck?.capacityKg ?? defaultCapacityKg;
-  if (current !== undefined && !capacities.includes(current)) capacities.push(current);
-  capacities.sort((a, b) => a - b);
-  const names = new Map(sizes.map((size) => [size.capacityKg, size.name]));
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,25 +73,26 @@ export function TruckForm({
         </div>
         <div>
           <label htmlFor={`${id}-capacity`} className={label}>
-            Payload
+            Payload <span className="font-normal text-ink-500">(kg)</span>
           </label>
-          <select
+          <input
             id={`${id}-capacity`}
             name="capacityKg"
             required
+            inputMode="numeric"
+            autoComplete="off"
+            list={`${id}-capacities`}
             defaultValue={current ?? ""}
-            className={cn(input, "mt-1.5")}
-          >
-            <option value="" disabled>
-              Choose a size
-            </option>
+            placeholder="e.g. 9000"
+            className={cn(input, "mt-1.5 font-mono")}
+          />
+          <datalist id={`${id}-capacities`}>
             {capacities.map((kg) => (
               <option key={kg} value={kg}>
                 {formatCapacity(kg)}
-                {names.get(kg) ? ` · ${names.get(kg)}` : ""}
               </option>
             ))}
-          </select>
+          </datalist>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">

@@ -65,7 +65,7 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 | `pnpm db:migrate` | Create and apply a migration in development. |
 | `pnpm db:deploy` | Apply pending migrations in production. |
 | `pnpm db:studio` | Browse the database in Prisma Studio. |
-| `pnpm db:seed` | Replace the sample data: 62 quote requests across every stage, 15 trucks with their details, loads on them (one truck out on a trip) and the delivery history of completed requests. Real requests and your own trucks are never touched. `pnpm db:seed --clear` removes the sample data only. |
+| `pnpm db:seed` | Adds the Bharat Reefer fleet (the 8 trucks of "Truck List for Bharat reefer.xlsx"; trucks already in the fleet are left alone) and replaces the test loads: 6 confirmed requests, 4 of them on two trucks, for trying trips and tracking links. Test customers have Resend's test inbox as their email and the business's WhatsApp number as their phone. Real requests are never touched. `pnpm db:seed --clear` removes the test loads only. |
 
 ## Project layout
 
@@ -73,7 +73,7 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 prisma/schema.prisma          Database schema; migrations live beside it
 prisma7.config.ts             Prisma CLI configuration
 scripts/create-admin.ts       Creates admin accounts and resets passwords; the way back in if no admin is left
-prisma/seed.ts                Sample requests, trucks and truck loads (pnpm db:seed)
+prisma/seed.ts                The fleet's trucks and a few test loads (pnpm db:seed)
 scripts/seed-dev.ts           Older local-only seed that also creates a test admin (pnpm exec tsx scripts/seed-dev.ts)
 src/proxy.ts                  Sends signed-out visitors away from /desk
 src/app/(site)/               The public site (one page)
@@ -133,6 +133,15 @@ saffron), slightly brightened in dark. Emails and the social preview image stay 
 The logo lives at `public/brand/logo.webp` (made from `assets/Bharat Reefer Tricolor Truck
 Logo.png`); the favicons in `src/app/icon.png` and `apple-icon.png` are cut from it.
 
+The home page opens on the photo of a Bharat Reefer truck with the full logo on its side
+(`public/brand/bharat-reefer-truck.jpg`), full screen. Scrolling lights up the three
+temperature bands one by one, then the truck sizes and the buttons; scrolling on, the page
+slides up over the photo as frosted glass and the photo stays softly behind it
+(`src/components/console/intro.tsx`). `intro-motion.tsx` turns the scroll position into a few
+CSS variables and the styles in `globals.css` ("opening scene") do the rest, so it works the
+same in every browser. The site header is dark glass while over the photo. For anyone who asks
+their device for less motion the scene shows whole, without pinning or animation.
+
 ## Editable content
 
 `/desk/site` lets an admin change what the public site shows. Changes go live the
@@ -144,7 +153,7 @@ moment they are saved; no deploy is needed.
 | Sections | The announcement bar (message, optional link, colour, with a live preview), the key facts under the headline, and each section below it: on or off, its order, and its label, heading and introduction. |
 | Page text | Headline, introduction, "How it works" steps, questions and answers. |
 | Temperature bands | Name, temperature shown, description and example cargo for each of the three bands. |
-| Fleet and photos | Truck sizes with optional model names, weight limits, the part-load threshold, and photos. |
+| Fleet and photos | Weight limits, the part-load threshold, and photos. The truck sizes are not set here: they are the payloads of the trucks on the Fleet page, so adding a truck with a new payload adds that size to the site. |
 | Routes (beta) | The lanes the business runs often, with transit time and frequency. Each becomes a card on the site that fills the route into the quote form. The section starts switched off. |
 
 The headline, the steps and the answers have an **automatic** mode that generates the text
@@ -172,8 +181,8 @@ How it works underneath:
 3. The request is stored in `quote_requests` with a short reference such as `BR-7K3Q9F`,
    which the customer sees on the confirmation screen.
 4. After the customer has their confirmation, dispatch is emailed the request with a link
-   to it in the admin panel, and the customer is emailed a confirmation if they left an
-   address.
+   to it in the admin panel, and the customer is emailed a confirmation. The email address
+   is required on the form, so every new request has one (older requests may not).
 
 A hidden honeypot field catches basic bots: they see a normal confirmation and nothing is
 stored. Raw IP addresses are never stored, only a keyed hash.
@@ -356,8 +365,8 @@ How sign-in is secured:
 Email goes through [Resend](https://resend.com). The site sends:
 
 - **A new-request alert to dispatch** for every quote request. Replying to it writes to the
-  customer, if they left an email.
-- **A confirmation to the customer** with their reference and load, if they left an email.
+  customer.
+- **A confirmation to the customer** with their reference and load.
   For a request a team member enters, the confirmation goes out only if they tick the box.
 - **Password reset links** to team members who use "Forgot your password?".
 

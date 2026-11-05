@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import { ActionForm } from "@/components/admin/action-form";
-import { ListEditor } from "@/components/admin/list-editor";
 import { PhotoControls } from "@/components/admin/photo-controls";
 import { card, input, label } from "@/components/admin/ui";
 import { saveFleetAction, updateFleetPhotoCaptionAction, uploadFleetPhotoAction } from "@/features/content/actions";
 import { MAX_FLEET_PHOTOS, getSiteContentForAdmin } from "@/features/content/data";
-import { MAX_TRUCK_SIZES } from "@/features/content/schema";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = {
@@ -20,35 +18,17 @@ const sectionTitle = "font-sans text-base font-semibold text-ink-950";
 
 async function FleetForms() {
   const { content } = await getSiteContentForAdmin();
-  const { trucks, fleet, photos } = content;
+  const { fleet, photos } = content;
 
   return (
     <div className="space-y-6">
-      <ActionForm action={saveFleetAction} submitLabel="Save fleet">
+      <ActionForm action={saveFleetAction} submitLabel="Save load limits">
         <div className="space-y-6">
           <section className={`${card} p-6`}>
-            <h2 className={sectionTitle}>Truck sizes</h2>
-            <p className="mt-1 text-sm text-ink-500">
-              Payload per truck. The quote form picks the smallest size that carries the load, so list every size you run.
-            </p>
-            <div className="mt-4">
-              <ListEditor
-                prefix="trucks"
-                max={MAX_TRUCK_SIZES}
-                initial={trucks.map((truck) => ({ capacityKg: String(truck.capacityKg), name: truck.name ?? "" }))}
-                addLabel="Add a truck size"
-                emptyLabel="No truck sizes. Add at least one."
-                rowLabel="truck size"
-                fields={[
-                  { name: "capacityKg", label: "Payload (kg)", kind: "number", min: 100, max: 60_000, width: "sm:max-w-44" },
-                  { name: "name", label: "Model or body (optional)", maxLength: 40, placeholder: "e.g. Tata 407" },
-                ]}
-              />
-            </div>
-          </section>
-
-          <section className={`${card} p-6`}>
             <h2 className={sectionTitle}>Load limits</h2>
+            <p className="mt-1 text-sm text-ink-500">
+              Truck sizes are the payloads of your trucks on the Fleet page. The quote form picks the smallest one that carries the load.
+            </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="fleet-min" className={label}>

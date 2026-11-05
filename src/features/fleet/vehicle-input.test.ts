@@ -45,7 +45,7 @@ describe("parseVehicleForm", () => {
     expect(parseVehicleForm(form({ plateNumber: "truck", capacityKg: "900" }))).toMatchObject({ ok: false });
     expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "" }))).toMatchObject({
       ok: false,
-      error: "Choose the truck's payload.",
+      error: "Enter the truck's payload in kilograms, between 100 and 60,000.",
     });
     expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", driverPhone: "12345" }))).toMatchObject({ ok: false });
     expect(parseVehicleForm(form({ plateNumber: "DL01LA4521", capacityKg: "900", lengthFt: "200" }))).toMatchObject({ ok: false });

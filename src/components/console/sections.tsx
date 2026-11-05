@@ -1,4 +1,20 @@
-import { CalendarClock, Clock, Mail, MapPin, MessageCircle, Phone, Thermometer, Timer, Truck } from "lucide-react";
+import {
+  CalendarClock,
+  Clock,
+  Handshake,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Network,
+  Phone,
+  Route,
+  ShieldCheck,
+  Telescope,
+  Thermometer,
+  Timer,
+  Truck,
+} from "lucide-react";
+import { ABOUT } from "@/config/about";
 import { BAND_STYLES } from "@/components/band-styles";
 import { largestTruckKg, smallestTruckKg, type FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
@@ -299,6 +315,91 @@ export function Contact({ section, business }: { section: PageSection; business:
         ))}
       </dl>
 
+    </section>
+  );
+}
+
+const MISSION_ICONS = [Route, ShieldCheck, Network, Handshake];
+
+/** Who the business is: its story, vision, mission, the businesses it serves and why it does this. */
+export function About({ section }: { section: PageSection }) {
+  const { story, vision, mission, served, why, belief } = ABOUT;
+  const subheading = "text-lg font-semibold text-ink-950";
+
+  return (
+    <section id="about" aria-labelledby="about-title" className="scroll-mt-24 lg:scroll-mt-28">
+      <SectionHeading section={section} />
+
+      <div className="max-w-prose space-y-3 text-[15px] leading-7 text-ink-600">
+        {story.map((paragraph, index) => (
+          <p key={paragraph} className={cn(index === 1 && "font-semibold text-ink-950")}>
+            {paragraph}
+          </p>
+        ))}
+      </div>
+
+      <div className={cn(card, "mt-6 flex gap-4 p-5")}>
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-ice-50 text-ice-600">
+          <Telescope aria-hidden="true" className="size-5" />
+        </span>
+        <div>
+          <h3 className={subheading}>{vision.title}</h3>
+          <p className="mt-1.5 text-[15px] leading-7 font-medium text-ink-950">{vision.lead}</p>
+          <p className="mt-2 text-sm leading-6 text-ink-600">{vision.body}</p>
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h3 className={subheading}>{mission.title}</h3>
+        <p className="mt-1.5 text-[15px] leading-7 text-ink-600">{mission.lead}</p>
+        <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+          {mission.points.map((point, index) => {
+            const Icon = MISSION_ICONS[index % MISSION_ICONS.length];
+            return (
+              <li key={point.title} className={cn(card, "p-5")}>
+                <Icon aria-hidden="true" className="size-5 text-ice-600" />
+                <p className="mt-3 text-base font-semibold text-ink-950">{point.title}</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-600">{point.body}</p>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="mt-8">
+        <h3 className={subheading}>{served.title}</h3>
+        <p className="mt-1.5 text-[15px] leading-7 text-ink-600">{served.lead}</p>
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {served.list.map((item) => (
+            <li key={item} className="rounded-lg border border-frost-200 bg-surface px-3 py-1.5 text-sm text-ink-900">
+              {item}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-sm leading-6 text-ink-600">{served.closing}</p>
+      </div>
+
+      <div className="mt-8">
+        <h3 className={subheading}>{why.title}</h3>
+        <div className="mt-1.5 max-w-prose space-y-3 text-[15px] leading-7 text-ink-600">
+          {why.paragraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+      </div>
+
+      <figure className="mt-8 overflow-hidden rounded-2xl bg-navy-950 text-white">
+        <div aria-hidden="true" className="tricolour h-1" />
+        <div className="p-6 sm:p-8">
+          <p className="caption text-ice-200/80">{belief.title}</p>
+          <blockquote className="mt-3 space-y-1 text-xl/snug font-semibold tracking-tight sm:text-2xl/snug">
+            {belief.lines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </blockquote>
+          <figcaption className="mt-5 text-sm font-medium text-ice-200">{belief.signature}</figcaption>
+        </div>
+      </figure>
     </section>
   );
 }

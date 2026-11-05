@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useOptimistic, useRef, useState, useTransition, type CSSProperties, type DragEvent, type ReactNode } from "react";
-import { ArrowRight, CircleAlert, CircleCheck, Plus, Truck, Wrench } from "lucide-react";
+import { ArrowRight, CircleAlert, CircleCheck, Plus, Send, Trash2, Truck, Wrench } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
 import { MATERIAL_IDS, type MaterialId } from "@/config/materials";
 import {
@@ -10,6 +10,7 @@ import {
   assignLoadAction,
   cancelLoadRequestAction,
   declineLoadRequestAction,
+  deleteVehicleAction,
   endTripAction,
   moveLoadAction,
   requestLoadAction,
@@ -39,6 +40,7 @@ import { card, primaryButton } from "../ui";
 import { LoadRequests } from "./load-requests";
 import { LoadRows } from "./load-rows";
 import { NumberPlate } from "./number-plate";
+import { TrackingSheetBody, TrackingSheetTitle } from "./tracking-sheet";
 import { TripButton, tripSince } from "./trip-button";
 import { truckDetails } from "./truck-details";
 import { TruckForm } from "./truck-form";
@@ -47,7 +49,12 @@ import { TruckPicker, placeNear, type PickerRequest } from "./truck-picker";
 import { TruckSheetBody, TruckSheetTitle } from "./truck-sheet";
 
 type Toast = { id: number; outcome: FleetOutcome };
-type SheetState = { kind: "truck"; id: string } | { kind: "add"; capacityKg?: number } | null;
+type SheetState =
+  | { kind: "truck"; id: string }
+  | { kind: "add"; capacityKg?: number }
+  /** The tracking link, opened from Start trip (`starting`) or on its own; from the truck's sheet goes back to it. */
+  | { kind: "tracking"; id: string; starting: boolean; fromTruck: boolean }
+  | null;
 type PickerState = {
   request: PickerRequest;
   target: { kind: "assign"; orderId: string } | { kind: "request"; orderId: string } | { kind: "move"; assignmentId: string };
@@ -58,10 +65,13 @@ const DRAG_TYPE = "application/x-bharat-order";
 export function FleetBoard({
   board,
   bandLabels,
+  businessName,
   initialOrderId,
 }: {
   board: Board;
   bandLabels: Record<MaterialId, string>;
+  /** Signs the WhatsApp message with the tracking link. */
+  businessName: string;
   /** A request to open the truck picker for straight away (from its detail page). */
   initialOrderId?: string;
 }) {
@@ -77,9 +87,11 @@ export function FleetBoard({
   // Admins run the fleet. Staff see it, and ask for trucks for their own requests.
   const canManage = view.canManage;
   const summary = summarise(view);
-  const groups = groupTrucks(view.trucks, view.sizes);
+  const groups = groupTrucks(view.trucks);
+  const capacities = groups.map((group) => group.capacityKg);
   const largest = Math.max(1, ...groups.map((group) => group.capacityKg));
   const sheetTruck = sheet?.kind === "truck" ? view.trucks.find((truck) => truck.id === sheet.id) : undefined;
+  const trackingTruck = sheet?.kind === "tracking" ? view.trucks.find((truck) => truck.id === sheet.id) : undefined;
 
   useEffect(() => {
     if (!toast) return;
@@ -119,6 +131,11 @@ export function FleetBoard({
   function openSheet(next: SheetState) {
     setToast(null);
     setSheet(next);
+  }
+
+  /** Back to the truck's sheet when the tracking link was opened from it. */
+  function closeTracking() {
+    setSheet(sheet?.kind === "tracking" && sheet.fromTruck ? { kind: "truck", id: sheet.id } : null);
   }
 
   /** Shows the change at once, then saves it. The page refreshes from the server afterwards. */
@@ -227,10 +244,13 @@ export function FleetBoard({
   const actions = {
     onMove: openMove,
     onRemove: remove,
-    onStartTrip: (truck: FleetTruck) => run({ kind: "start-trip", truckId: truck.id }, () => startTripAction(truck.id)),
+    // Starting a trip asks for the tracking link first.
+    onStartTrip: (truck: FleetTruck) => openSheet({ kind: "tracking", id: truck.id, starting: true, fromTruck: false }),
+    onTrack: (truck: FleetTruck) => openSheet({ kind: "tracking", id: truck.id, starting: false, fromTruck: false }),
     onEndTrip: (truck: FleetTruck) => run({ kind: "end-trip", truckId: truck.id }, () => endTripAction(truck.id)),
     onOpen: (truck: FleetTruck) => openSheet({ kind: "truck", id: truck.id }),
     onDrop: dropOn,
+    onDelete: (truck: FleetTruck) => run({ kind: "delete", truckId: truck.id }, () => deleteVehicleAction(truck.id)),
   };
 
   const loadedPercent = summary.capacityKg > 0 ? Math.round((summary.usedKg / summary.capacityKg) * 100) : 0;
@@ -393,7 +413,7 @@ export function FleetBoard({
       >
         {sheet?.kind === "add" ? (
           <TruckForm
-            sizes={view.sizes}
+            capacities={capacities}
             defaultCapacityKg={sheet.capacityKg}
             submitLabel="Add truck"
             onSubmit={addVehicleAction}
@@ -415,16 +435,39 @@ export function FleetBoard({
           <TruckSheetBody
             truck={sheetTruck}
             canManage={canManage}
-            sizes={view.sizes}
+            capacities={capacities}
             bandLabels={bandLabels}
             onMove={(load, anchor) => openMove(sheetTruck, load, anchor)}
             onRemove={remove}
             onStatus={(status) =>
               run({ kind: "status", truckId: sheetTruck.id, status }, () => setVehicleStatusAction(sheetTruck.id, status))
             }
-            onStartTrip={() => actions.onStartTrip(sheetTruck)}
+            onStartTrip={() => openSheet({ kind: "tracking", id: sheetTruck.id, starting: true, fromTruck: true })}
+            onTrack={() => openSheet({ kind: "tracking", id: sheetTruck.id, starting: false, fromTruck: true })}
             onEndTrip={() => actions.onEndTrip(sheetTruck)}
             onDone={() => setSheet(null)}
+            notify={notify}
+          />
+        ) : null}
+      </Sheet>
+
+      <Sheet
+        open={Boolean(trackingTruck)}
+        onClose={closeTracking}
+        title={trackingTruck && sheet?.kind === "tracking" ? <TrackingSheetTitle truck={trackingTruck} starting={sheet.starting} /> : null}
+      >
+        {trackingTruck && sheet?.kind === "tracking" ? (
+          <TrackingSheetBody
+            key={sheet.id}
+            truck={trackingTruck}
+            starting={sheet.starting}
+            businessName={businessName}
+            onStartTrip={() => {
+              // Called inside the sheet's transition, so the board shows the trip at once.
+              addChange({ kind: "start-trip", truckId: trackingTruck.id });
+              return startTripAction(trackingTruck.id);
+            }}
+            onDone={closeTracking}
             notify={notify}
           />
         ) : null}
@@ -457,9 +500,11 @@ type TruckActions = {
   onMove: (truck: FleetTruck, load: FleetLoad, anchor: HTMLElement) => void;
   onRemove: (load: FleetLoad) => void;
   onStartTrip: (truck: FleetTruck) => void;
+  onTrack: (truck: FleetTruck) => void;
   onEndTrip: (truck: FleetTruck) => void;
   onOpen: (truck: FleetTruck) => void;
   onDrop: (truck: FleetTruck, orderId: string) => void;
+  onDelete: (truck: FleetTruck) => void;
 };
 
 function Group({
@@ -491,13 +536,9 @@ function Group({
         <div className="min-w-0">
           <h2 className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-mono text-xl font-semibold text-ink-950">{formatCapacity(group.capacityKg)}</span>
-            {group.name ? <span className="truncate text-sm text-ink-500">{group.name}</span> : null}
-            {!group.listed ? <span className="rounded bg-frost-100 px-1.5 py-0.5 text-xs text-ink-500">Not a listed size</span> : null}
           </h2>
           <p className="mt-0.5 text-xs text-ink-500">
-            {group.trucks.length === 0
-              ? "No trucks"
-              : `${group.trucks.length} ${group.trucks.length === 1 ? "truck" : "trucks"} · ${percent}% loaded`}
+            {group.trucks.length} {group.trucks.length === 1 ? "truck" : "trucks"} · {percent}% loaded
           </p>
         </div>
         {onAdd ? (
@@ -513,36 +554,19 @@ function Group({
         ) : null}
       </div>
 
-      {group.trucks.length === 0 ? (
-        onAdd ? (
-          <button
-            type="button"
-            onClick={onAdd}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-frost-300 px-4 py-6 text-sm text-ink-500 transition-colors hover:border-ice-400 hover:text-ice-700"
-          >
-            <Plus aria-hidden="true" className="size-4" />
-            Add a {formatCapacity(group.capacityKg)} truck by its number plate
-          </button>
-        ) : (
-          <p className="mt-3 rounded-xl border border-dashed border-frost-300 px-4 py-6 text-center text-sm text-ink-500">
-            No {formatCapacity(group.capacityKg)} trucks yet.
-          </p>
-        )
-      ) : (
-        <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-          {group.trucks.map((truck) => (
-            <TruckCard
-              key={truck.id}
-              truck={truck}
-              scale={truck.capacityKg / largest}
-              bandLabels={bandLabels}
-              dragging={dragging}
-              canManage={canManage}
-              actions={actions}
-            />
-          ))}
-        </ul>
-      )}
+      <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        {group.trucks.map((truck) => (
+          <TruckCard
+            key={truck.id}
+            truck={truck}
+            scale={truck.capacityKg / largest}
+            bandLabels={bandLabels}
+            dragging={dragging}
+            canManage={canManage}
+            actions={actions}
+          />
+        ))}
+      </ul>
     </section>
   );
 }
@@ -563,6 +587,7 @@ function TruckCard({
   actions: TruckActions;
 }) {
   const [over, setOver] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const overweight = overKg(truck);
   const free = Math.max(0, truck.capacityKg - truck.usedKg);
   // Only admins drop requests onto trucks.
@@ -667,23 +692,70 @@ function TruckCard({
         </p>
       )}
 
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
-        <span className="text-xs text-ink-500">
-          {truck.status === "ON_TRIP" && truck.tripStartedAt ? tripSince(truck.tripStartedAt) : null}
-        </span>
-        <div className="flex items-center gap-1.5">
-          {canManage ? (
-            <TripButton truck={truck} onStart={() => actions.onStartTrip(truck)} onEnd={() => actions.onEndTrip(truck)} />
-          ) : null}
-          <button
-            type="button"
-            onClick={() => actions.onOpen(truck)}
-            className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-ink-700 hover:bg-frost-100"
-          >
-            Details
-          </button>
+      {canManage && truck.loads.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => actions.onTrack(truck)}
+          className="mt-1 inline-flex h-8 items-center gap-1.5 self-start rounded-lg px-2 text-xs font-semibold text-ice-700 transition-colors hover:bg-ice-50"
+        >
+          <Send aria-hidden="true" className="size-3.5" />
+          Send tracking link
+        </button>
+      ) : null}
+
+      {confirmDelete ? (
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
+          <span className="text-xs font-medium text-ink-950">Remove from the fleet?</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDelete(false);
+                actions.onDelete(truck);
+              }}
+              className="inline-flex h-9 items-center rounded-lg bg-danger px-3 text-xs font-semibold text-white"
+            >
+              Yes, remove
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-ink-700 hover:bg-frost-100"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
+          <span className="text-xs text-ink-500">
+            {truck.status === "ON_TRIP" && truck.tripStartedAt ? tripSince(truck.tripStartedAt) : null}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {canManage ? (
+              <TripButton truck={truck} onStart={() => actions.onStartTrip(truck)} onEnd={() => actions.onEndTrip(truck)} />
+            ) : null}
+            <button
+              type="button"
+              onClick={() => actions.onOpen(truck)}
+              className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-semibold text-ink-700 hover:bg-frost-100"
+            >
+              Details
+            </button>
+            {canManage && truck.status !== "ON_TRIP" ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                aria-label={`Remove ${formatPlate(truck.plateNumber)}`}
+                title="Remove truck"
+                className="inline-flex size-9 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-danger-soft hover:text-danger"
+              >
+                <Trash2 aria-hidden="true" className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
     </li>
   );
 }

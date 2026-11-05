@@ -14,7 +14,9 @@ export type BoardChange =
   | { kind: "move"; assignmentId: string; truckId: string }
   | { kind: "status"; truckId: string; status: FleetTruck["status"] }
   | { kind: "start-trip"; truckId: string }
-  | { kind: "end-trip"; truckId: string };
+  | { kind: "end-trip"; truckId: string }
+  /** A truck removed from the fleet. Refused (no change) while it is on a trip or has loads. */
+  | { kind: "delete"; truckId: string };
 
 export function remainingKg(order: WaitingOrder): number {
   return order.quantityKg - order.assignedKg;
@@ -89,6 +91,8 @@ export function applyChange(board: FleetBoard, change: BoardChange): FleetBoard 
         destinationCity: order.destinationCity,
         pickupDate: order.pickupDate,
         contactName: order.contactName,
+        phone: order.phone,
+        email: order.email,
       };
       return {
         ...board,
@@ -119,6 +123,8 @@ export function applyChange(board: FleetBoard, change: BoardChange): FleetBoard 
               destinationCity: load.destinationCity,
               pickupDate: load.pickupDate,
               contactName: load.contactName,
+              phone: load.phone,
+              email: load.email,
             }),
       };
     }
@@ -194,6 +200,21 @@ export function applyChange(board: FleetBoard, change: BoardChange): FleetBoard 
           truck.id === change.truckId ? { ...truck, status: "AVAILABLE", tripStartedAt: null, loads: [], usedKg: 0 } : truck,
         ),
       };
+    case "delete": {
+      // The server refuses these; keep the truck so it does not vanish and come back.
+      const truck = board.trucks.find((item) => item.id === change.truckId);
+      if (!truck || truck.status === "ON_TRIP" || truck.loads.length > 0) return board;
+      // Asks for the truck go with it, freeing the weight they held.
+      const asks = board.loadRequests.filter((item) => item.truckId === truck.id);
+      return {
+        ...board,
+        trucks: board.trucks.filter((item) => item !== truck),
+        loadRequests: board.loadRequests.filter((item) => item.truckId !== truck.id),
+        waiting: asks
+          .filter((ask) => ask.status === "PENDING")
+          .reduce((waiting, ask) => adjustRequested(waiting, ask.quoteId, -ask.loadKg), board.waiting),
+      };
+    }
   }
 }
 
@@ -231,20 +252,14 @@ export function summarise(board: FleetBoard): FleetSummary {
 
 export type CapacityGroup = {
   capacityKg: number;
-  name: string | null;
-  /** False for trucks whose payload is no longer one of the listed sizes. */
-  listed: boolean;
   trucks: FleetTruck[];
 };
 
-/** One group per listed truck size, plus any payloads only a truck still has, ascending. */
-export function groupTrucks(trucks: FleetTruck[], sizes: FleetBoard["sizes"]): CapacityGroup[] {
+/** One group per payload the fleet's trucks have, ascending. A new payload makes a new group. */
+export function groupTrucks(trucks: FleetTruck[]): CapacityGroup[] {
   const groups = new Map<number, CapacityGroup>();
-  for (const size of sizes) {
-    groups.set(size.capacityKg, { capacityKg: size.capacityKg, name: size.name, listed: true, trucks: [] });
-  }
   for (const truck of trucks) {
-    const group = groups.get(truck.capacityKg) ?? { capacityKg: truck.capacityKg, name: null, listed: false, trucks: [] };
+    const group = groups.get(truck.capacityKg) ?? { capacityKg: truck.capacityKg, trucks: [] };
     group.trucks.push(truck);
     groups.set(truck.capacityKg, group);
   }

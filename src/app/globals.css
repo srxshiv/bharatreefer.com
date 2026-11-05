@@ -263,3 +263,153 @@
 html:has(dialog[open]:modal) {
   overflow: hidden;
 }
+
+/*
+ * The opening scene of the home page (src/components/console/intro.tsx): the truck photo full
+ * screen, then, as you scroll, the bands light up one by one and the buttons follow. IntroMotion
+ * sets --copy and --cta (0 to 1) from the scroll position. Without motion the scene shows whole:
+ * the rules outside the media query below.
+ */
+.intro {
+  --copy: 1;
+  --cta: 1;
+}
+
+.intro-shade {
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.4) 0%, transparent 20%, transparent 42%, rgb(0 0 0 / 0.82) 100%);
+}
+
+/* The sharp photo gives way to its blurred copy as the page slides up over it. */
+.intro-sharp {
+  opacity: calc(1 - var(--veil, 0));
+}
+
+/* Hidden behind the page: no need to keep it moving. */
+[data-covered] .intro-photo {
+  animation-play-state: paused;
+}
+
+.intro-bands {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 0.24em;
+  row-gap: 0.1em;
+  font-size: clamp(2.6rem, 6vw, 5.5rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  text-shadow: 0 2px 30px rgb(0 0 0 / 0.35);
+}
+
+.intro-cue {
+  display: none;
+}
+
+.intro-cue-track {
+  position: relative;
+  width: 1px;
+  height: 2.75rem;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.25);
+}
+
+.intro-cue-dot {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, #fff, transparent);
+}
+
+/* The photo settles in when the page opens, then keeps a slow breath. */
+@keyframes intro-in {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes intro-drift {
+  from {
+    transform: none;
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes intro-cue {
+  from {
+    transform: translateY(-110%);
+  }
+  to {
+    transform: translateY(110%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The scene stays on screen while the page scrolls this far past it. */
+  .intro {
+    --copy: 0;
+    --cta: 0;
+    height: 210svh;
+  }
+
+  .intro-stage {
+    position: sticky;
+    top: 0;
+  }
+
+  .intro-photo {
+    animation:
+      intro-in 1.8s cubic-bezier(0.16, 1, 0.3, 1) both,
+      intro-drift 24s ease-in-out 1.8s infinite alternate;
+  }
+
+  .intro-shade {
+    opacity: calc(0.35 + 0.65 * var(--copy));
+  }
+
+  .intro-statement {
+    opacity: clamp(0, calc(var(--copy) * 5), 1);
+    transform: translateY(calc((1 - var(--copy)) * 2.5rem));
+  }
+
+  /* The bands light up one after another. */
+  .intro-band {
+    opacity: clamp(0.2, calc(var(--copy) * 3.4 - var(--i)), 1);
+  }
+
+  .intro-line {
+    opacity: clamp(0, calc(var(--copy) * 3 - 1.8), 1);
+  }
+
+  .intro-cta {
+    opacity: var(--cta);
+    transform: translateY(calc((1 - var(--cta)) * 1rem));
+    pointer-events: none;
+  }
+
+  .intro[data-cta] .intro-cta {
+    pointer-events: auto;
+  }
+
+  .intro-cue {
+    display: flex;
+    opacity: clamp(0, calc(1 - var(--copy) * 6), 1);
+  }
+
+  .intro-cue-dot {
+    animation: intro-cue 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+}
+
+/* Over the opening scene the site header is dark glass, not the navy of the dark theme. */
+[data-site-header][data-theme="dark"] {
+  border-top-color: rgb(255 255 255 / 0.12);
+  border-bottom-color: rgb(255 255 255 / 0.08);
+  background-color: rgb(0 0 0 / 0.55);
+}

@@ -1,6 +1,8 @@
 "use server";
 
+import { updateTag } from "next/cache";
 import { refreshAdminData } from "@/features/auth/refresh-admin";
+import { SITE_CONTENT_TAG } from "@/features/content/data";
 import {
   addVehicle,
   approveLoadRequest,
@@ -11,12 +13,14 @@ import {
   endTrip,
   moveLoad,
   requestLoad,
+  sendTrackingLink,
   setVehicleStatus,
   startTrip,
   unassignLoad,
   updateVehicle,
   type FleetOutcome,
 } from "./data";
+import { parseTrackingUrl } from "./tracking";
 import { parseVehicleForm } from "./vehicle-input";
 
 // Server actions are public endpoints: every argument is checked here before use, and the
@@ -34,17 +38,23 @@ function done(outcome: FleetOutcome): FleetOutcome {
   return outcome;
 }
 
+/** Also for the public site: the truck sizes it plans quotes with are the trucks' payloads. */
+function trucksChanged(outcome: FleetOutcome): FleetOutcome {
+  if (outcome.ok) updateTag(SITE_CONTENT_TAG);
+  return done(outcome);
+}
+
 export async function addVehicleAction(formData: FormData): Promise<FleetOutcome> {
   const parsed = parseVehicleForm(formData);
   if (!parsed.ok) return parsed;
-  return done(await addVehicle(parsed.value));
+  return trucksChanged(await addVehicle(parsed.value));
 }
 
 export async function updateVehicleAction(id: string, formData: FormData): Promise<FleetOutcome> {
   if (!isId(id)) return BAD_REQUEST;
   const parsed = parseVehicleForm(formData);
   if (!parsed.ok) return parsed;
-  return done(await updateVehicle(id, parsed.value));
+  return trucksChanged(await updateVehicle(id, parsed.value));
 }
 
 export async function setVehicleStatusAction(id: string, status: string): Promise<FleetOutcome> {
@@ -54,7 +64,7 @@ export async function setVehicleStatusAction(id: string, status: string): Promis
 
 export async function deleteVehicleAction(id: string): Promise<FleetOutcome> {
   if (!isId(id)) return BAD_REQUEST;
-  return done(await deleteVehicle(id));
+  return trucksChanged(await deleteVehicle(id));
 }
 
 function isLoadKg(kg: unknown): kg is number {
@@ -108,4 +118,16 @@ export async function startTripAction(vehicleId: string): Promise<FleetOutcome> 
 export async function endTripAction(vehicleId: string): Promise<FleetOutcome> {
   if (!isId(vehicleId)) return BAD_REQUEST;
   return done(await endTrip(vehicleId));
+}
+
+/** More customers than any truck carries. */
+const MAX_RECIPIENTS = 50;
+
+export async function sendTrackingLinkAction(vehicleId: string, url: string, quoteIds: string[]): Promise<FleetOutcome> {
+  if (!isId(vehicleId) || !Array.isArray(quoteIds) || quoteIds.length === 0 || quoteIds.length > MAX_RECIPIENTS || !quoteIds.every(isId)) {
+    return BAD_REQUEST;
+  }
+  const link = typeof url === "string" ? parseTrackingUrl(url) : null;
+  if (!link) return { ok: false, error: "Paste the tracking link, starting with https://" };
+  return done(await sendTrackingLink(vehicleId, link, quoteIds));
 }

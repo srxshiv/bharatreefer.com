@@ -1,5 +1,4 @@
 import type { MaterialId } from "@/config/materials";
-import type { TruckSizeInfo } from "@/features/content/types";
 
 // Plain data shared by the server (./data) and the fleet board in the browser.
 
@@ -24,6 +23,9 @@ export type FleetLoad = {
   /** ISO date, or null when the customer gave none. */
   pickupDate: string | null;
   contactName: string;
+  /** The customer's mobile, E.164, for sending them the tracking link. Empty when not visible. */
+  phone: string;
+  email: string | null;
 };
 
 export type FleetTruck = {
@@ -57,6 +59,9 @@ export type WaitingOrder = {
   destinationCity: string;
   pickupDate: string | null;
   contactName: string;
+  /** E.164 */
+  phone: string;
+  email: string | null;
 };
 
 export type LoadRequestStatus = "PENDING" | "APPROVED" | "DECLINED" | "CANCELLED";
@@ -89,8 +94,6 @@ export type FleetBoard = {
    * their asks decided in the last week, so a declined one does not just disappear.
    */
   loadRequests: FleetLoadRequest[];
-  /** Truck sizes listed in the website settings, ascending. */
-  sizes: TruckSizeInfo[];
   confirmedCount: number;
   /** India date when the board was read, "YYYY-MM-DD", for flagging close pickups. */
   today: string;

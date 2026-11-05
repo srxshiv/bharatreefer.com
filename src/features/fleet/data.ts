@@ -7,7 +7,9 @@ import { getSiteContent } from "@/features/content/data";
 import { visibleTo } from "@/features/quotes/visibility";
 import { dateInIndia, toIsoDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { sendEmail } from "@/lib/email";
 import { formatKg } from "@/lib/format";
+import { trackingLinkEmail } from "./emails";
 import { formatPlate } from "./plate";
 import type {
   FleetBoard,
@@ -64,6 +66,8 @@ const orderSelect = {
   destinationCity: true,
   pickupDate: true,
   contactName: true,
+  phone: true,
+  email: true,
 } satisfies Prisma.QuoteRequestSelect;
 
 const ON_BOARD = { deliveredAt: null, quoteRequest: { status: "CONFIRMED" } } satisfies Prisma.TruckAssignmentWhereInput;
@@ -118,7 +122,7 @@ export async function getFleetBoard(): Promise<FleetBoard> {
   // One round trip: everything runs together, joined up here rather than in the database.
   // Every confirmed request is read, because staff still need the weight and temperature of
   // the loads that are not theirs; `mine` says which ones they may see in full.
-  const [vehicles, onBoard, placed, orders, mine, requests, content] = await Promise.all([
+  const [vehicles, onBoard, placed, orders, mine, requests] = await Promise.all([
     db().vehicle.findMany({ orderBy: [{ capacityKg: "asc" }, { plateNumber: "asc" }], select: vehicleSelect }),
     db().truckAssignment.findMany({
       where: ON_BOARD,
@@ -139,7 +143,6 @@ export async function getFleetBoard(): Promise<FleetBoard> {
       ? null
       : db().quoteRequest.findMany({ where: { status: "CONFIRMED", ...visibleTo(user) }, select: { id: true } }),
     db().loadRequest.findMany({ where: loadRequestsFor(user), orderBy: { createdAt: "asc" }, select: loadRequestSelect }),
-    getSiteContent(),
   ]);
 
   const visibleIds = mine ? new Set(mine.map((order) => order.id)) : null;
@@ -172,6 +175,8 @@ export async function getFleetBoard(): Promise<FleetBoard> {
             destinationCity: order.destinationCity,
             pickupDate: order.pickupDate ? toIsoDate(order.pickupDate) : null,
             contactName: order.contactName,
+            phone: order.phone,
+            email: order.email,
           }
         : {
             // Someone else's customer: how much it weighs and how cold it travels, nothing more.
@@ -186,6 +191,8 @@ export async function getFleetBoard(): Promise<FleetBoard> {
             destinationCity: "",
             pickupDate: null,
             contactName: "",
+            phone: "",
+            email: null,
           },
     );
     loadsByTruck.set(assignment.vehicleId, loads);
@@ -214,6 +221,8 @@ export async function getFleetBoard(): Promise<FleetBoard> {
       destinationCity: order.destinationCity,
       pickupDate: order.pickupDate ? toIsoDate(order.pickupDate) : null,
       contactName: order.contactName,
+      phone: order.phone,
+      email: order.email,
     }))
     .filter((order) => order.assignedKg < order.quantityKg);
 
@@ -222,7 +231,6 @@ export async function getFleetBoard(): Promise<FleetBoard> {
     trucks,
     waiting,
     loadRequests,
-    sizes: content.trucks,
     confirmedCount: visibleOrders.length,
     today: dateInIndia(),
   };
@@ -645,6 +653,72 @@ export async function startTrip(vehicleId: string): Promise<FleetOutcome> {
     });
     return { ok: true, message: `${plate} is on its trip with ${loads.length === 1 ? "1 load" : `${loads.length} loads`}.` };
   });
+}
+
+/**
+ * Emails a truck's tracking link to the chosen customers (`quoteIds`) among those with loads on
+ * board, and notes each email on the request's timeline. Customers without an email address get
+ * the link on WhatsApp, from the board. Can be sent again, for example with a new link.
+ */
+export async function sendTrackingLink(vehicleId: string, url: string, quoteIds: string[]): Promise<FleetOutcome> {
+  const admin = await requireAdmin();
+  const [vehicle, onBoard, { business }] = await Promise.all([
+    db().vehicle.findUnique({ where: { id: vehicleId }, select: { plateNumber: true } }),
+    db().truckAssignment.findMany({
+      where: { vehicleId, quoteRequestId: { in: quoteIds }, ...ON_BOARD },
+      select: {
+        loadKg: true,
+        quoteRequest: {
+          select: { id: true, reference: true, contactName: true, email: true, originCity: true, destinationCity: true },
+        },
+      },
+    }),
+    getSiteContent(),
+  ]);
+  if (!vehicle) return { ok: false, error: GONE_TRUCK };
+  const plate = formatPlate(vehicle.plateNumber);
+  if (onBoard.length === 0) return { ok: false, error: `Those loads are no longer on ${plate}.` };
+  const recipients = onBoard.flatMap(({ loadKg, quoteRequest: { email, ...quote } }) => (email ? [{ ...quote, email, loadKg }] : []));
+  if (recipients.length === 0) return { ok: false, error: "None of them left an email address. Send the link on WhatsApp instead." };
+
+  const replyTo = business.alertEmail ?? business.email;
+  const sent = await Promise.all(
+    recipients.map(async (load) => ({
+      load,
+      outcome: await sendEmail({ to: load.email, replyTo, ...trackingLinkEmail(load, plate, url, business) }),
+    })),
+  );
+  if (sent.every(({ outcome }) => outcome.status === "skipped")) {
+    return { ok: false, error: "Email is not set up on this site, so nothing was sent. Send the link on WhatsApp instead." };
+  }
+
+  const failed: string[] = [];
+  const activities: Prisma.QuoteActivityCreateManyInput[] = [];
+  for (const { load, outcome } of sent) {
+    if (outcome.status === "skipped") continue;
+    if (outcome.status === "failed") {
+      console.error(`[email] Tracking link to ${load.email} failed: ${outcome.reason}`);
+      failed.push(load.email);
+    }
+    activities.push({
+      quoteRequestId: load.id,
+      authorId: admin.id,
+      type: "NOTIFICATION",
+      body:
+        outcome.status === "sent"
+          ? `Tracking link for ${plate} emailed to ${load.email}: ${url}`
+          : `Tracking link for ${plate} could not be emailed to ${load.email}`,
+    });
+  }
+  await db().quoteActivity.createMany({ data: activities });
+
+  const emailed = activities.length - failed.length;
+  if (emailed === 0) return { ok: false, error: "Could not email the link. Try again, or send it on WhatsApp." };
+  const count = emailed === 1 ? "1 customer" : `${emailed} customers`;
+  return {
+    ok: true,
+    message: `Tracking link emailed to ${count}.${failed.length > 0 ? ` It could not be emailed to ${failed.join(", ")}.` : ""}`,
+  };
 }
 
 /**

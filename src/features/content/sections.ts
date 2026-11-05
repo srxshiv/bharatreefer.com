@@ -2,7 +2,7 @@
  * The sections of the public page below the headline, which the business can switch off,
  * reorder and retitle. The headline and the quote card are always shown.
  */
-export const SECTION_IDS = ["bands", "fleet", "routes", "steps", "contact", "faqs"] as const;
+export const SECTION_IDS = ["bands", "fleet", "routes", "steps", "about", "contact", "faqs"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 type SectionDefault = {
@@ -50,6 +50,14 @@ export const SECTION_DEFAULTS: Record<SectionId, SectionDefault> = {
     eyebrow: "How it works",
     title: "From request to a truck at your dock",
     intro: "",
+    visible: true,
+  },
+  about: {
+    name: "About us",
+    about: "Who Bharat Reefer is: the vision, the mission, who you serve and why.",
+    eyebrow: "About Bharat Reefer",
+    title: "Linking Bharat.",
+    intro: "At Bharat Reefer, we believe that a business's growth should never be limited by its location and volume.",
     visible: true,
   },
   contact: {
