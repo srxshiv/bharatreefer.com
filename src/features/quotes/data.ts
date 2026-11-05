@@ -58,6 +58,7 @@ export async function createQuoteRequest(
           pickupDate: input.pickupDate ? new Date(`${input.pickupDate}T00:00:00Z`) : null,
           notes: input.notes ?? null,
           contactName: input.contactName,
+          companyName: input.companyName ?? null,
           phone: input.phone,
           email: input.email ?? null,
           ipHash: meta.ipHash,

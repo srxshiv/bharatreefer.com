@@ -17,7 +17,7 @@ import { STAGE_ACCENT } from "./stage-styles";
 
 type Columns = Record<BoardStage, InboxRow[]>;
 type BoardState = { columns: Columns; counts: StatusCounts; values: StatusValues };
-type Move = { id: string; to: QuoteStatusId; quotedAmount?: number };
+type Move = { id: string; to: QuoteStatusId; quotedAmount?: number; pickupDate?: string };
 type Toast = { id: number; ok: boolean; text: string };
 
 const DRAG_TYPE = "application/x-bharat-request";
@@ -27,8 +27,7 @@ const DRAG_TYPE = "application/x-bharat-request";
 const NEXT: Record<BoardStage, { to: QuoteStatusId; label: string }> = {
   NEW: { to: "CONTACTED", label: "Mark contacted" },
   CONTACTED: { to: "QUOTED", label: "Send quote" },
-  QUOTED: { to: "CONFIRMED", label: "Confirmed" },
-  CONFIRMED: { to: "COMPLETED", label: "Delivered" },
+  QUOTED: { to: "COMPLETED", label: "Delivered" },
 };
 
 function isBoardStage(status: QuoteStatusId, stages: readonly BoardStage[]): status is BoardStage {
@@ -44,6 +43,7 @@ function applyMove(stages: readonly BoardStage[]) {
       ...row,
       status: move.to,
       quotedAmount: move.quotedAmount === undefined ? row.quotedAmount : move.quotedAmount,
+      pickupDate: move.pickupDate === undefined ? row.pickupDate : new Date(`${move.pickupDate}T00:00:00Z`),
     };
     const columns = { ...state.columns, [from]: state.columns[from].filter((item) => item.id !== move.id) };
     if (isBoardStage(move.to, stages)) {
@@ -98,7 +98,7 @@ export function PipelineBoard({
 }) {
   const [state, addMove] = useOptimistic({ columns, counts, values }, applyMove(stages));
   const [, startTransition] = useTransition();
-  /** The card asking for a price before it moves, and where it is going. */
+  /** The card asking for the quote (price and pickup date) before it moves, and where it is going. */
   const [askPrice, setAskPrice] = useState<{ id: string; to: QuoteStatusId } | null>(null);
   const [dropTarget, setDropTarget] = useState<BoardStage | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -110,14 +110,14 @@ export function PipelineBoard({
     return () => clearTimeout(timer);
   }, [toast]);
 
-  function move(row: InboxRow, to: QuoteStatusId, quotedAmount?: number) {
+  function move(row: InboxRow, to: QuoteStatusId, quotedAmount?: number, pickupDate?: string) {
     setAskPrice(null);
     startTransition(async () => {
-      addMove({ id: row.id, to, quotedAmount });
+      addMove({ id: row.id, to, quotedAmount, pickupDate });
       let ok = false;
       let text: string;
       try {
-        const result = await moveQuoteStage(row.id, to, quotedAmount);
+        const result = await moveQuoteStage(row.id, to, quotedAmount, pickupDate);
         ok = Boolean(result.success);
         text = result.error ?? (to === row.status ? `${row.reference} saved.` : `${row.reference} moved to ${STATUS_LABELS[to]}.`);
       } catch {
@@ -128,9 +128,9 @@ export function PipelineBoard({
     });
   }
 
-  /** Moving to Quoted needs a price; ask for one in the card first if there is none. */
+  /** Quoted means booked: it needs the price and the pickup date, asked for in the card first. */
   function request(row: InboxRow, to: QuoteStatusId) {
-    if (to === "QUOTED" && row.quotedAmount === null) setAskPrice({ id: row.id, to });
+    if (to === "QUOTED" && (row.quotedAmount === null || row.pickupDate === null)) setAskPrice({ id: row.id, to });
     else move(row, to);
   }
 
@@ -144,7 +144,7 @@ export function PipelineBoard({
 
   return (
     <>
-      <div className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
+      <div className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
         {stages.map((stage) => {
           const rows = state.columns[stage];
           const hidden = state.counts[stage] - rows.length;
@@ -195,7 +195,7 @@ export function PipelineBoard({
                       now={now}
                       askingPrice={askPrice?.id === row.id}
                       onRequest={(to) => request(row, to)}
-                      onPrice={(amount) => move(row, askPrice?.id === row.id ? askPrice.to : row.status, amount)}
+                      onQuote={(amount, pickupDate) => move(row, askPrice?.id === row.id ? askPrice.to : row.status, amount, pickupDate)}
                       onCancelPrice={() => setAskPrice(null)}
                     />
                   ))
@@ -246,7 +246,7 @@ function Card({
   now,
   askingPrice,
   onRequest,
-  onPrice,
+  onQuote,
   onCancelPrice,
 }: {
   row: InboxRow;
@@ -256,15 +256,15 @@ function Card({
   now: number;
   askingPrice: boolean;
   onRequest: (to: QuoteStatusId) => void;
-  onPrice: (amount: number) => void;
+  onQuote: (amount: number, pickupDate: string) => void;
   onCancelPrice: () => void;
 }) {
   const menuId = useId();
   const menu = useRef<HTMLDivElement>(null);
   const pending = row.status !== stage;
   const next = NEXT[stage];
-  // A quoted request with no price saved yet asks for one in place.
-  const needsPrice = askingPrice || (stage === "QUOTED" && row.quotedAmount === null && !pending);
+  // A quoted request missing its price or pickup date (from before both were needed) asks in place.
+  const needsPrice = askingPrice || (stage === "QUOTED" && (row.quotedAmount === null || row.pickupDate === null) && !pending);
 
   return (
     <li
@@ -290,7 +290,10 @@ function Card({
           {age(row.createdAt, now)}
         </span>
       </div>
-      <p className="mt-1 truncate text-sm font-medium text-ink-950">{row.contactName}</p>
+      <p className="mt-1 truncate text-sm font-medium text-ink-950">
+        {row.contactName}
+        {row.companyName ? <span className="font-normal text-ink-500"> · {row.companyName}</span> : null}
+      </p>
       <p className="mt-0.5 truncate text-sm text-ink-700">
         {row.originCity}
         <ArrowRight aria-label="to" className="mx-1 inline size-3.5 text-ink-400" />
@@ -319,7 +322,7 @@ function Card({
         <p className="mt-2 font-mono text-base font-semibold text-ink-950">{formatInr(row.quotedAmount)}</p>
       ) : null}
 
-      {stage === "CONFIRMED" && !pending ? (
+      {stage === "QUOTED" && !pending ? (
         <Link
           href={`/desk/fleet?order=${row.id}`}
           className={cn(
@@ -333,10 +336,11 @@ function Card({
       ) : null}
 
       {needsPrice ? (
-        <PriceForm
-          initial={row.quotedAmount}
-          label={stage === "QUOTED" ? "Save price" : "Send quote"}
-          onSubmit={onPrice}
+        <QuoteForm
+          initialAmount={row.quotedAmount}
+          initialPickup={row.pickupDate ? toIsoDate(row.pickupDate) : ""}
+          label={stage === "QUOTED" ? "Save" : "Send quote"}
+          onSubmit={onQuote}
           onCancel={askingPrice ? onCancelPrice : undefined}
         />
       ) : (
@@ -397,67 +401,97 @@ function Card({
   );
 }
 
-function PriceForm({
-  initial,
+/** The quote in place on a card: the price and the pickup date, both needed for Quoted. */
+function QuoteForm({
+  initialAmount,
+  initialPickup,
   label,
   onSubmit,
   onCancel,
 }: {
-  initial: number | null;
+  initialAmount: number | null;
+  /** "YYYY-MM-DD", or "". */
+  initialPickup: string;
   label: string;
-  onSubmit: (amount: number) => void;
+  onSubmit: (amount: number, pickupDate: string) => void;
   onCancel?: () => void;
 }) {
   const id = useId();
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"price" | "pickup" | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const amount = parseRupees(String(new FormData(event.currentTarget).get("amount") ?? ""));
-    if (amount === null) {
-      setError(true);
-      return;
-    }
-    onSubmit(amount);
+    const data = new FormData(event.currentTarget);
+    const amount = parseRupees(String(data.get("amount") ?? ""));
+    const pickup = String(data.get("pickupDate") ?? "");
+    if (amount === null) return setError("price");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pickup)) return setError("pickup");
+    onSubmit(amount, pickup);
   }
 
+  const field = (invalid: boolean) =>
+    cn(
+      "h-9 w-full rounded-lg border bg-surface font-mono text-sm text-ink-950 focus:ring-2 focus:ring-ice-400/50 focus:outline-none",
+      invalid ? "border-danger" : "border-frost-300 focus:border-ink-900",
+    );
+
   return (
-    <form onSubmit={handleSubmit} className="relative z-10 mt-3 space-y-2">
-      <label htmlFor={id} className="block text-xs font-medium text-ink-700">
-        Price quoted to the customer
-      </label>
-      <div className="flex gap-1.5">
-        <div className="relative flex-1">
-          <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center font-mono text-sm text-ink-500">₹</span>
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && onCancel) onCancel();
+      }}
+      className="relative z-10 mt-3 space-y-2"
+    >
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="min-w-0">
+          <label htmlFor={`${id}-amount`} className="block text-xs font-medium text-ink-700">
+            Price quoted
+          </label>
+          <div className="relative mt-1">
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center font-mono text-sm text-ink-500">₹</span>
+            <input
+              id={`${id}-amount`}
+              name="amount"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              defaultValue={initialAmount ?? ""}
+              placeholder="48,500"
+              aria-invalid={error === "price" || undefined}
+              onChange={() => setError(null)}
+              className={cn(field(error === "price"), "pr-2 pl-6")}
+            />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <label htmlFor={`${id}-pickup`} className="block text-xs font-medium text-ink-700">
+            Pickup
+          </label>
           <input
-            id={id}
-            name="amount"
-            inputMode="numeric"
-            autoComplete="off"
-            autoFocus
-            defaultValue={initial ?? ""}
-            placeholder="48,500"
-            aria-invalid={error || undefined}
-            onChange={() => setError(false)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && onCancel) onCancel();
-            }}
-            className={cn(
-              "h-9 w-full rounded-lg border bg-surface pr-2 pl-6 font-mono text-sm text-ink-950 focus:ring-2 focus:ring-ice-400/50 focus:outline-none",
-              error ? "border-danger" : "border-frost-300 focus:border-ink-900",
-            )}
+            id={`${id}-pickup`}
+            name="pickupDate"
+            type="date"
+            defaultValue={initialPickup}
+            aria-invalid={error === "pickup" || undefined}
+            onChange={() => setError(null)}
+            className={cn(field(error === "pickup"), "mt-1 min-w-0 px-2")}
           />
         </div>
-        <button type="submit" className="h-9 rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-800">
+      </div>
+      {error ? (
+        <p className="text-xs text-danger">{error === "price" ? "Enter the price in whole rupees." : "Choose the pickup date."}</p>
+      ) : null}
+      <div className="flex items-center gap-3">
+        <button type="submit" className="h-9 flex-1 rounded-lg bg-navy-900 px-3 text-xs font-semibold text-white hover:bg-navy-800">
           {label}
         </button>
+        {onCancel ? (
+          <button type="button" onClick={onCancel} className="text-xs font-medium text-ink-500 hover:text-ink-950">
+            Cancel
+          </button>
+        ) : null}
       </div>
-      {error ? <p className="text-xs text-danger">Enter the price in whole rupees.</p> : null}
-      {onCancel ? (
-        <button type="button" onClick={onCancel} className="text-xs font-medium text-ink-500 hover:text-ink-950">
-          Cancel
-        </button>
-      ) : null}
     </form>
   );
 }

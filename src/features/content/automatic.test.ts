@@ -23,6 +23,6 @@ describe("automatic copy", () => {
   });
 
   it("mentions the promised reply time in the steps", () => {
-    expect(automaticSteps({ ...DEFAULT_BUSINESS, responseTime: "2 hours" })[1].body).toContain("2 hours");
+    expect(automaticSteps({ ...DEFAULT_BUSINESS, responseTime: "2 hours" })[1].when).toBe("Within 2 hours");
   });
 });

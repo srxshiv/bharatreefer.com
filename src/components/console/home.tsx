@@ -13,23 +13,23 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { DeskStatus } from "./desk-status";
 import { Intro, IntroBackdrop } from "./intro";
 import { QuoteCard } from "./quote-card";
-import { About, Bands, Contact, Faqs, Fleet, Hero, Routes, Steps, formatAddress } from "./sections";
+import { About, Bands, Contact, Faqs, Fleet, Routes, Steps, formatAddress } from "./sections";
 import { primaryButton } from "./ui";
 
 /**
- * The public site: the brand and company information in one column, the quote card in
- * the other. On large screens the card stays in view while the column scrolls; on phones
- * it sits right under the introduction.
+ * The public site: the opening scene, then the sections in one column and the quote card in
+ * the other. On large screens the card stays in view while the column scrolls; on phones it
+ * comes first, right after the scene.
  */
 export function Home({ content }: { content: SiteContent }) {
-  const { business, fleet, trucks, bands, copy, photos, routes, sections, showFacts, announcement } = content;
+  const { business, fleet, bands, copy, photos, routes, sections, announcement } = content;
   const phoneDisplay = formatIndianMobile(business.phone);
 
   // Each section the business has switched on, in their order. A section with nothing to
   // show (no routes yet, no questions) is left out rather than shown empty.
   const render: Record<SectionId, (section: PageSection) => ReactNode> = {
     bands: (section) => <Bands section={section} bands={bands} />,
-    fleet: (section) => <Fleet section={section} trucks={trucks} fleet={fleet} photos={photos} />,
+    fleet: (section) => <Fleet section={section} fleet={fleet} photos={photos} />,
     routes: (section) => (routes.length > 0 ? <Routes section={section} routes={routes} /> : null),
     steps: (section) => (copy.steps.length > 0 ? <Steps section={section} copy={copy} /> : null),
     about: (section) => <About section={section} />,
@@ -85,7 +85,7 @@ export function Home({ content }: { content: SiteContent }) {
         </div>
       </header>
 
-      <Intro fleet={fleet} bands={bands} showStory={shown.some((item) => item.id === "about")} />
+      <Intro business={business} showStory={shown.some((item) => item.id === "about")} />
 
       {/* Frosted glass that slides up over the photo: the truck stays softly behind the page.
           The blur is the photo's own blurred copy (IntroBackdrop), not a backdrop filter: Safari
@@ -93,18 +93,17 @@ export function Home({ content }: { content: SiteContent }) {
           It overlaps the scene by its corner radius, so the corners show the scene's dark edge
           rather than the lighter photo below it. */}
       <main className="frost-glow relative -mt-8 flex-1 rounded-t-[2rem] bg-frost-50/80 shadow-[0_-30px_80px_-30px_rgb(0_0_0/0.45)]">
-        <div className="shell grid grid-cols-1 gap-x-10 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:pt-6 lg:pb-10 xl:gap-x-14">
-          <div className="lg:col-start-1 lg:pt-4">
-            <Hero business={business} copy={copy} fleet={fleet} bands={bands} showFacts={showFacts} />
-          </div>
-
-          {/* Pinned while the brand column scrolls. Sized to fit a laptop screen whole, nothing to scroll. */}
-          <div className="mt-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-start lg:sticky lg:top-26">
-            <QuoteCard business={business} fleet={fleet} bands={bands} />
+        {/* The page's heading, for search engines and screen readers: the scene says it in pictures. */}
+        <h1 className="sr-only">{copy.heroHeading}</h1>
+        <div className="shell grid grid-cols-1 gap-x-10 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:pt-12 lg:pb-10 xl:gap-x-14">
+          {/* Pinned while the sections scroll. Sized to fit a laptop screen whole, nothing to scroll. */}
+          <div className="lg:col-start-2 lg:row-start-1 lg:self-start lg:sticky lg:top-26">
+            {/* Never taller than the window: on a short screen the form scrolls inside the card. */}
+            <QuoteCard business={business} fleet={fleet} bands={bands} className="lg:max-h-[calc(100dvh-7.5rem)]" />
           </div>
 
           {shown.length > 0 ? (
-            <div className="mt-14 space-y-14 lg:col-start-1 lg:row-start-2 lg:mt-16">
+            <div className="mt-14 space-y-16 lg:col-start-1 lg:row-start-1 lg:mt-0">
               {shown.map((item) => (
                 <div key={item.id}>{item.node}</div>
               ))}

@@ -4,11 +4,13 @@ import { after } from "next/server";
 import { refreshAdminData } from "@/features/auth/refresh-admin";
 import { ROLE_LABELS } from "@/features/auth/roles";
 import { getSiteContent } from "@/features/content/data";
+import { sendDueTruckNotices } from "@/features/fleet/notices";
+import { isIsoDate } from "@/lib/dates";
 import { formatInr } from "@/lib/format";
 import { planTrucks } from "@/lib/truck-plan";
-import { addQuoteNote, createQuoteRequestForCustomer, setQuoteReferrer, updateQuoteRequest } from "./admin";
+import { addQuoteNote, createQuoteRequestForCustomer, setQuoteReferrer, updateQuoteRequest, type QuoteUpdate } from "./admin";
 import { quoteEmailData } from "./emails";
-import { notifyNewQuoteRequest } from "./notify";
+import { notifyNewQuoteRequest, notifyQuoted } from "./notify";
 import { findReferrer } from "./data";
 import {
   UNKNOWN_PROMO_CODE,
@@ -74,6 +76,30 @@ const MAX_NOTE_LENGTH = 2000;
 
 const GONE = "This request no longer exists.";
 
+/** What is still missing before a request can be Quoted, which means booked. */
+function needsQuote(missing: Array<"price" | "pickup">): string {
+  if (missing.length === 2) return "Quoted means booked: enter the quote and the pickup date first.";
+  return missing[0] === "price" ? "Quoted means booked: enter the quote first." : "Quoted means booked: set the pickup date first.";
+}
+
+/**
+ * Saves a change of stage, price or pickup date. A request that has just become Quoted gets
+ * its quote emailed to the customer; a truck already allotted is announced if pickup is near.
+ * Both run after the response, so a mail problem cannot hold up the panel.
+ */
+async function applyUpdate(id: string, update: QuoteUpdate): Promise<AdminFormState> {
+  const outcome = await updateQuoteRequest(id, update);
+  if (outcome.result === "not-found") return { error: GONE };
+  if (outcome.result === "needs-quote") return { error: needsQuote(outcome.missing) };
+  if (outcome.result === "unchanged") return { success: "Nothing to save." };
+  after(async () => {
+    if (outcome.quoted) await notifyQuoted(id);
+    await sendDueTruckNotices({ quoteId: id });
+  });
+  refreshAdminData();
+  return { success: outcome.quoted ? "Saved. The quote is emailed to the customer." : "Saved." };
+}
+
 export async function saveQuoteUpdate(id: string, formData: FormData): Promise<AdminFormState> {
   const status = formData.get("status");
   if (!isQuoteStatus(status)) return { error: "Choose a status." };
@@ -90,12 +116,10 @@ export async function saveQuoteUpdate(id: string, formData: FormData): Promise<A
     }
   }
 
-  const outcome = await updateQuoteRequest(id, { status, quotedAmount });
-  if (outcome === "not-found") return { error: GONE };
-  if (outcome === "unchanged") return { success: "Nothing to save." };
+  const rawPickup = String(formData.get("pickupDate") ?? "").trim();
+  if (rawPickup !== "" && !isIsoDate(rawPickup)) return { error: "Enter the pickup date." };
 
-  refreshAdminData();
-  return { success: "Saved." };
+  return applyUpdate(id, { status, quotedAmount, pickupDate: rawPickup === "" ? null : rawPickup });
 }
 
 export async function saveQuoteNote(id: string, formData: FormData): Promise<AdminFormState> {
@@ -131,10 +155,10 @@ export async function saveQuoteReferrer(id: string, formData: FormData): Promise
 }
 
 /**
- * Moves a request to another stage from the pipeline board, optionally setting the price in
- * the same step (moving to Quoted). Leaving the price out keeps the one already saved.
+ * Moves a request to another stage from the pipeline board, optionally setting the price and
+ * the pickup date in the same step (moving to Quoted needs both). Left out, the saved ones stay.
  */
-export async function moveQuoteStage(id: string, status: string, quotedAmount?: number): Promise<AdminFormState> {
+export async function moveQuoteStage(id: string, status: string, quotedAmount?: number, pickupDate?: string): Promise<AdminFormState> {
   if (typeof id !== "string" || id.length === 0 || id.length > 64) return { error: GONE };
   if (!isQuoteStatus(status)) return { error: "Choose a status." };
   if (
@@ -143,11 +167,10 @@ export async function moveQuoteStage(id: string, status: string, quotedAmount?: 
   ) {
     return { error: `Enter a quote between ₹1 and ${formatInr(MAX_QUOTE_INR)}.` };
   }
+  if (pickupDate !== undefined && (typeof pickupDate !== "string" || !isIsoDate(pickupDate))) return { error: "Enter the pickup date." };
 
-  const outcome = await updateQuoteRequest(id, { status, quotedAmount });
-  if (outcome === "not-found") return { error: GONE };
-  if (outcome === "updated") refreshAdminData();
-  return { success: "Saved." };
+  const result = await applyUpdate(id, { status, quotedAmount, pickupDate });
+  return result.success === "Nothing to save." ? { success: "Saved." } : result;
 }
 
 /** Most requests one bulk change touches. */
@@ -160,9 +183,21 @@ export async function bulkMoveQuoteStage(ids: string[], status: string): Promise
   if (!isQuoteStatus(status)) return { error: "Choose a status." };
 
   let moved = 0;
+  let unquoted = 0;
+  const quoted: string[] = [];
   for (const id of ids) {
-    if ((await updateQuoteRequest(id, { status })) === "updated") moved += 1;
+    const outcome = await updateQuoteRequest(id, { status });
+    if (outcome.result === "updated") {
+      moved += 1;
+      if (outcome.quoted) quoted.push(id);
+    } else if (outcome.result === "needs-quote") {
+      unquoted += 1;
+    }
   }
+  if (quoted.length > 0) after(() => Promise.all(quoted.map((id) => notifyQuoted(id))));
   if (moved > 0) refreshAdminData();
-  return { success: moved === 0 ? "Nothing to change." : `${moved} ${moved === 1 ? "request" : "requests"} moved.` };
+  // Quoted means booked: requests without a price and pickup date are left where they are.
+  const skipped = unquoted === 0 ? "" : ` ${unquoted} ${unquoted === 1 ? "needs" : "need"} a quote and a pickup date first.`;
+  if (moved === 0) return unquoted > 0 ? { error: `Nothing moved.${skipped}` } : { success: "Nothing to change." };
+  return { success: `${moved} ${moved === 1 ? "request" : "requests"} moved.${skipped}` };
 }

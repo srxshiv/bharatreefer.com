@@ -78,23 +78,23 @@ const SAMPLES: Sample[] = [
     note: "Road closure on the highway this week. Told him we will confirm the vehicle once it reopens." },
   { status: "CONTACTED", hoursAgo: 70, from: ["Chennai", "Tamil Nadu"], to: ["Coimbatore", "Tamil Nadu"], material: "FROZEN", kg: 1200, name: "Karthik Subramanian", email: "karthik@southernfrozen.example" },
 
-  // Quoted
-  { status: "QUOTED", hoursAgo: 75, from: ["Vadodara", "Gujarat"], to: ["Pune", "Maharashtra"], material: "CHILLED", kg: 4000, name: "Jignesh Shah", pickupInDays: 2, quote: 38500 },
-  { status: "QUOTED", hoursAgo: 80, from: ["Hyderabad", "Telangana"], to: ["Visakhapatnam", "Andhra Pradesh"], material: "FROZEN", kg: 9000, name: "Lakshmi Reddy", email: "lakshmi@deccanfoods.example", pickupInDays: 4, quote: 52000 },
-  { status: "QUOTED", hoursAgo: 96, from: ["Karnal", "Haryana"], to: ["Mumbai", "Maharashtra"], material: "CHILLED", kg: 22000, name: "Deepak Malik", quote: 118000,
+  // Contacted, with a price given (not booked yet)
+  { status: "CONTACTED", hoursAgo: 75, from: ["Vadodara", "Gujarat"], to: ["Pune", "Maharashtra"], material: "CHILLED", kg: 4000, name: "Jignesh Shah", pickupInDays: 2, quote: 38500 },
+  { status: "CONTACTED", hoursAgo: 80, from: ["Hyderabad", "Telangana"], to: ["Visakhapatnam", "Andhra Pradesh"], material: "FROZEN", kg: 9000, name: "Lakshmi Reddy", email: "lakshmi@deccanfoods.example", pickupInDays: 4, quote: 52000 },
+  { status: "CONTACTED", hoursAgo: 96, from: ["Karnal", "Haryana"], to: ["Mumbai", "Maharashtra"], material: "CHILLED", kg: 22000, name: "Deepak Malik", quote: 118000,
     note: "Quoted 1.18 lakh all in. He is comparing with one more transporter, call back on Monday." },
-  { status: "QUOTED", hoursAgo: 100, from: ["Kolkata", "West Bengal"], to: ["Guwahati", "Assam"], material: "FROZEN", kg: 16000, name: "Sourav Ghosh", email: "sourav.ghosh@eastcoastfrozen.example", pickupInDays: 7, quote: 96000 },
-  { status: "QUOTED", hoursAgo: 120, from: ["Noida", "Uttar Pradesh"], to: ["Dehradun", "Uttarakhand"], material: "AMBIENT", kg: 2400, name: "Pooja Agarwal", quote: 14500 },
-  { status: "QUOTED", hoursAgo: 130, from: ["Mumbai", "Maharashtra"], to: ["Panaji", "Goa"], material: "FROZEN", kg: 350, name: "Francis D'Souza", email: "francis@goabeachcafe.example", quote: 6500,
+  { status: "CONTACTED", hoursAgo: 100, from: ["Kolkata", "West Bengal"], to: ["Guwahati", "Assam"], material: "FROZEN", kg: 16000, name: "Sourav Ghosh", email: "sourav.ghosh@eastcoastfrozen.example", pickupInDays: 7, quote: 96000 },
+  { status: "CONTACTED", hoursAgo: 120, from: ["Noida", "Uttar Pradesh"], to: ["Dehradun", "Uttarakhand"], material: "AMBIENT", kg: 2400, name: "Pooja Agarwal", quote: 14500 },
+  { status: "CONTACTED", hoursAgo: 130, from: ["Mumbai", "Maharashtra"], to: ["Panaji", "Goa"], material: "FROZEN", kg: 350, name: "Francis D'Souza", email: "francis@goabeachcafe.example", quote: 6500,
     notes: "Frozen desserts for a restaurant. Happy to share a vehicle." },
 
-  // Confirmed
-  { status: "CONFIRMED", hoursAgo: 140, from: ["Amritsar", "Punjab"], to: ["Delhi", "Delhi"], material: "CHILLED", kg: 7000, name: "Gurpreet Kaur", pickupInDays: 1, quote: 31000,
+  // Quoted: price and pickup agreed, booked
+  { status: "QUOTED", hoursAgo: 140, from: ["Amritsar", "Punjab"], to: ["Delhi", "Delhi"], material: "CHILLED", kg: 7000, name: "Gurpreet Kaur", pickupInDays: 1, quote: 31000,
     note: "Advance received. Vehicle placed for 6 am loading." },
-  { status: "CONFIRMED", hoursAgo: 150, from: ["Nellore", "Andhra Pradesh"], to: ["Chennai", "Tamil Nadu"], material: "FROZEN", kg: 18500, name: "Venkat Rao", email: "venkat@coastalaqua.example", pickupInDays: 2, quote: 44000 },
-  { status: "CONFIRMED", hoursAgo: 170, from: ["Mehsana", "Gujarat"], to: ["Jaipur", "Rajasthan"], material: "CHILLED", kg: 9000, name: "Bhavesh Chaudhary", pickupInDays: 3, quote: 47500 },
-  { status: "CONFIRMED", hoursAgo: 180, from: ["Bengaluru", "Karnataka"], to: ["Kochi", "Kerala"], material: "AMBIENT", kg: 5000, name: "Divya Menon", email: "divya.menon@spicetrail.example", pickupInDays: 1, quote: 29000 },
-  { status: "CONFIRMED", hoursAgo: 200, from: ["Okhla", "Delhi"], to: ["Chandigarh", "Chandigarh"], material: "FROZEN", kg: 2500, name: "Mohit Arora", pickupInDays: 2, quote: 16000 },
+  { status: "QUOTED", hoursAgo: 150, from: ["Nellore", "Andhra Pradesh"], to: ["Chennai", "Tamil Nadu"], material: "FROZEN", kg: 18500, name: "Venkat Rao", email: "venkat@coastalaqua.example", pickupInDays: 2, quote: 44000 },
+  { status: "QUOTED", hoursAgo: 170, from: ["Mehsana", "Gujarat"], to: ["Jaipur", "Rajasthan"], material: "CHILLED", kg: 9000, name: "Bhavesh Chaudhary", pickupInDays: 3, quote: 47500 },
+  { status: "QUOTED", hoursAgo: 180, from: ["Bengaluru", "Karnataka"], to: ["Kochi", "Kerala"], material: "AMBIENT", kg: 5000, name: "Divya Menon", email: "divya.menon@spicetrail.example", pickupInDays: 1, quote: 29000 },
+  { status: "QUOTED", hoursAgo: 200, from: ["Okhla", "Delhi"], to: ["Chandigarh", "Chandigarh"], material: "FROZEN", kg: 2500, name: "Mohit Arora", pickupInDays: 2, quote: 16000 },
 
   // Completed
   { status: "COMPLETED", hoursAgo: 240, from: ["Anand", "Gujarat"], to: ["Delhi", "Delhi"], material: "CHILLED", kg: 16000, name: "Hetal Patel", email: "hetal@anandmilkfoods.example", pickupInDays: -7, quote: 88000,
@@ -125,8 +125,7 @@ const STAGES: Record<QuoteStatusId, QuoteStatusId[]> = {
   NEW: [],
   CONTACTED: ["CONTACTED"],
   QUOTED: ["CONTACTED", "QUOTED"],
-  CONFIRMED: ["CONTACTED", "QUOTED", "CONFIRMED"],
-  COMPLETED: ["CONTACTED", "QUOTED", "CONFIRMED", "COMPLETED"],
+  COMPLETED: ["CONTACTED", "QUOTED", "COMPLETED"],
   LOST: ["CONTACTED", "QUOTED", "LOST"],
   SPAM: ["SPAM"],
 };
@@ -135,8 +134,7 @@ const STAGES: Record<QuoteStatusId, QuoteStatusId[]> = {
 const STAGE_HOURS: Record<QuoteStatusId, number> = {
   NEW: 0,
   CONTACTED: 2,
-  QUOTED: 5,
-  CONFIRMED: 26,
+  QUOTED: 26,
   COMPLETED: 96,
   LOST: 50,
   SPAM: 1,

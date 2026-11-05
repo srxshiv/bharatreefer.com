@@ -3,7 +3,8 @@ import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
 import type { BusinessInfo } from "@/config/site";
 import type { Announcement, PageSection, SectionsSetting } from "./sections";
 
-export type Step = { title: string; body: string };
+/** One step of How it works. `when` says when it happens, e.g. "The day before pickup". */
+export type Step = { title: string; body: string; when?: string };
 export type Faq = { question: string; answer: string };
 
 export type TruckSizeInfo = {

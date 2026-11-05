@@ -1,7 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { ArrowDown, ArrowUp, LoaderCircle, Trash2 } from "lucide-react";
 import { deleteFleetPhotoAction, moveFleetPhotoAction } from "@/features/content/actions";
 import { cn } from "@/lib/cn";
 
@@ -20,13 +20,18 @@ export function PhotoControls({
   last: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  // Which button was pressed, so that one shows it is working.
+  const [busy, setBusy] = useState<"up" | "down" | "remove" | null>(null);
+  const spinner = <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />;
 
   function move(direction: "up" | "down") {
+    setBusy(direction);
     startTransition(() => moveFleetPhotoAction(id, direction));
   }
 
   function remove() {
     if (!window.confirm(`Remove the photo "${caption}" from the website?`)) return;
+    setBusy("remove");
     startTransition(() => deleteFleetPhotoAction(id));
   }
 
@@ -39,7 +44,7 @@ export function PhotoControls({
         aria-label={`Move "${caption}" earlier`}
         className={iconButton}
       >
-        <ArrowUp aria-hidden="true" className="size-4" />
+        {pending && busy === "up" ? spinner : <ArrowUp aria-hidden="true" className="size-4" />}
       </button>
       <button
         type="button"
@@ -48,7 +53,7 @@ export function PhotoControls({
         aria-label={`Move "${caption}" later`}
         className={iconButton}
       >
-        <ArrowDown aria-hidden="true" className="size-4" />
+        {pending && busy === "down" ? spinner : <ArrowDown aria-hidden="true" className="size-4" />}
       </button>
       <button
         type="button"
@@ -57,7 +62,7 @@ export function PhotoControls({
         aria-label={`Remove "${caption}"`}
         className={cn(iconButton, "hover:border-danger hover:text-danger")}
       >
-        <Trash2 aria-hidden="true" className="size-4" />
+        {pending && busy === "remove" ? spinner : <Trash2 aria-hidden="true" className="size-4" />}
       </button>
     </div>
   );

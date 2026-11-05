@@ -20,6 +20,7 @@ export const QUOTE_FIELDS = [
   "quantityKg",
   "notes",
   "contactName",
+  "companyName",
   "phone",
   "email",
   "promoCode",
@@ -42,6 +43,7 @@ export const EMPTY_QUOTE_FORM: QuoteFormValues = {
   quantityKg: "",
   notes: "",
   contactName: "",
+  companyName: "",
   phone: "",
   email: "",
   promoCode: "",
@@ -125,6 +127,12 @@ export function createQuoteRequestSchema(limits: Pick<FleetConfig, "minQuantityK
       .trim()
       .min(2, "Enter your name")
       .max(80, "Keep the name under 80 characters"),
+
+    companyName: z
+      .string()
+      .trim()
+      .max(100, "Keep the company name under 100 characters")
+      .transform((value) => (value === "" ? undefined : value)),
 
     phone: z.string().transform((raw, ctx) => {
       const normalised = normaliseIndianMobile(raw);

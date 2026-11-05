@@ -210,6 +210,7 @@ export function RequestTable({
                 </div>
                 <div className="col-start-2 row-start-2 min-w-0 lg:col-start-auto lg:row-start-auto">
                   <p className="truncate text-sm font-medium text-ink-950">{row.contactName}</p>
+                  {row.companyName ? <p className="truncate text-xs text-ink-500">{row.companyName}</p> : null}
                   <p className="font-mono text-xs text-ink-500">{formatIndianMobile(row.phone)}</p>
                 </div>
                 <div className="col-start-2 min-w-0 lg:col-start-auto">

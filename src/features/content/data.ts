@@ -89,13 +89,15 @@ function stringList(value: unknown): string[] {
 
 function stepList(value: unknown): Step[] | null {
   if (!Array.isArray(value)) return null;
-  return value.filter(
-    (item): item is Step =>
-      typeof item === "object" &&
-      item !== null &&
-      typeof (item as Step).title === "string" &&
-      typeof (item as Step).body === "string",
-  );
+  return value
+    .filter(
+      (item): item is Step =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as Step).title === "string" &&
+        typeof (item as Step).body === "string",
+    )
+    .map(({ title, body, when }) => (typeof when === "string" && when ? { title, body, when } : { title, body }));
 }
 
 function faqList(value: unknown): Faq[] | null {

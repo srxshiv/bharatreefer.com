@@ -45,7 +45,7 @@ export async function listTeam(): Promise<TeamMember[]> {
       ...member,
       brought: rows.reduce((sum, row) => sum + row._count._all, 0),
       won: rows
-        .filter((row) => row.status === "CONFIRMED" || row.status === "COMPLETED")
+        .filter((row) => row.status === "QUOTED" || row.status === "COMPLETED")
         .reduce((sum, row) => sum + row._count._all, 0),
     };
   });

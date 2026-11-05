@@ -5,7 +5,7 @@ import type { MaterialId } from "@/config/materials";
 export type TruckStatus = "AVAILABLE" | "ON_TRIP" | "MAINTENANCE";
 
 /**
- * Part or all of a confirmed request, on board a truck. Staff see every load's weight and
+ * Part or all of a quoted request, on board a truck. Staff see every load's weight and
  * temperature, so they can tell how full a truck is, but only their own requests' details:
  * on anyone else's load `visible` is false and the request's fields are left empty.
  */
@@ -40,12 +40,16 @@ export type FleetTruck = {
   status: TruckStatus;
   /** ISO timestamp, while on a trip. */
   tripStartedAt: string | null;
+  /** Live location link from the truck's GPS tracker. They last about two weeks. */
+  trackingUrl: string | null;
+  /** ISO timestamp of when `trackingUrl` was set. */
+  trackingUrlSetAt: string | null;
   /** Weight on board. Can exceed the payload: the owner decides. */
   usedKg: number;
   loads: FleetLoad[];
 };
 
-/** A confirmed request with weight not yet on a truck. */
+/** A quoted request with weight not yet on a truck. */
 export type WaitingOrder = {
   id: string;
   reference: string;
@@ -66,7 +70,7 @@ export type WaitingOrder = {
 
 export type LoadRequestStatus = "PENDING" | "APPROVED" | "DECLINED" | "CANCELLED";
 
-/** A staff member's ask to put (part of) a confirmed request on a truck. */
+/** A staff member's ask to put (part of) a quoted request on a truck. */
 export type FleetLoadRequest = {
   id: string;
   quoteId: string;
@@ -87,14 +91,14 @@ export type FleetBoard = {
   /** Admins run the fleet. Staff see it, and ask for a truck for their own requests. */
   canManage: boolean;
   trucks: FleetTruck[];
-  /** Confirmed requests still to place: every one for admins, their own for staff. */
+  /** Quoted requests still to place: every one for admins, their own for staff. */
   waiting: WaitingOrder[];
   /**
    * Asks waiting for an admin: everyone's for admins, their own for staff. Staff also see
    * their asks decided in the last week, so a declined one does not just disappear.
    */
   loadRequests: FleetLoadRequest[];
-  confirmedCount: number;
+  quotedCount: number;
   /** India date when the board was read, "YYYY-MM-DD", for flagging close pickups. */
   today: string;
 };

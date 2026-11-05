@@ -1,5 +1,6 @@
 "use client";
 
+import { LoaderCircle } from "lucide-react";
 import { useId, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
@@ -185,7 +186,8 @@ function AccessControl({ member }: { member: TeamMember }) {
       <div className="flex flex-wrap items-center gap-2">
         {!enabled ? (
           <button type="button" disabled={pending} onClick={() => change(true)} className={secondaryButton}>
-            Switch back on
+            {pending ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : null}
+            {pending ? "Switching on" : "Switch back on"}
           </button>
         ) : confirming ? (
           <>
@@ -210,9 +212,10 @@ function AccessControl({ member }: { member: TeamMember }) {
             type="button"
             disabled={pending}
             onClick={() => setConfirming(true)}
-            className="inline-flex h-11 items-center rounded-lg border border-danger/30 bg-danger-soft px-4 text-sm font-semibold text-danger transition-colors hover:border-danger disabled:opacity-60"
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-danger/30 bg-danger-soft px-4 text-sm font-semibold text-danger transition-colors hover:border-danger disabled:cursor-progress disabled:opacity-60"
           >
-            Switch off account
+            {pending ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : null}
+            {pending ? "Switching off" : "Switch off account"}
           </button>
         )}
       </div>

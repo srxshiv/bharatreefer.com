@@ -1,27 +1,28 @@
 import {
   CalendarClock,
+  CircleCheck,
+  ClipboardList,
   Clock,
   Handshake,
   Mail,
   MapPin,
   MessageCircle,
   Network,
+  PackageCheck,
   Phone,
   Route,
   ShieldCheck,
   Telescope,
-  Thermometer,
   Timer,
   Truck,
 } from "lucide-react";
 import { ABOUT } from "@/config/about";
 import { BAND_STYLES } from "@/components/band-styles";
-import { largestTruckKg, smallestTruckKg, type FleetConfig } from "@/config/fleet";
+import { largestTruckKg, type FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import type { BusinessInfo } from "@/config/site";
-import { automaticFleetTitle } from "@/features/content/automatic";
 import type { PageSection } from "@/features/content/sections";
-import type { Faq, FleetPhotoInfo, RouteInfo, SiteCopy, TruckSizeInfo } from "@/features/content/types";
+import type { Faq, FleetPhotoInfo, RouteInfo, SiteCopy } from "@/features/content/types";
 import { GENERAL_WHATSAPP_MESSAGE } from "@/features/quotes/messages";
 import { cn } from "@/lib/cn";
 import { formatCapacity } from "@/lib/format";
@@ -45,78 +46,22 @@ function tonnes(kg: number): string {
   return kg >= 1000 ? `${kg / 1000} tonnes` : formatCapacity(kg);
 }
 
-/** A section's label, heading and introduction, as set in the admin panel. Empty text is left out. */
-function SectionHeading({ section, automaticTitle = "" }: { section: PageSection; automaticTitle?: string }) {
+/**
+ * A section's heading, as set in the admin panel: the label is the large heading, the title
+ * the line under it, then the introduction. Empty text is left out; a section with no label
+ * uses its title as the heading.
+ */
+function SectionHeading({ section }: { section: PageSection }) {
+  const heading = section.eyebrow || section.title;
+  const subheading = section.eyebrow ? section.title : null;
   return (
-    <div className="mb-5">
-      {section.eyebrow ? <p className="caption text-ice-600">{section.eyebrow}</p> : null}
-      <h2 id={`${section.id}-title`} className={cn("text-2xl/tight font-semibold tracking-tight text-ink-950", section.eyebrow && "mt-2")}>
-        {section.title ?? automaticTitle}
+    <div className="mb-6">
+      <h2 id={`${section.id}-title`} className="text-[2.25rem]/[1.1] font-semibold tracking-tight text-ink-950 lg:text-[2.75rem]/[1.08]">
+        {heading}
       </h2>
-      {section.intro ? <p className="mt-2.5 max-w-prose text-[15px] leading-7 text-ink-600">{section.intro}</p> : null}
+      {subheading ? <p className="mt-2.5 text-lg/7 font-medium text-ink-700">{subheading}</p> : null}
+      {section.intro ? <p className="mt-2 max-w-prose text-[15px] leading-7 text-ink-600">{section.intro}</p> : null}
     </div>
-  );
-}
-
-export function Hero({
-  business,
-  copy,
-  fleet,
-  bands,
-  showFacts,
-}: {
-  business: BusinessInfo;
-  copy: SiteCopy;
-  fleet: FleetConfig;
-  bands: Record<MaterialId, TemperatureBandInfo>;
-  showFacts: boolean;
-}) {
-  const facts = [
-    {
-      Icon: Truck,
-      value: `${formatCapacity(smallestTruckKg(fleet))} to ${formatCapacity(largestTruckKg(fleet))}`,
-      label: `${fleet.capacitiesKg.length} truck sizes`,
-    },
-    {
-      Icon: Thermometer,
-      value: `${bands.FROZEN.label}, ${bands.CHILLED.label.toLowerCase()}, ${bands.AMBIENT.label.toLowerCase()}`,
-      label: "Three temperature bands",
-    },
-    {
-      Icon: Timer,
-      value: `Reply in ${business.responseTime}`,
-      label: "On every quote request",
-    },
-  ];
-
-  return (
-    <section aria-labelledby="hero-title">
-      <p className="caption text-ice-600">{business.tagline}</p>
-      <h1
-        id="hero-title"
-        className="mt-3 text-[2.25rem]/[1.1] font-semibold tracking-tight text-ink-950 lg:text-[2.75rem]/[1.08]"
-      >
-        {copy.heroHeading}
-      </h1>
-      <p className="mt-4 max-w-xl text-lg leading-8 text-ink-600">{copy.heroIntro}</p>
-      <div aria-hidden="true" className="tricolour mt-6 h-1 w-24 rounded-full" />
-
-      {showFacts ? (
-        <dl className="mt-7 grid gap-3 sm:grid-cols-3">
-          {facts.map((fact) => (
-            <div key={fact.label} className={cn(card, "flex items-center gap-3 px-4 py-3.5")}>
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-ice-50 text-ice-600">
-                <fact.Icon aria-hidden="true" className="size-4.5" />
-              </span>
-              <div className="min-w-0">
-                <dd className="text-sm/5 font-semibold text-ink-950">{fact.value}</dd>
-                <dt className="mt-0.5 text-xs text-ink-500">{fact.label}</dt>
-              </div>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-    </section>
   );
 }
 
@@ -149,77 +94,36 @@ export function Bands({ section, bands }: { section: PageSection; bands: Record<
   );
 }
 
+/** Full load or part load: the two ways a consignment travels. Photos of the trucks follow, if any. */
 export function Fleet({
   section,
-  trucks,
   fleet,
   photos,
 }: {
   section: PageSection;
-  trucks: TruckSizeInfo[];
   fleet: FleetConfig;
   photos: FleetPhotoInfo[];
 }) {
   const largest = largestTruckKg(fleet);
-  const named = trucks.some((truck) => truck.name);
 
   return (
     <section aria-labelledby="fleet-title">
-      <SectionHeading section={section} automaticTitle={automaticFleetTitle(trucks, fleet)} />
+      <SectionHeading section={section} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className={cn(card, "px-5 py-2")}>
-          <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">Payload per truck size</caption>
-            <thead>
-              <tr className="caption text-ink-400">
-                <th scope="col" className="py-2.5 text-left font-medium">
-                  Payload
-                </th>
-                {named ? (
-                  <th scope="col" className="py-2.5 text-left font-medium">
-                    Truck
-                  </th>
-                ) : null}
-                <th scope="col" className="py-2.5 text-right font-medium">
-                  Size
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-frost-200">
-              {trucks.map((truck) => (
-                <tr key={truck.capacityKg}>
-                  <td className="py-2.5 pr-4 font-mono whitespace-nowrap text-ink-950">{formatCapacity(truck.capacityKg)}</td>
-                  {named ? <td className="py-2.5 pr-4 text-ink-500">{truck.name ?? "—"}</td> : null}
-                  <td className="w-[45%] py-2.5 pl-4">
-                    <span className="block h-1.5 rounded-full bg-frost-100">
-                      <span
-                        className="block h-full rounded-full bg-ice-500"
-                        style={{ width: `${(truck.capacityKg / largest) * 100}%` }}
-                      />
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <div className={cn(card, "p-5")}>
+          <dt className="text-base font-semibold text-ink-950">Full load</dt>
+          <dd className="mt-1.5 text-sm leading-6 text-ink-600">
+            A dedicated truck sized to your consignment. Loads heavier than {tonnes(largest)} are split across more than one truck.
+          </dd>
         </div>
-
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <div className={cn(card, "p-5")}>
-            <dt className="text-base font-semibold text-ink-950">Full load</dt>
-            <dd className="mt-1.5 text-sm leading-6 text-ink-600">
-              A dedicated truck sized to your consignment. Loads heavier than {tonnes(largest)} are split across more than one truck.
-            </dd>
-          </div>
-          <div className={cn(card, "p-5")}>
-            <dt className="text-base font-semibold text-ink-950">Part load</dt>
-            <dd className="mt-1.5 text-sm leading-6 text-ink-600">
-              Smaller consignments share a truck with other cargo in the same temperature band heading the same way.
-            </dd>
-          </div>
-        </dl>
-      </div>
+        <div className={cn(card, "p-5")}>
+          <dt className="text-base font-semibold text-ink-950">Part load</dt>
+          <dd className="mt-1.5 text-sm leading-6 text-ink-600">
+            Smaller consignments share a truck with other cargo in the same temperature band heading the same way.
+          </dd>
+        </div>
+      </dl>
 
       {photos.length > 0 ? (
         <figure className="mt-5">
@@ -246,20 +150,49 @@ export function Fleet({
   );
 }
 
+/** One picture per step, in order; more steps than pictures reuse the last. */
+const STEP_ICONS = [ClipboardList, Handshake, Truck, MapPin, PackageCheck, CircleCheck];
+
+/**
+ * How it works as a timeline: each step on a line from request to delivery, with when it
+ * happens, so a customer sees at a glance what comes next and when.
+ */
 export function Steps({ section, copy }: { section: PageSection; copy: SiteCopy }) {
   return (
     <section aria-labelledby="steps-title">
       <SectionHeading section={section} />
-      <ol className="grid gap-4 sm:grid-cols-3">
-        {copy.steps.map((step, index) => (
-          <li key={step.title} className={cn(card, "p-5")}>
-            <span className="grid size-8 place-items-center rounded-full bg-navy-900 font-mono text-xs text-white">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <p className="mt-4 text-base font-semibold text-ink-950">{step.title}</p>
-            <p className="mt-1.5 text-sm leading-6 text-ink-600">{step.body}</p>
-          </li>
-        ))}
+      <ol className="relative">
+        {copy.steps.map((step, index) => {
+          const Icon = STEP_ICONS[Math.min(index, STEP_ICONS.length - 1)];
+          const last = index === copy.steps.length - 1;
+          return (
+            <li key={step.title} className={cn("relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-5", !last && "pb-5")}>
+              {/* The line joining the steps, from this icon to the next. */}
+              {last ? null : (
+                <span aria-hidden="true" className="absolute top-12 bottom-0 left-6 w-0.5 -translate-x-1/2 rounded-full bg-linear-to-b from-ice-400 to-frost-300 sm:top-14 sm:left-7" />
+              )}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "relative z-10 grid size-12 place-items-center rounded-2xl text-white shadow-[0_10px_24px_-12px_rgb(1_39_84/0.6)] sm:size-14",
+                  last ? "bg-success" : "bg-navy-900",
+                )}
+              >
+                <Icon className="size-5.5 sm:size-6" strokeWidth={1.75} />
+                <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-surface font-mono text-[0.625rem] font-semibold text-ink-950 ring-1 ring-frost-300">
+                  {index + 1}
+                </span>
+              </span>
+              <div className={cn(card, "p-4 sm:p-5")}>
+                {step.when ? (
+                  <p className="inline-flex items-center rounded-full bg-ice-50 px-2.5 py-0.5 text-xs font-semibold text-ice-700">{step.when}</p>
+                ) : null}
+                <p className={cn("text-lg/7 font-semibold text-ink-950", step.when && "mt-2")}>{step.title}</p>
+                <p className="mt-1 text-[15px] leading-6 text-ink-600">{step.body}</p>
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );

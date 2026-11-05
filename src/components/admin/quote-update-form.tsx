@@ -14,14 +14,18 @@ import { input, label } from "./ui";
 type Saved = {
   status: QuoteStatusId;
   quotedAmount: number | null;
+  /** "YYYY-MM-DD", or null when not set. */
+  pickupDate: string | null;
 };
 
-/** The two inputs. Remounted whenever the saved values change, so they always start from them. */
-function Fields({ status, quotedAmount }: Saved) {
+/** The inputs. Remounted whenever the saved values change, so they always start from them. */
+function Fields({ status, quotedAmount, pickupDate }: Saved) {
   // Generated ids: Next.js keeps recently visited pages mounted, so two quotes can be in
   // the document at once and fixed ids would collide.
   const id = useId();
   const [selected, setSelected] = useState(status);
+  // Quoted means booked: it needs the price and the pickup date, so both are asked for.
+  const booking = selected === "QUOTED";
 
   return (
     <>
@@ -68,13 +72,33 @@ function Fields({ status, quotedAmount }: Saved) {
             className={`${input} pl-8 font-mono`}
           />
         </div>
-        <p className="mt-1.5 text-sm text-ink-500">Whole rupees. Leave empty to clear.</p>
+        <p className="mt-1.5 text-sm text-ink-500">
+          {booking ? "Whole rupees. Needed for Quoted." : "Whole rupees. Leave empty to clear."}
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor={`${id}-pickup`} className={label}>
+          Pickup date
+        </label>
+        <input
+          id={`${id}-pickup`}
+          name="pickupDate"
+          type="date"
+          defaultValue={pickupDate ?? ""}
+          className={`${input} mt-2 font-mono`}
+        />
+        <p className="mt-1.5 text-sm text-ink-500">
+          {booking
+            ? "Needed for Quoted. The customer is told the truck the day before."
+            : "The day the customer wants it loaded, if known."}
+        </p>
       </div>
     </>
   );
 }
 
-export function QuoteUpdateForm({ id, status, quotedAmount }: Saved & { id: string }) {
+export function QuoteUpdateForm({ id, status, quotedAmount, pickupDate }: Saved & { id: string }) {
   const [state, setState] = useState<AdminFormState>({});
   const [pending, startTransition] = useTransition();
 
@@ -96,7 +120,7 @@ export function QuoteUpdateForm({ id, status, quotedAmount }: Saved & { id: stri
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Fields key={`${status}:${quotedAmount}`} status={status} quotedAmount={quotedAmount} />
+      <Fields key={`${status}:${quotedAmount}:${pickupDate}`} status={status} quotedAmount={quotedAmount} pickupDate={pickupDate} />
       <FormMessage state={state} />
       <PendingButton pending={pending} pendingLabel="Saving" className="w-full">
         Save changes

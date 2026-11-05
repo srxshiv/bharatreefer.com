@@ -11,6 +11,10 @@ export function proxy(request: NextRequest) {
   if (SIGNED_OUT_PATHS.includes(pathname) || request.cookies.has(SESSION_COOKIE)) {
     return NextResponse.next();
   }
+  // Server Actions are POSTs to the page they are on. A plain redirect here breaks them ("an
+  // unexpected response was received", the error page): Sign out, or a save, from a tab whose
+  // session has expired. They check the session themselves and redirect to sign in properly.
+  if (request.method !== "GET" && request.method !== "HEAD") return NextResponse.next();
 
   const login = new URL(LOGIN_PATH, request.url);
   if (pathname !== PANEL_HOME) login.searchParams.set("next", pathname + search);

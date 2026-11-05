@@ -10,7 +10,6 @@ import {
   EMPTY_QUOTE_FORM,
   QUOTE_FIELDS,
   createQuoteRequestSchema,
-  parseQuantityKg,
   toFieldErrors,
   type QuoteField,
   type QuoteFieldErrors,
@@ -21,7 +20,6 @@ import { isPromoCode, normalisePromoCode } from "@/features/team/promo-code";
 import { citiesIn } from "@/data/india-locations";
 import { cn } from "@/lib/cn";
 import { formatIndianMobile } from "@/lib/phone";
-import { planTrucks } from "@/lib/truck-plan";
 import { Confirmation } from "./confirmation";
 import { QuoteFields, type ControlProps } from "./quote-fields";
 import { ROUTE_EVENT, type RoutePrefill } from "./route-prefill";
@@ -69,8 +67,6 @@ export function QuoteCard({
   const sectionRef = useRef<HTMLElement>(null);
 
   const schema = useMemo(() => createQuoteRequestSchema(fleet), [fleet]);
-  const quantityKg = parseQuantityKg(values.quantityKg);
-  const plan = quantityKg === null ? null : planTrucks(quantityKg, fleet);
   const confirmation = result.status === "success" ? result.confirmation : null;
 
   function setField(field: QuoteField, value: string) {
@@ -204,7 +200,7 @@ export function QuoteCard({
         <p className="text-sm text-ice-200">Reply within {business.responseTime}</p>
       </div>
 
-      <div className="px-5 py-5 short:py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 short:py-4">
         {confirmation ? (
           <Confirmation confirmation={confirmation} business={business} bands={bands} onReset={reset} />
         ) : (
@@ -217,9 +213,6 @@ export function QuoteCard({
               setField={setField}
               setRegion={setRegion}
               bands={bands}
-              fleet={fleet}
-              plan={plan}
-              quantityKg={quantityKg}
             />
 
             {/* Bots fill this in; people never see it. */}

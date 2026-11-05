@@ -17,6 +17,10 @@ const schema = z.object({
   // Email is optional. Without an API key the app runs normally and logs instead of sending.
   RESEND_API_KEY: optional(z.string()),
   EMAIL_FROM: optional(z.string()),
+
+  // Optional. Vercel sends it with each scheduled run (vercel.json "crons"); the daily truck
+  // notices only run with it. Without it, notices still go out when a truck is allotted late.
+  CRON_SECRET: optional(z.string().min(16, "CRON_SECRET must be at least 16 characters")),
 });
 
 type ServerEnv = z.infer<typeof schema>;

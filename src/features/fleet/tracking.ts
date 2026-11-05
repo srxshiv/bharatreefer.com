@@ -41,3 +41,25 @@ export function trackingWhatsappMessage(load: TrackedLoad, plate: string, url: s
     `Track it live here: ${url}`
   );
 }
+
+/** GPS tracker share links stop working after about two weeks; after that the panel asks for a new one. */
+export const TRACKING_LINK_DAYS = 14;
+
+const DAY_MS = 86_400_000;
+
+/** Whether a truck's saved tracking link is young enough to still work. */
+export function isTrackingLinkFresh(setAt: Date | string | null, now = Date.now()): boolean {
+  if (!setAt) return false;
+  return now - new Date(setAt).getTime() < TRACKING_LINK_DAYS * DAY_MS;
+}
+
+/**
+ * When the customer is emailed which truck is coming: 8 am India time the day before pickup,
+ * 24 hours before an 8 am pickup. A truck allotted later than that is announced at once.
+ * `pickup` is "YYYY-MM-DD".
+ */
+export function truckNoticeDueAt(pickup: string): Date {
+  const [year, month, day] = pickup.split("-").map(Number);
+  // 8 am in India is 2:30 am UTC.
+  return new Date(Date.UTC(year, month - 1, day) - DAY_MS + (2 * 60 + 30) * 60_000);
+}

@@ -19,6 +19,7 @@ const valid: QuoteFormValues = {
   material: "FROZEN",
   quantityKg: "12,500",
   contactName: "  Asha Verma ",
+  companyName: " Verma Fresh Foods ",
   phone: "+91 98710 94268",
   email: "Asha@Example.com",
   pickupDate: "",
@@ -41,11 +42,17 @@ describe("quoteRequestSchema", () => {
       material: "FROZEN",
       quantityKg: 12_500,
       contactName: "Asha Verma",
+      companyName: "Verma Fresh Foods",
       phone: "+919871094268",
       email: "asha@example.com",
       pickupDate: undefined,
       notes: undefined,
     });
+  });
+
+  it("treats the company as optional and keeps it short", () => {
+    expect(quoteRequestSchema.parse({ ...valid, companyName: "  " }).companyName).toBeUndefined();
+    expect(errorsFor({ companyName: "x".repeat(101) }).companyName).toBe("Keep the company name under 100 characters");
   });
 
   it("treats pickup date and notes as optional", () => {

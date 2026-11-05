@@ -14,6 +14,8 @@ function truck(id: string, capacityKg: number, extra: Partial<FleetTruck> = {}):
     tyres: null,
     status: "AVAILABLE",
     tripStartedAt: null,
+    trackingUrl: null,
+    trackingUrlSetAt: null,
     usedKg: 0,
     loads: [],
     ...extra,
@@ -44,7 +46,7 @@ function board(trucks: FleetTruck[], waiting: WaitingOrder[]): FleetBoard {
     loadRequests: [],
     trucks,
     waiting,
-    confirmedCount: waiting.length,
+    quotedCount: waiting.length,
     today: "2026-10-14",
   };
 }

@@ -2,7 +2,7 @@ import type { MaterialId, TemperatureBandInfo } from "@/config/materials";
 import type { BusinessInfo } from "@/config/site";
 import { formatIsoDate } from "@/lib/dates";
 import { renderEmail, type EmailRow, type RenderedEmail } from "@/lib/email-layout";
-import { LOAD_TYPE_LABELS, formatKg, formatTrucks } from "@/lib/format";
+import { LOAD_TYPE_LABELS, formatInr, formatKg, formatTrucks } from "@/lib/format";
 import { formatHours } from "@/lib/hours";
 import { formatIndianMobile } from "@/lib/phone";
 import type { LoadTypeId, TruckAllocation, TruckPlan } from "@/lib/truck-plan";
@@ -23,6 +23,7 @@ export type QuoteEmailData = {
   pickupDate: string | null;
   notes: string | null;
   contactName: string;
+  companyName?: string | null;
   /** E.164 */
   phone: string;
   email: string | null;
@@ -47,6 +48,7 @@ export function quoteEmailData(reference: string, input: QuoteRequestInput, plan
     pickupDate: input.pickupDate ?? null,
     notes: input.notes ?? null,
     contactName: input.contactName,
+    companyName: input.companyName ?? null,
     phone: input.phone,
     email: input.email ?? null,
   };
@@ -91,6 +93,7 @@ export function dispatchNotificationEmail(
       : `${quote.contactName} asked for a quote from the website.`,
     rows: [
       { label: "Customer", value: quote.contactName },
+      ...(quote.companyName ? [{ label: "Company", value: quote.companyName }] : []),
       { label: "Phone", value: `+91 ${formatIndianMobile(quote.phone)}` },
       ...(quote.email ? [{ label: "Email", value: quote.email }] : []),
       ...(quote.promoCode ? [{ label: "Promo code", value: quote.promoCode }] : []),
@@ -113,5 +116,27 @@ export function customerConfirmationEmail(quote: QuoteEmailData, context: EmailC
     intro: `Thank you, ${quote.contactName}. Our dispatch desk will contact you within ${business.responseTime} with a quote.`,
     rows: [{ label: "Reference", value: quote.reference }, ...loadRows(quote, context)],
     footer: `Need to change something, or in a hurry? Call ${formatIndianMobile(business.phone)} (${formatHours(business.hours)}) and quote your reference.`,
+  });
+}
+
+/**
+ * Sends the customer their quote once dispatch has agreed it (the request is Quoted, which
+ * means booked): the price, the pickup date and everything about the load. The truck itself
+ * follows in a second email the day before pickup.
+ */
+export function customerQuoteEmail(quote: QuoteEmailData & { quotedAmount: number }, context: EmailContext): RenderedEmail {
+  const { business } = context;
+  const greeting = quote.companyName ? `${quote.contactName} (${quote.companyName})` : quote.contactName;
+  return renderEmail({
+    brand: business.name,
+    subject: `Your quote ${quote.reference}: ${formatInr(quote.quotedAmount)}, ${quote.originCity} to ${quote.destinationCity}`,
+    heading: `Your quote: ${formatInr(quote.quotedAmount)}`,
+    intro: `Hello ${greeting}, your load is booked at the price below${quote.pickupDate ? ` for pickup on ${formatIsoDate(quote.pickupDate)}` : ""}. We will email you the truck and driver the day before pickup.`,
+    rows: [
+      { label: "Reference", value: quote.reference },
+      { label: "Quote", value: formatInr(quote.quotedAmount) },
+      ...loadRows(quote, context),
+    ],
+    footer: `Questions or a change of plan? Call ${formatIndianMobile(business.phone)} (${formatHours(business.hours)}) and quote your reference.`,
   });
 }

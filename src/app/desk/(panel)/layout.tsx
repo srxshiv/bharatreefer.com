@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ExternalLink, LogOut } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NavigationProgress } from "@/components/admin/navigation-progress";
 import { RefreshWhenVisible } from "@/components/admin/refresh-when-visible";
+import { SignOutButton } from "@/components/admin/sign-out-button";
 import { Logo } from "@/components/site/logo";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { logout } from "@/features/auth/actions";
@@ -65,14 +66,7 @@ export default function PanelLayout({ children }: LayoutProps<"/desk">) {
               <span className="sr-only lg:hidden">View site</span>
             </Link>
             <form action={logout}>
-              <button
-                type="submit"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-frost-100 hover:text-ink-950"
-              >
-                <LogOut aria-hidden="true" className="size-4" />
-                <span className="hidden lg:inline">Sign out</span>
-                <span className="sr-only lg:hidden">Sign out</span>
-              </button>
+              <SignOutButton className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-frost-100 hover:text-ink-950" />
             </form>
           </div>
 

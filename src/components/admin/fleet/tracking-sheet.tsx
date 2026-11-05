@@ -4,7 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { LoaderCircle, MessageCircle, Play, Send } from "lucide-react";
 import { sendTrackingLinkAction } from "@/features/fleet/actions";
 import { formatPlate } from "@/features/fleet/plate";
-import { parseTrackingUrl, trackingWhatsappMessage } from "@/features/fleet/tracking";
+import { isTrackingLinkFresh, parseTrackingUrl, trackingWhatsappMessage } from "@/features/fleet/tracking";
 import type { FleetOutcome, FleetTruck } from "@/features/fleet/types";
 import { cn } from "@/lib/cn";
 import { formatKg } from "@/lib/format";
@@ -54,7 +54,8 @@ export function TrackingSheetBody({
   notify: (outcome: FleetOutcome) => void;
 }) {
   const id = useId();
-  const [link, setLink] = useState("");
+  // Starts from the truck's saved link while it is young enough to work.
+  const [link, setLink] = useState(truck.trackingUrl && isTrackingLinkFresh(truck.trackingUrlSetAt) ? truck.trackingUrl : "");
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
   const [result, setResult] = useState<{ error?: string; success?: string }>({});
   const [pending, startTransition] = useTransition();

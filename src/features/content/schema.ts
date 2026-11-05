@@ -96,7 +96,13 @@ export function toBusinessInfo(value: z.infer<typeof businessSchema>): BusinessI
   };
 }
 
-const stepSchema = z.object({ title: text(60), body: text(200) });
+const stepSchema = z.object({
+  title: text(60),
+  body: text(200),
+  when: text(40, 0)
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+});
 const faqSchema = z.object({ question: text(120), answer: text(600) });
 
 export const copySchema = z.object({

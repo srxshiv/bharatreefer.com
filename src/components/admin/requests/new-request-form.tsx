@@ -11,14 +11,12 @@ import {
   EMPTY_QUOTE_FORM,
   QUOTE_FIELDS,
   createQuoteRequestSchema,
-  parseQuantityKg,
   toFieldErrors,
   type QuoteField,
   type QuoteFieldErrors,
   type QuoteFormValues,
 } from "@/features/quotes/schema";
 import { cn } from "@/lib/cn";
-import { planTrucks } from "@/lib/truck-plan";
 import { PendingButton } from "../form-parts";
 import { IntentLink } from "../intent-link";
 import { card, primaryButton, secondaryButton } from "../ui";
@@ -50,8 +48,6 @@ export function NewRequestForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const schema = useMemo(() => createQuoteRequestSchema(fleet), [fleet]);
-  const quantityKg = parseQuantityKg(values.quantityKg);
-  const plan = quantityKg === null ? null : planTrucks(quantityKg, fleet);
 
   function setField(field: QuoteField, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -162,9 +158,6 @@ export function NewRequestForm({
         setField={setField}
         setRegion={setRegion}
         bands={bands}
-        fleet={fleet}
-        plan={plan}
-        quantityKg={quantityKg}
         nameLabel="Customer name"
       />
 

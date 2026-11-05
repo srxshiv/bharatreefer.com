@@ -3,16 +3,12 @@
 import { useState } from "react";
 import { ChevronDown, CircleAlert, Plus } from "lucide-react";
 import { BAND_STYLES } from "@/components/band-styles";
-import type { FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import { REGION_NAMES, citiesIn } from "@/data/india-locations";
 import type { QuoteField, QuoteFieldErrors, QuoteFormValues } from "@/features/quotes/schema";
 import { cn } from "@/lib/cn";
 import { dateInIndia } from "@/lib/dates";
-import { LOAD_TYPE_LABELS, formatCapacity, formatKg, formatTrucks } from "@/lib/format";
-import type { TruckPlan } from "@/lib/truck-plan";
-import { FleetScale } from "./fleet-scale";
-import { fieldInput, fieldLabel, fieldSelect } from "./ui";
+import { fieldArea, fieldInput, fieldLabel, fieldSelect } from "./ui";
 
 /** Props every input needs to be labelled, controlled and described by its error. */
 export type ControlProps = {
@@ -31,16 +27,13 @@ export type QuoteFieldsProps = {
   setField: (field: QuoteField, value: string) => void;
   setRegion: (stateField: QuoteField, cityField: QuoteField, region: string) => void;
   bands: Record<MaterialId, TemperatureBandInfo>;
-  fleet: FleetConfig;
-  plan: TruckPlan | null;
-  quantityKg: number | null;
   /** Label of the name field. The panel asks for the customer's name instead of "your" name. */
   nameLabel?: string;
 };
 
 /**
  * The message a screen reader gets for an invalid field. Sighted users see the red border
- * and the summary in the plan box, which keeps the card the same height whatever happens.
+ * and a short summary above the send button.
  */
 export function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
@@ -62,6 +55,7 @@ const FIELD_NAMES: Record<QuoteField, string> = {
   quantityKg: "Weight",
   notes: "Notes",
   contactName: "Name",
+  companyName: "Company",
   phone: "Mobile number",
   email: "Email",
   promoCode: "Promo code",
@@ -155,16 +149,9 @@ function Place({
   );
 }
 
-function describePlan(plan: TruckPlan): string {
-  const percent = Math.round(plan.fill * 100);
-  const truckCount = plan.trucks.reduce((sum, truck) => sum + truck.count, 0);
-  if (plan.loadType === "PART_LOAD") return `shares a ${formatCapacity(plan.totalCapacityKg)} truck`;
-  return truckCount === 1 ? `${percent}% of the truck used` : `${truckCount} trucks, ${percent}% used`;
-}
-
 /** Every field of the quote form, laid out to fit the card on a laptop screen without scrolling. */
 export function QuoteFields(props: QuoteFieldsProps) {
-  const { id, values, errors, control, setField, bands, fleet, plan, quantityKg, nameLabel = "Your name" } = props;
+  const { id, values, errors, control, setField, bands, nameLabel = "Your name" } = props;
   const [notesOpen, setNotesOpen] = useState(false);
   const showNotes = notesOpen || values.notes !== "" || Boolean(errors.notes);
   const hasErrors = Object.values(errors).some(Boolean);
@@ -218,15 +205,16 @@ export function QuoteFields(props: QuoteFieldsProps) {
           <FieldError id={`${id}-material-error`} message={errors.material} />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        {/* min-w-0 on both cells: iOS gives a date field a minimum width wider than half a phone. */}
+        <div className="grid grid-cols-1 gap-3 min-[22.5rem]:grid-cols-2">
+          <div className="min-w-0">
             <label htmlFor={`${id}-quantityKg`} className={fieldLabel}>
               Weight
             </label>
             <div className="relative mt-1.5">
               <input
                 {...control("quantityKg")}
-                aria-describedby={cn(errors.quantityKg && `${id}-quantityKg-error`, `${id}-plan`)}
+                aria-describedby={errors.quantityKg ? `${id}-quantityKg-error` : undefined}
                 type="text"
                 inputMode="numeric"
                 autoComplete="off"
@@ -241,7 +229,7 @@ export function QuoteFields(props: QuoteFieldsProps) {
             </div>
             <FieldError id={`${id}-quantityKg-error`} message={errors.quantityKg} />
           </div>
-          <div>
+          <div className="min-w-0">
             <label htmlFor={`${id}-pickupDate`} className={fieldLabel}>
               Pickup
               <Optional />
@@ -254,45 +242,16 @@ export function QuoteFields(props: QuoteFieldsProps) {
                 if (element) element.min = dateInIndia();
               }}
               onChange={(event) => setField("pickupDate", event.target.value)}
-              className={cn(fieldInput, "mt-1.5 font-mono")}
+              className={cn(fieldInput, "date-field mt-1.5 min-w-0 font-mono")}
             />
             <FieldError id={`${id}-pickupDate-error`} message={errors.pickupDate} />
           </div>
         </div>
 
-        <div
-          id={`${id}-plan`}
-          aria-live="polite"
-          className={cn("rounded-lg px-3 py-2", hasErrors ? "bg-danger-soft" : "bg-frost-50")}
-        >
-          {hasErrors ? (
-            <div className="flex h-11 flex-col justify-center">
-              <ErrorSummary errors={errors} />
-            </div>
-          ) : (
-            <>
-          <p className="text-xs leading-5 text-ink-500 lg:truncate">
-            {plan ? (
-              <>
-                <span className="font-medium text-ink-950">
-                  {formatTrucks(plan.trucks)}, {LOAD_TYPE_LABELS[plan.loadType].toLowerCase()}
-                </span>
-                , {describePlan(plan)}.
-              </>
-            ) : quantityKg === null ? (
-              `Enter the weight to see the truck we would plan. ${formatKg(fleet.minQuantityKg)} to ${formatKg(fleet.maxQuantityKg)}.`
-            ) : (
-              "That weight is outside what one request can cover."
-            )}
-          </p>
-          <FleetScale capacitiesKg={fleet.capacitiesKg} plan={plan} className="mt-1.5" />
-            </>
-          )}
-        </div>
       </div>
 
       <div>
-        <div className="grid gap-4 sm:grid-cols-3 sm:gap-x-3">
+        <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-3 short:gap-y-3">
           <div>
             <label htmlFor={`${id}-contactName`} className={fieldLabel}>
               {nameLabel}
@@ -306,6 +265,21 @@ export function QuoteFields(props: QuoteFieldsProps) {
               className={cn(fieldInput, "mt-1.5")}
             />
             <FieldError id={`${id}-contactName-error`} message={errors.contactName} />
+          </div>
+          <div>
+            <label htmlFor={`${id}-companyName`} className={fieldLabel}>
+              Company or business
+              <Optional />
+            </label>
+            <input
+              {...control("companyName")}
+              type="text"
+              autoComplete="organization"
+              maxLength={100}
+              onChange={(event) => setField("companyName", event.target.value)}
+              className={cn(fieldInput, "mt-1.5")}
+            />
+            <FieldError id={`${id}-companyName-error`} message={errors.companyName} />
           </div>
           <div>
             <label htmlFor={`${id}-phone`} className={fieldLabel}>
@@ -340,9 +314,9 @@ export function QuoteFields(props: QuoteFieldsProps) {
           </div>
         </div>
 
-        {/* Notes, opened when asked for, share a row with the promo code. */}
-        <div className="mt-2.5 flex items-end gap-3 short:mt-2">
-          <div className="min-w-0 flex-1">
+        {/* Notes, opened when asked for, beside the promo code (below it on phones). */}
+        <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_8.5rem] sm:items-start short:mt-2">
+          <div className="min-w-0">
             {showNotes ? (
               <>
                 <label htmlFor={`${id}-notes`} className={cn(fieldLabel, "short:sr-only")}>
@@ -351,11 +325,11 @@ export function QuoteFields(props: QuoteFieldsProps) {
                 </label>
                 <textarea
                   {...control("notes")}
-                  rows={2}
+                  rows={3}
                   maxLength={1000}
-                  placeholder="Notes: what the cargo is, packaging, loading hours"
+                  placeholder="What the cargo is, packaging, loading hours"
                   onChange={(event) => setField("notes", event.target.value)}
-                  className={cn(fieldInput, "mt-1.5 h-auto py-2 leading-5 short:mt-0 short:h-9 short:resize-none short:py-2 short:leading-5")}
+                  className={cn(fieldArea, "mt-1.5 min-h-24 short:mt-0 short:h-9 short:min-h-0 short:resize-none short:py-2 short:leading-5")}
                 />
                 <FieldError id={`${id}-notes-error`} message={errors.notes} />
               </>
@@ -363,16 +337,17 @@ export function QuoteFields(props: QuoteFieldsProps) {
               <button
                 type="button"
                 onClick={() => setNotesOpen(true)}
-                className="inline-flex items-center gap-1 rounded-md text-xs font-medium text-ice-600 transition-colors hover:text-ink-950"
+                className="flex h-11 w-full items-center gap-2 rounded-lg border border-dashed border-frost-400 px-3 text-left text-sm font-medium text-ink-700 transition-colors hover:border-ice-500 hover:bg-ice-50 hover:text-ice-700 lg:h-10 short:h-9"
               >
-                <Plus aria-hidden="true" className="size-3.5" />
-                Add a note about the cargo
+                <Plus aria-hidden="true" className="size-4 shrink-0 text-ice-600" />
+                <span className="min-w-0 truncate">Add a note about the cargo</span>
+                <span className="ml-auto shrink-0 text-xs font-normal text-ink-400">Optional</span>
               </button>
             )}
           </div>
 
-          {/* Wider on phones, where the text is 16px so iOS does not zoom in. */}
-          <div className="w-32 shrink-0 sm:w-28">
+          {/* Lines up with the notes box rather than its label once the notes are open. */}
+          <div className={cn("min-w-0", showNotes && "sm:pt-[1.625rem] short:pt-0")}>
             <label htmlFor={`${id}-promoCode`} className="sr-only">
               Promo code (optional)
             </label>
@@ -391,6 +366,12 @@ export function QuoteFields(props: QuoteFieldsProps) {
           </div>
         </div>
       </div>
+
+      {hasErrors ? (
+        <div aria-live="polite" className="rounded-lg bg-danger-soft px-3 py-2">
+          <ErrorSummary errors={errors} />
+        </div>
+      ) : null}
     </div>
   );
 }

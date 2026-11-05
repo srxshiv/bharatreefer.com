@@ -40,6 +40,7 @@ import { card, primaryButton } from "../ui";
 import { LoadRequests } from "./load-requests";
 import { LoadRows } from "./load-rows";
 import { NumberPlate } from "./number-plate";
+import { LocationButton } from "./tracking-link";
 import { TrackingSheetBody, TrackingSheetTitle } from "./tracking-sheet";
 import { TripButton, tripSince } from "./trip-button";
 import { truckDetails } from "./truck-details";
@@ -269,8 +270,8 @@ export function FleetBoard({
           <h1 className="text-2xl font-bold tracking-tight text-ink-950">Fleet</h1>
           <p className="mt-1 text-sm text-ink-500">
             {canManage
-              ? "Choose a truck for each confirmed request. Start the trip when it leaves; ending it delivers everything on board."
-              : "Every truck and how full it is. You see your own customers' loads in full; ask for a truck for your confirmed requests and an admin approves it."}
+              ? "Choose a truck for each quoted request. Start the trip when it leaves; ending it delivers everything on board."
+              : "Every truck and how full it is. You see your own customers' loads in full; ask for a truck for your quoted requests and an admin approves it."}
           </p>
         </div>
         {canManage ? (
@@ -308,7 +309,7 @@ export function FleetBoard({
           <p className="caption text-ink-500">Waiting for a truck</p>
           <p className="mt-1 font-mono text-3xl font-semibold text-ink-950">{summary.waitingOrders}</p>
           <p className="mt-2 text-xs text-ink-500">
-            {summary.waitingOrders > 0 ? `${formatCapacity(summary.waitingKg)} to place` : "Every confirmed load is placed"}
+            {summary.waitingOrders > 0 ? `${formatCapacity(summary.waitingKg)} to place` : "Every quoted load is placed"}
           </p>
         </div>
         <div className={cn(card, "p-4")}>
@@ -332,7 +333,7 @@ export function FleetBoard({
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <Queue
           orders={view.waiting}
-          confirmedCount={view.confirmedCount}
+          quotedCount={view.quotedCount}
           bandLabels={bandLabels}
           today={view.today}
           canManage={canManage}
@@ -373,7 +374,7 @@ export function FleetBoard({
               <p className="mt-3 font-semibold text-ink-950">No trucks yet</p>
               <p className="mt-1 max-w-sm text-sm text-ink-500">
                 {canManage
-                  ? "Add each truck by its number plate under its payload. Confirmed requests can then be placed on them."
+                  ? "Add each truck by its number plate under its payload. Quoted requests can then be placed on them."
                   : "An admin adds the trucks. They will show here."}
               </p>
               {canManage ? (
@@ -735,6 +736,7 @@ function TruckCard({
             {canManage ? (
               <TripButton truck={truck} onStart={() => actions.onStartTrip(truck)} onEnd={() => actions.onEndTrip(truck)} />
             ) : null}
+            <LocationButton truck={truck} />
             <button
               type="button"
               onClick={() => actions.onOpen(truck)}
@@ -762,7 +764,7 @@ function TruckCard({
 
 function Queue({
   orders,
-  confirmedCount,
+  quotedCount,
   bandLabels,
   today,
   canManage,
@@ -771,7 +773,7 @@ function Queue({
   header,
 }: {
   orders: WaitingOrder[];
-  confirmedCount: number;
+  quotedCount: number;
   bandLabels: Record<MaterialId, string>;
   today: string;
   canManage: boolean;
@@ -789,7 +791,7 @@ function Queue({
             Waiting for a truck
           </h2>
           <span className="font-mono text-sm text-ink-500">
-            {orders.length} of {confirmedCount} confirmed
+            {orders.length} of {quotedCount} quoted
           </span>
         </div>
         <p className="mt-1 text-xs text-ink-500">
@@ -806,11 +808,11 @@ function Queue({
           <div className={cn(card, "mt-3 flex items-center gap-3 p-4")}>
             <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-success" />
             <p className="text-sm text-ink-700">
-              {confirmedCount === 0
+              {quotedCount === 0
                 ? canManage
-                  ? "No confirmed requests right now."
-                  : "None of your requests is confirmed right now."
-                : "Every confirmed load is on a truck."}
+                  ? "No quoted requests right now."
+                  : "None of your requests is quoted right now."
+                : "Every quoted load is on a truck."}
             </p>
           </div>
         ) : (

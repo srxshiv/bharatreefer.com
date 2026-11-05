@@ -26,8 +26,8 @@ describe("parseSectionsForm", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.showFacts).toBe(false);
-    expect(result.value.list.map((item) => item.id)).toEqual(["contact", "bands", "fleet", "routes", "steps", "about", "faqs"]);
-    expect(result.value.list[1]).toEqual({ id: "bands", visible: false, eyebrow: null, title: "Cold, colder, coldest", intro: null });
+    expect(result.value.list.map((item) => item.id)).toEqual(["contact", "steps", "bands", "fleet", "routes", "about", "faqs"]);
+    expect(result.value.list.find((item) => item.id === "bands")).toEqual({ id: "bands", visible: false, eyebrow: null, title: "Cold, colder, coldest", intro: null });
   });
 
   it("refuses a form that is missing sections or has text that is too long", () => {

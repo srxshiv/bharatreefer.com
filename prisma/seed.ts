@@ -7,7 +7,7 @@
  *
  * The trucks are the "Bharat Reefer" sheet of "Truck List for Bharat reefer.xlsx". A truck
  * already in the fleet (same plate) is left as it is, so changes made in the panel survive.
- * Test loads are confirmed requests marked with the user agent "seed-script"; only those are
+ * Test loads are quoted (booked) requests marked with the user agent "seed-script"; only those are
  * ever replaced or removed. Their customers' email addresses are Resend's test inbox and their
  * phone is the business's own WhatsApp number, so trying a tracking link reaches no one else.
  */
@@ -39,6 +39,7 @@ export const FLEET: Array<[string, number, string, number, number]> = [
 
 type TestLoad = {
   name: string;
+  company: string;
   from: [state: string, city: string];
   to: [state: string, city: string];
   material: MaterialId;
@@ -52,12 +53,12 @@ type TestLoad = {
 
 /** Two trucks with two customers each, and two loads waiting. */
 const TEST_LOADS: TestLoad[] = [
-  { name: "Asha Verma", from: ["Delhi", "Azadpur"], to: ["Rajasthan", "Jaipur"], material: "CHILLED", kg: 2500, quote: 14_000, pickupInDays: 0, notes: "Apples in CFB boxes.", truck: "DL1LAG9516" },
-  { name: "Rohit Mehta", from: ["Delhi", "Okhla"], to: ["Rajasthan", "Jaipur"], material: "FROZEN", kg: 400, quote: 4_500, pickupInDays: 0, notes: "Ice cream, 40 cartons.", truck: "DL1LAG9516" },
-  { name: "Imran Sheikh", from: ["Punjab", "Ludhiana"], to: ["Delhi", "Azadpur"], material: "FROZEN", kg: 6000, quote: 26_000, pickupInDays: 0, notes: "Frozen peas, 1 kg packs.", truck: "HR55AR6518" },
-  { name: "Neha Kapoor", from: ["Haryana", "Sonipat"], to: ["Delhi", "Azadpur"], material: "CHILLED", kg: 2000, quote: 7_500, pickupInDays: 0, notes: "Paneer and dairy, crates.", truck: "HR55AR6518" },
-  { name: "Kavita Iyer", from: ["Delhi", "Narela"], to: ["Maharashtra", "Mumbai"], material: "FROZEN", kg: 14_000, quote: 98_000, pickupInDays: 1, notes: "Frozen chicken, 10 kg cartons." },
-  { name: "Harpreet Singh", from: ["Punjab", "Amritsar"], to: ["Delhi", "Delhi"], material: "CHILLED", kg: 1200, quote: 9_000, pickupInDays: 2, notes: "Dairy and sweets for a wedding." },
+  { name: "Asha Verma", company: "Verma Fresh Fruits", from: ["Delhi", "Azadpur"], to: ["Rajasthan", "Jaipur"], material: "CHILLED", kg: 2500, quote: 14_000, pickupInDays: 0, notes: "Apples in CFB boxes.", truck: "DL1LAG9516" },
+  { name: "Rohit Mehta", company: "Mehta Ice Creams", from: ["Delhi", "Okhla"], to: ["Rajasthan", "Jaipur"], material: "FROZEN", kg: 400, quote: 4_500, pickupInDays: 0, notes: "Ice cream, 40 cartons.", truck: "DL1LAG9516" },
+  { name: "Imran Sheikh", company: "Punjab Frozen Foods", from: ["Punjab", "Ludhiana"], to: ["Delhi", "Azadpur"], material: "FROZEN", kg: 6000, quote: 26_000, pickupInDays: 0, notes: "Frozen peas, 1 kg packs.", truck: "HR55AR6518" },
+  { name: "Neha Kapoor", company: "Kapoor Dairy", from: ["Haryana", "Sonipat"], to: ["Delhi", "Azadpur"], material: "CHILLED", kg: 2000, quote: 7_500, pickupInDays: 0, notes: "Paneer and dairy, crates.", truck: "HR55AR6518" },
+  { name: "Kavita Iyer", company: "Iyer Poultry", from: ["Delhi", "Narela"], to: ["Maharashtra", "Mumbai"], material: "FROZEN", kg: 14_000, quote: 98_000, pickupInDays: 1, notes: "Frozen chicken, 10 kg cartons." },
+  { name: "Harpreet Singh", company: "Singh Sweets", from: ["Punjab", "Amritsar"], to: ["Delhi", "Delhi"], material: "CHILLED", kg: 1200, quote: 9_000, pickupInDays: 2, notes: "Dairy and sweets for a wedding." },
 ];
 
 const DAY = 86_400_000;
@@ -115,13 +116,13 @@ async function seed(prisma: PrismaClient) {
     if (load.truck && !truckId) throw new Error(`Truck ${load.truck} is not in the fleet.`);
     const timeline: Prisma.QuoteActivityCreateWithoutQuoteRequestInput[] = [
       { type: "NOTE", body: "Test load from the seed script, for trying trips and tracking links. pnpm db:seed --clear removes it." },
-      { type: "STATUS_CHANGE", body: "Status changed from New to Confirmed" },
+      { type: "STATUS_CHANGE", body: "Status changed from New to Quoted" },
       ...(load.truck ? [{ type: "ASSIGNMENT" as const, body: `Placed ${formatKg(load.kg)} on ${formatPlate(load.truck)}` }] : []),
     ];
     await prisma.quoteRequest.create({
       data: {
         reference,
-        status: "CONFIRMED",
+        status: "QUOTED",
         originState: load.from[0],
         originCity: load.from[1],
         destinationState: load.to[0],
@@ -133,6 +134,7 @@ async function seed(prisma: PrismaClient) {
         pickupDate: new Date(today + load.pickupInDays * DAY),
         notes: load.notes,
         contactName: load.name,
+        companyName: load.company,
         phone,
         email: `delivered+${load.name.toLowerCase().replace(/\s+/g, ".")}@resend.dev`,
         quotedAmount: load.quote,

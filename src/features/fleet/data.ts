@@ -32,7 +32,7 @@ export type { FleetBoard, FleetLoad, FleetLoadRequest, FleetOutcome, FleetTruck,
 //   requests' loads only (src/features/quotes/visibility.ts); the rest arrive as weight and
 //   temperature alone.
 // - Only admins change the fleet: trucks, trips, and placing, moving or removing loads.
-// - Staff ask for a truck for their own confirmed requests. An admin approves the ask, which
+// - Staff ask for a truck for their own quoted requests. An admin approves the ask, which
 //   places the load with the same checks as placing it directly, or declines it.
 //
 // The rules:
@@ -55,6 +55,8 @@ const vehicleSelect = {
   tyres: true,
   status: true,
   tripStartedAt: true,
+  trackingUrl: true,
+  trackingUrlSetAt: true,
 } satisfies Prisma.VehicleSelect;
 
 const orderSelect = {
@@ -70,7 +72,7 @@ const orderSelect = {
   email: true,
 } satisfies Prisma.QuoteRequestSelect;
 
-const ON_BOARD = { deliveredAt: null, quoteRequest: { status: "CONFIRMED" } } satisfies Prisma.TruckAssignmentWhereInput;
+const ON_BOARD = { deliveredAt: null, quoteRequest: { status: "QUOTED" } } satisfies Prisma.TruckAssignmentWhereInput;
 
 /** How long staff keep seeing their decided asks on the fleet page. */
 const DECIDED_SHOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -120,7 +122,7 @@ export async function getFleetBoard(): Promise<FleetBoard> {
   const user = await requireUser();
   const canManage = user.role === "ADMIN";
   // One round trip: everything runs together, joined up here rather than in the database.
-  // Every confirmed request is read, because staff still need the weight and temperature of
+  // Every quoted request is read, because staff still need the weight and temperature of
   // the loads that are not theirs; `mine` says which ones they may see in full.
   const [vehicles, onBoard, placed, orders, mine, requests] = await Promise.all([
     db().vehicle.findMany({ orderBy: [{ capacityKg: "asc" }, { plateNumber: "asc" }], select: vehicleSelect }),
@@ -131,17 +133,17 @@ export async function getFleetBoard(): Promise<FleetBoard> {
     }),
     db().truckAssignment.groupBy({
       by: ["quoteRequestId"],
-      where: { quoteRequest: { status: "CONFIRMED" } },
+      where: { quoteRequest: { status: "QUOTED" } },
       _sum: { loadKg: true },
     }),
     db().quoteRequest.findMany({
-      where: { status: "CONFIRMED" },
+      where: { status: "QUOTED" },
       orderBy: [{ pickupDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
       select: orderSelect,
     }),
     canManage
       ? null
-      : db().quoteRequest.findMany({ where: { status: "CONFIRMED", ...visibleTo(user) }, select: { id: true } }),
+      : db().quoteRequest.findMany({ where: { status: "QUOTED", ...visibleTo(user) }, select: { id: true } }),
     db().loadRequest.findMany({ where: loadRequestsFor(user), orderBy: { createdAt: "asc" }, select: loadRequestSelect }),
   ]);
 
@@ -203,6 +205,7 @@ export async function getFleetBoard(): Promise<FleetBoard> {
     return {
       ...vehicle,
       tripStartedAt: vehicle.tripStartedAt?.toISOString() ?? null,
+      trackingUrlSetAt: vehicle.trackingUrlSetAt?.toISOString() ?? null,
       usedKg: loads.reduce((sum, load) => sum + load.loadKg, 0),
       loads,
     };
@@ -231,7 +234,7 @@ export async function getFleetBoard(): Promise<FleetBoard> {
     trucks,
     waiting,
     loadRequests,
-    confirmedCount: visibleOrders.length,
+    quotedCount: visibleOrders.length,
     today: dateInIndia(),
   };
 }
@@ -303,9 +306,9 @@ async function lockTruck(tx: Prisma.TransactionClient, vehicleId: string): Promi
   const [truck] = await tx.$queryRaw<LockedTruck[]>`
     SELECT v.plate_number, v.capacity_kg, v.status::text AS status,
       COALESCE((SELECT SUM(a.load_kg) FROM truck_assignments a JOIN quote_requests q ON q.id = a.quote_request_id
-        WHERE a.vehicle_id = v.id AND a.delivered_at IS NULL AND q.status = 'CONFIRMED'), 0)::int AS used_kg,
+        WHERE a.vehicle_id = v.id AND a.delivered_at IS NULL AND q.status = 'QUOTED'), 0)::int AS used_kg,
       (SELECT COUNT(*) FROM truck_assignments a JOIN quote_requests q ON q.id = a.quote_request_id
-        WHERE a.vehicle_id = v.id AND a.delivered_at IS NULL AND q.status = 'CONFIRMED')::int AS loads
+        WHERE a.vehicle_id = v.id AND a.delivered_at IS NULL AND q.status = 'QUOTED')::int AS loads
     FROM vehicles v WHERE v.id = ${vehicleId}
     FOR UPDATE OF v`;
   return truck;
@@ -323,7 +326,7 @@ async function lockOrder(tx: Prisma.TransactionClient, quoteId: string): Promise
   return order;
 }
 
-const NOT_CONFIRMED = "Only confirmed requests go on trucks. Mark it Confirmed first.";
+const NOT_QUOTED = "Only quoted (booked) requests go on trucks. Set it to Quoted first, with its price and pickup date.";
 const GONE_TRUCK = "This truck is no longer in the fleet.";
 
 function cannotLoad(plate: string, status: TruckStatus): string | null {
@@ -405,7 +408,21 @@ export async function deleteVehicle(id: string): Promise<FleetOutcome> {
 }
 
 /**
- * Puts `kg` of a confirmed request on a truck, inside the caller's transaction. Checks
+ * Saves a truck's live location link (from its GPS tracker; such links last about two weeks),
+ * or removes it with null. Customers get it in the email about their truck. Admins only.
+ */
+export async function setTruckTrackingLink(vehicleId: string, url: string | null): Promise<FleetOutcome> {
+  await requireAdmin();
+  const vehicle = await db().vehicle.findUnique({ where: { id: vehicleId }, select: { plateNumber: true, trackingUrl: true } });
+  if (!vehicle) return { ok: false, error: GONE_TRUCK };
+  const plate = formatPlate(vehicle.plateNumber);
+  if (vehicle.trackingUrl === url) return { ok: true, message: `${plate}'s tracking link is already that one.` };
+  await db().vehicle.update({ where: { id: vehicleId }, data: { trackingUrl: url, trackingUrlSetAt: url ? new Date() : null } });
+  return { ok: true, message: url ? `Tracking link saved for ${plate}.` : `Tracking link removed from ${plate}.` };
+}
+
+/**
+ * Puts `kg` of a quoted request on a truck, inside the caller's transaction. Checks
  * everything before writing anything, so a refusal leaves the database as it was. The request's
  * row is locked first (as in every function here), so two people placing the same request at
  * once cannot place more than it weighs. `because` ends the timeline entry, e.g. "as Priya asked".
@@ -420,7 +437,7 @@ async function placeLoad(
 ): Promise<FleetOutcome> {
   const order = await lockOrder(tx, quoteId);
   if (!order) return { ok: false, error: "This request no longer exists." };
-  if (order.status !== "CONFIRMED") return { ok: false, error: NOT_CONFIRMED };
+  if (order.status !== "QUOTED") return { ok: false, error: NOT_QUOTED };
   const remaining = order.quantity_kg - order.placed_kg;
   if (remaining <= 0) return { ok: false, error: `${order.reference} is already on trucks.` };
   if (kg > remaining) return { ok: false, error: `Only ${formatKg(remaining)} of ${order.reference} is left to place.` };
@@ -444,7 +461,7 @@ async function placeLoad(
   };
 }
 
-/** Puts `kg` of a confirmed request on a truck. Admins only. */
+/** Puts `kg` of a quoted request on a truck. Admins only. */
 export async function assignLoad(quoteId: string, vehicleId: string, kg: number): Promise<FleetOutcome> {
   const admin = await requireAdmin();
   return db().$transaction((tx) => placeLoad(tx, admin.id, quoteId, vehicleId, kg));
@@ -464,7 +481,7 @@ async function lockLoadRequest(tx: Prisma.TransactionClient, id: string): Promis
 const DECIDED = "This ask has already been dealt with.";
 
 /**
- * A staff member asks for `kg` of one of their confirmed requests to go on a truck. Nothing is
+ * A staff member asks for `kg` of one of their quoted requests to go on a truck. Nothing is
  * placed until an admin approves. What they can ask for is what is left to place, less what
  * their earlier asks are already waiting for.
  */
@@ -474,7 +491,7 @@ export async function requestLoad(quoteId: string, vehicleId: string, kg: number
     const order = await lockOrder(tx, quoteId);
     const mine = order && (await tx.quoteRequest.findFirst({ where: { id: quoteId, ...visibleTo(user) }, select: { id: true } }));
     if (!order || !mine) return { ok: false, error: "This request no longer exists." };
-    if (order.status !== "CONFIRMED") return { ok: false, error: NOT_CONFIRMED };
+    if (order.status !== "QUOTED") return { ok: false, error: NOT_QUOTED };
 
     const waiting = await tx.loadRequest.aggregate({ where: { quoteRequestId: quoteId, status: "PENDING" }, _sum: { loadKg: true } });
     const asked = waiting._sum.loadKg ?? 0;
@@ -567,7 +584,7 @@ export async function declineLoadRequest(id: string): Promise<FleetOutcome> {
   });
 }
 
-/** Takes a load off its truck. The request stays Confirmed and waits for a truck again. */
+/** Takes a load off its truck. The request stays Quoted and waits for a truck again. */
 export async function unassignLoad(assignmentId: string): Promise<FleetOutcome> {
   const admin = await requireAdmin();
   return db().$transaction(async (tx) => {
@@ -756,10 +773,10 @@ export async function endTrip(vehicleId: string): Promise<FleetOutcome> {
       const activities: Prisma.QuoteActivityCreateManyInput[] = [
         { quoteRequestId: quoteId, authorId: admin.id, type: "ASSIGNMENT", body: `${formatKg(delivered)} delivered by ${plate}` },
       ];
-      const done = request?.status === "CONFIRMED" && stillOnBoard === 0 && (deliveredTotal._sum.loadKg ?? 0) >= request.quantityKg;
+      const done = request?.status === "QUOTED" && stillOnBoard === 0 && (deliveredTotal._sum.loadKg ?? 0) >= request.quantityKg;
       if (done) {
         await tx.quoteRequest.update({ where: { id: quoteId }, data: { status: "COMPLETED" } });
-        activities.push({ quoteRequestId: quoteId, authorId: admin.id, type: "STATUS_CHANGE", body: "Status changed from Confirmed to Completed" });
+        activities.push({ quoteRequestId: quoteId, authorId: admin.id, type: "STATUS_CHANGE", body: "Status changed from Quoted to Completed" });
         completed.push(request.reference);
       }
       await tx.quoteActivity.createMany({ data: activities });

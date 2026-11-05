@@ -38,6 +38,7 @@ pnpm dev                     # http://localhost:3000, panel at /desk
 | `NEXT_PUBLIC_SITE_URL` | in production | Public origin, e.g. `https://bharatreefer.com`. Drives canonical URLs, the sitemap, social previews and the panel links in emails. |
 | `RESEND_API_KEY` | no | Turns on email notifications through [Resend](https://resend.com). Without it emails are logged, not sent. |
 | `EMAIL_FROM` | with the key | Sender, e.g. `Bharat Reefer <quotes@bharatreefer.com>`. The domain must be verified in Resend. |
+| `CRON_SECRET` | for the morning truck emails | Any random string of 16+ characters (`openssl rand -hex 32`). Set it in Vercel's environment variables; Vercel sends it with each scheduled run. Without it the 8 am run does nothing, and only late allotments are announced. |
 
 Business details such as the phone number, the alert email address and the opening hours
 are not environment variables: the business edits them in the admin panel.
@@ -65,7 +66,7 @@ Nothing in the code changes. In the Neon dashboard copy both connection strings,
 | `pnpm db:migrate` | Create and apply a migration in development. |
 | `pnpm db:deploy` | Apply pending migrations in production. |
 | `pnpm db:studio` | Browse the database in Prisma Studio. |
-| `pnpm db:seed` | Adds the Bharat Reefer fleet (the 8 trucks of "Truck List for Bharat reefer.xlsx"; trucks already in the fleet are left alone) and replaces the test loads: 6 confirmed requests, 4 of them on two trucks, for trying trips and tracking links. Test customers have Resend's test inbox as their email and the business's WhatsApp number as their phone. Real requests are never touched. `pnpm db:seed --clear` removes the test loads only. |
+| `pnpm db:seed` | Adds the Bharat Reefer fleet (the 8 trucks of "Truck List for Bharat reefer.xlsx"; trucks already in the fleet are left alone) and replaces the test loads: 6 quoted (booked) requests with company names, 4 of them on two trucks, for trying trips and tracking links. Test customers have Resend's test inbox as their email and the business's WhatsApp number as their phone. Real requests are never touched. `pnpm db:seed --clear` removes the test loads only. |
 
 ## Project layout
 
@@ -134,13 +135,19 @@ The logo lives at `public/brand/logo.webp` (made from `assets/Bharat Reefer Tric
 Logo.png`); the favicons in `src/app/icon.png` and `apple-icon.png` are cut from it.
 
 The home page opens on the photo of a Bharat Reefer truck with the full logo on its side
-(`public/brand/bharat-reefer-truck.jpg`), full screen. Scrolling lights up the three
-temperature bands one by one, then the truck sizes and the buttons; scrolling on, the page
-slides up over the photo as frosted glass and the photo stays softly behind it
-(`src/components/console/intro.tsx`). `intro-motion.tsx` turns the scroll position into a few
-CSS variables and the styles in `globals.css` ("opening scene") do the rest, so it works the
-same in every browser. The site header is dark glass while over the photo. For anyone who asks
-their device for less motion the scene shows whole, without pinning or animation.
+(`public/brand/bharat-reefer-truck.jpg`), full screen. Scrolling lights up "Bharat Reefer"
+word by word, then "Linking Bharat." in the tricolour, "Your reliable cold chain partners."
+and the buttons; scrolling on, the page slides up over the photo as frosted glass and the
+photo stays softly behind it (`src/components/console/intro.tsx`). `intro-motion.tsx` turns
+the scroll position into a few CSS variables and the styles in `globals.css` ("opening
+scene") do the rest, so it works the same in every browser. The site header is dark glass
+while over the photo. For anyone who asks their device for less motion the scene shows
+whole, without pinning or animation.
+
+Below it, How it works comes first, then the temperature bands, full and part loads, About
+and Contact, each under a large heading (the section's label from Sections, with its title
+as the line under it). The page's headline from Page text is kept as the page's hidden
+heading and in its title and search description.
 
 ## Editable content
 
@@ -150,7 +157,7 @@ moment they are saved; no deploy is needed.
 | Page | What it controls |
 | --- | --- |
 | Business details | Name, tagline, phone, WhatsApp number, public email, where alerts go, address, desk days and hours, promised reply time. |
-| Sections | The announcement bar (message, optional link, colour, with a live preview), the key facts under the headline, and each section below it: on or off, its order, and its label, heading and introduction. |
+| Sections | The announcement bar (message, optional link, colour, with a live preview), and each section below the opening photo: on or off, its order, and its label (shown as the large heading), title and introduction. |
 | Page text | Headline, introduction, "How it works" steps, questions and answers. |
 | Temperature bands | Name, temperature shown, description and example cargo for each of the three bands. |
 | Fleet and photos | Weight limits, the part-load threshold, and photos. The truck sizes are not set here: they are the payloads of the trucks on the Fleet page, so adding a truck with a new payload adds that size to the site. |
@@ -265,7 +272,7 @@ a random pair after the first three letters once every combination is
   else (a customer who forgot the code) from the request itself, and filter the list by
   **Brought by** (anyone, a team member, or no code).
 - The Team page shows how many requests each code brought, and how many went ahead
-  (Confirmed or Completed).
+  (Quoted or Completed).
 
 - **Requests**: one slim strip shows how many requests sit at each stage, what the quoted
   ones are worth, and the win rate; below it, search, a temperature dropdown and a
@@ -274,16 +281,21 @@ a random pair after the first three letters once every combination is
   - **List**: compact rows with page numbers and 25, 50 or 100 rows per page. Each row has a
     menu to call the customer or move the request to any stage, and tick boxes select rows
     to move several at once or export just those to CSV.
-  - **Board**: a column per open stage. Each card moves on with one button (Mark
-    contacted, Send quote, Confirmed, Delivered) or to any stage from its menu, and can be
-    dragged between columns on a computer. Moving to Quoted asks for the price in the card.
-    Confirmed cards show whether the load is on a truck yet.
+  - **Board**: a column per open stage (New, Contacted, Quoted). Each card moves on with one
+    button (Mark contacted, Send quote, Delivered) or to any stage from its menu, and can be
+    dragged between columns on a computer. Moving to Quoted asks for the price and the
+    pickup date in the card. Quoted cards show whether the load is on a truck yet.
+- **Stages**: New, Contacted, Quoted, Completed, plus Lost and Spam. **Quoted means booked**
+  (there is no separate Confirmed stage any more): a request can only be set to Quoted with
+  its price and its pickup date, from the request's Status and quote box, the board or a
+  bulk move (which leaves out, and counts, any request missing either). Quoted requests are
+  the ones that go on trucks.
 - **Request panel**: clicking a request anywhere in the panel (a row, a board card, the
   fleet queue, a load on a truck) opens it in a side panel over the page instead of
   leaving it. The address changes, so Back or Escape closes it and a reload or shared link
   shows the full page. Built with an intercepting route (`@modal/(.)quotes/[id]`).
 - **Request detail** (the panel, or the full page): the load and the customer, one-tap call, WhatsApp and email, the
-  status and quoted amount, the trucks a confirmed load is on, internal notes, and a
+  status, quoted amount and pickup date, the trucks a quoted load is on, internal notes, and a
   timeline of every change, email and truck placement.
 - **Fleet**: every truck by number plate, grouped by payload, with its body length, tyres,
   driver and status (available, loading, on a trip, in maintenance). Trucks have no
@@ -292,24 +304,29 @@ a random pair after the first three letters once every combination is
   cyan, ambient saffron) and the empty room left clear; past the payload the box keeps going
   and the excess is marked red, with "2,000 kg over" beside it. Each
   truck lists the loads on board with **Move** (to another truck) and **Remove** (back to
-  the queue, still Confirmed). Staff see every truck and how full it is, but only their own
+  the queue, still Quoted). Staff see every truck and how full it is, but only their own
   customers' loads in full: anyone else's shows as its weight and temperature ("Another
   customer"), and only that leaves the server.
-  - Confirmed requests waiting for a truck are listed beside the trucks. **Choose truck**
+  - Quoted requests waiting for a truck are listed beside the trucks. **Choose truck**
     opens a searchable list of every truck, grouped by payload: type a plate, driver, model
     or size. Set how much of the load goes (all of it by default, or part, to split it), and
     each truck shows what it carries (each load in its colour), what it would carry with
     this load, and whether it fits or by how much it goes over. The best fit (takes it all
     with the least room to spare) is pinned at the top as a suggestion. On a
     computer, a request can also be dragged onto a truck.
-  - **Truck requests**: staff cannot place loads. On their confirmed requests the button is
+  - **Truck requests**: staff cannot place loads. On their quoted requests the button is
     **Request truck**, which opens the same list and sends an ask instead. Asks wait at the
     top of the fleet page, with a count on the Fleet link for admins, who see whether the
     load would fit and **Approve** (the load goes on, with every check a direct placement
     has, and the request's timeline says whose ask it was) or **Decline**. Staff can withdraw
     an ask still waiting, and see how their last week's asks were decided. What staff can
     ask for is what is left to place, less what their asks are already waiting for. A
-    request that leaves Confirmed drops its waiting asks.
+    request that leaves Quoted drops its waiting asks.
+  - **Live location**: each truck can keep its GPS tracker's share link. The truck card has
+    a pin that opens it in a new tab, and the truck's sheet shows how old it is and takes a
+    new one: such links last about two weeks, so after 14 days the pin gets an amber dot and
+    the sheet says it has probably stopped working. The link goes into the email telling
+    the customer their truck, and fills in the Send tracking link box.
   - **Start trip** when a loaded truck leaves. **End trip** asks first, then delivers
     everything on board and empties the truck; a request whose whole weight has been
     delivered is marked Completed.
@@ -368,6 +385,22 @@ Email goes through [Resend](https://resend.com). The site sends:
   customer.
 - **A confirmation to the customer** with their reference and load.
   For a request a team member enters, the confirmation goes out only if they tick the box.
+- **The quote to the customer** when a request becomes Quoted (booked): the price, the
+  pickup date and everything about the load, with a line saying the truck follows.
+- **The truck to the customer** the day before pickup, from 8 am India time (24 hours before
+  an 8 am pickup): the truck's plate and size, the driver and their number, and the live
+  location link if the truck has a working one, one email listing every truck when the
+  load is split. A truck allotted later than that (pickup today or tomorrow after 8 am) is
+  announced straight away, and a new pickup date or a load moved to another truck sends it
+  again. The morning run is a Vercel cron job (`vercel.json`, 3:00 UTC) calling
+  `/api/cron/truck-notices`, which only answers to Vercel's `CRON_SECRET`. On the Hobby plan
+  a cron job runs once a day at most, at some point within its hour, in UTC, and only on the
+  production deployment, so the emails go out between 8:30 and 9:30 am India time. A failed
+  run is not retried by Vercel; any notice not sent is tried again on the next run or the
+  next truck allotted. To send the due ones by hand:
+  `curl -H "Authorization: Bearer $CRON_SECRET" https://bharatreefer.com/api/cron/truck-notices`.
+- **The tracking link** to the customers on a truck, whenever an admin sends it from the
+  fleet page (Send tracking link), as often as needed.
 - **Password reset links** to team members who use "Forgot your password?".
 
 To turn it on:

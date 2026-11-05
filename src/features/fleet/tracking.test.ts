@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BUSINESS } from "@/config/site";
-import { trackingLinkEmail } from "./emails";
-import { parseTrackingUrl, trackingWhatsappMessage, type TrackedLoad } from "./tracking";
+import { trackingLinkEmail, truckNoticeEmail } from "./emails";
+import { isTrackingLinkFresh, parseTrackingUrl, trackingWhatsappMessage, truckNoticeDueAt, type TrackedLoad } from "./tracking";
 
 const load: TrackedLoad = {
   reference: "BR-7K3Q9F",
@@ -45,5 +45,47 @@ describe("tracking messages", () => {
     expect(email.html).toContain(`href="${url}"`);
     expect(email.text).toContain(`Track your load: ${url}`);
     expect(email.text).toContain("Truck: HR 55 AR 6518");
+  });
+});
+
+describe("truck notices", () => {
+  it("are due at 8 am India time the day before pickup", () => {
+    expect(truckNoticeDueAt("2026-11-07").toISOString()).toBe("2026-11-06T02:30:00.000Z");
+    // Across a month end.
+    expect(truckNoticeDueAt("2026-12-01").toISOString()).toBe("2026-11-30T02:30:00.000Z");
+  });
+
+  it("tell the customer the truck, the driver and the live location", () => {
+    const email = truckNoticeEmail(
+      { reference: "BR-7K3Q9F", contactName: "Asha Verma", originCity: "Azadpur", destinationCity: "Jaipur", pickupDate: "2026-11-07" },
+      [{ plate: "HR 55 AR 6518", capacityKg: 9000, loadKg: 2500, driverName: "Ramesh", driverPhone: "+919812345678", trackingUrl: "https://track.example.in/t/AB12" }],
+      DEFAULT_BUSINESS,
+    );
+    expect(email.subject).toBe("Your truck for BR-7K3Q9F: HR 55 AR 6518, pickup 7 Nov 2026");
+    expect(email.text).toContain("Truck: HR 55 AR 6518, 9 t truck, 2,500 kg of your load");
+    expect(email.text).toContain("Driver: Ramesh, +91 98123 45678");
+    expect(email.text).toContain("Track your truck: https://track.example.in/t/AB12");
+  });
+
+  it("lists every truck when the load is split", () => {
+    const truck = { capacityKg: 9000, loadKg: 4000, driverName: null, driverPhone: null, trackingUrl: null };
+    const email = truckNoticeEmail(
+      { reference: "BR-7K3Q9F", contactName: "Asha", originCity: "A", destinationCity: "B", pickupDate: "2026-11-07" },
+      [{ ...truck, plate: "HR 55 AR 6518" }, { ...truck, plate: "HR 55 AR 6348" }],
+      DEFAULT_BUSINESS,
+    );
+    expect(email.text).toContain("Your trucks are booked");
+    expect(email.text).toContain("Truck 1: HR 55 AR 6518");
+    expect(email.text).toContain("Truck 2: HR 55 AR 6348");
+    expect(email.text).not.toContain("Track your truck");
+  });
+});
+
+describe("isTrackingLinkFresh", () => {
+  const now = Date.parse("2026-11-20T10:00:00Z");
+  it("trusts a link for two weeks", () => {
+    expect(isTrackingLinkFresh("2026-11-07T10:00:01Z", now)).toBe(true);
+    expect(isTrackingLinkFresh("2026-11-06T10:00:00Z", now)).toBe(false);
+    expect(isTrackingLinkFresh(null, now)).toBe(false);
   });
 });

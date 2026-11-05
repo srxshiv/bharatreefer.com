@@ -31,8 +31,9 @@ enum LoadType {
 enum QuoteStatus {
   NEW
   CONTACTED
+  /// The price and the pickup date are agreed: the load is booked and goes on trucks. (There
+  /// used to be a separate Confirmed stage; it is the same as this one now.)
   QUOTED
-  CONFIRMED
   COMPLETED
   LOST
   SPAM
@@ -61,6 +62,8 @@ model QuoteRequest {
   notes      String?
 
   contactName String  @map("contact_name")
+  /// The customer's company or business, when they gave one.
+  companyName String? @map("company_name")
   /// Normalised to E.164, e.g. "+919871094268".
   phone       String
   email       String?
@@ -107,6 +110,8 @@ enum QuoteActivityType {
   ASSIGNMENT
   /// Who brought the customer was changed.
   REFERRER_CHANGE
+  /// The pickup date was set or changed.
+  PICKUP_CHANGE
 
   @@map("quote_activity_type")
 }
@@ -328,6 +333,10 @@ model Vehicle {
   status        VehicleStatus @default(AVAILABLE)
   /// When the current trip started. Set only while ON_TRIP.
   tripStartedAt DateTime?     @map("trip_started_at") @db.Timestamptz(3)
+  /// The truck's live location link from its GPS tracker. Such links last about two weeks, so
+  /// it is replaced from time to time; `trackingUrlSetAt` says when it was last set.
+  trackingUrl      String?   @map("tracking_url")
+  trackingUrlSetAt DateTime? @map("tracking_url_set_at") @db.Timestamptz(3)
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -338,7 +347,7 @@ model Vehicle {
   @@map("vehicles")
 }
 
-/// A confirmed load, or part of one, placed on a truck. A truck can carry several part loads,
+/// A booked (quoted) load, or part of one, placed on a truck. A truck can carry several part loads,
 /// a heavy load can span several trucks, and one truck can carry parts of the same request on
 /// different trips.
 model TruckAssignment {
@@ -351,6 +360,8 @@ model TruckAssignment {
   loadKg         Int          @map("load_kg")
   /// Set when the trip carrying it ended. Null while the load is on board.
   deliveredAt    DateTime?    @map("delivered_at") @db.Timestamptz(3)
+  /// When the customer was emailed which truck is coming (the day before pickup). Null until then.
+  noticeSentAt   DateTime?    @map("notice_sent_at") @db.Timestamptz(3)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([vehicleId, deliveredAt])
@@ -363,13 +374,13 @@ enum LoadRequestStatus {
   PENDING
   APPROVED
   DECLINED
-  /// Withdrawn by the staff member, or dropped because the request left Confirmed.
+  /// Withdrawn by the staff member, or dropped because the request left Quoted.
   CANCELLED
 
   @@map("load_request_status")
 }
 
-/// A staff member asking for (part of) one of their confirmed requests to go on a truck. Staff
+/// A staff member asking for (part of) one of their quoted requests to go on a truck. Staff
 /// cannot place loads themselves: an admin approves, which places the load, or declines.
 model LoadRequest {
   id             String            @id @default(cuid())

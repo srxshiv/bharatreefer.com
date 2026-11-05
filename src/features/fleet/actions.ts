@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { after } from "next/server";
 import { refreshAdminData } from "@/features/auth/refresh-admin";
 import { SITE_CONTENT_TAG } from "@/features/content/data";
 import {
@@ -14,12 +15,14 @@ import {
   moveLoad,
   requestLoad,
   sendTrackingLink,
+  setTruckTrackingLink,
   setVehicleStatus,
   startTrip,
   unassignLoad,
   updateVehicle,
   type FleetOutcome,
 } from "./data";
+import { sendDueTruckNotices } from "./notices";
 import { parseTrackingUrl } from "./tracking";
 import { parseVehicleForm } from "./vehicle-input";
 
@@ -36,6 +39,15 @@ function isId(value: unknown): value is string {
 function done(outcome: FleetOutcome): FleetOutcome {
   if (outcome.ok) refreshAdminData();
   return outcome;
+}
+
+/**
+ * A load went on a truck: if its pickup is tomorrow or sooner the customer is told which truck
+ * at once, rather than at the next morning's run. After the response, so the board stays quick.
+ */
+function placed(outcome: FleetOutcome): FleetOutcome {
+  if (outcome.ok) after(() => sendDueTruckNotices());
+  return done(outcome);
 }
 
 /** Also for the public site: the truck sizes it plans quotes with are the trucks' payloads. */
@@ -76,7 +88,7 @@ const BAD_WEIGHT: FleetOutcome = { ok: false, error: "Enter the weight to load i
 export async function assignLoadAction(quoteId: string, vehicleId: string, kg: number): Promise<FleetOutcome> {
   if (!isId(quoteId) || !isId(vehicleId)) return BAD_REQUEST;
   if (!isLoadKg(kg)) return BAD_WEIGHT;
-  return done(await assignLoad(quoteId, vehicleId, kg));
+  return placed(await assignLoad(quoteId, vehicleId, kg));
 }
 
 export async function requestLoadAction(quoteId: string, vehicleId: string, kg: number): Promise<FleetOutcome> {
@@ -92,7 +104,7 @@ export async function cancelLoadRequestAction(id: string): Promise<FleetOutcome>
 
 export async function approveLoadRequestAction(id: string): Promise<FleetOutcome> {
   if (!isId(id)) return BAD_REQUEST;
-  return done(await approveLoadRequest(id));
+  return placed(await approveLoadRequest(id));
 }
 
 export async function declineLoadRequestAction(id: string): Promise<FleetOutcome> {
@@ -107,7 +119,7 @@ export async function unassignLoadAction(assignmentId: string): Promise<FleetOut
 
 export async function moveLoadAction(assignmentId: string, toVehicleId: string): Promise<FleetOutcome> {
   if (!isId(assignmentId) || !isId(toVehicleId)) return BAD_REQUEST;
-  return done(await moveLoad(assignmentId, toVehicleId));
+  return placed(await moveLoad(assignmentId, toVehicleId));
 }
 
 export async function startTripAction(vehicleId: string): Promise<FleetOutcome> {
@@ -130,4 +142,13 @@ export async function sendTrackingLinkAction(vehicleId: string, url: string, quo
   const link = typeof url === "string" ? parseTrackingUrl(url) : null;
   if (!link) return { ok: false, error: "Paste the tracking link, starting with https://" };
   return done(await sendTrackingLink(vehicleId, link, quoteIds));
+}
+
+/** Saves a truck's live location link, or removes it when `url` is empty. */
+export async function setTruckTrackingLinkAction(vehicleId: string, url: string): Promise<FleetOutcome> {
+  if (!isId(vehicleId) || typeof url !== "string") return BAD_REQUEST;
+  if (url.trim() === "") return done(await setTruckTrackingLink(vehicleId, null));
+  const link = parseTrackingUrl(url);
+  if (!link) return { ok: false, error: "Paste the tracking link, starting with https://" };
+  return done(await setTruckTrackingLink(vehicleId, link));
 }

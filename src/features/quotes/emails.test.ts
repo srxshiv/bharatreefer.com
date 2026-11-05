@@ -4,6 +4,7 @@ import { DEFAULT_BUSINESS } from "@/config/site";
 import { whatsappLink } from "@/lib/whatsapp";
 import {
   customerConfirmationEmail,
+  customerQuoteEmail,
   dispatchNotificationEmail,
   type QuoteEmailData,
 } from "./emails";
@@ -139,5 +140,21 @@ describe("WhatsApp messages", () => {
     expect(whatsappLink("+91 98710 94268", "Hello & welcome")).toBe(
       "https://wa.me/919871094268?text=Hello%20%26%20welcome",
     );
+  });
+});
+
+describe("customerQuoteEmail", () => {
+  const email = customerQuoteEmail({ ...quote, companyName: "Verma Fresh Foods", quotedAmount: 48_500 }, context);
+
+  it("leads with the price and the route", () => {
+    expect(email.subject).toBe("Your quote BR-7K3Q9F: ₹48,500, Ludhiana to Mumbai");
+  });
+
+  it("gives the whole booking: price, pickup, load and what happens next", () => {
+    expect(email.text).toContain("Hello Asha Verma (Verma Fresh Foods), your load is booked at the price below for pickup on 12 Oct 2026.");
+    expect(email.text).toContain("Quote: ₹48,500");
+    expect(email.text).toContain("Pickup: 12 Oct 2026");
+    expect(email.text).toContain("Weight: 12,500 kg");
+    expect(email.text).toContain("the truck and driver the day before pickup");
   });
 });

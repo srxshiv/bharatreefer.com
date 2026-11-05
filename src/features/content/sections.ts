@@ -2,7 +2,8 @@
  * The sections of the public page below the headline, which the business can switch off,
  * reorder and retitle. The headline and the quote card are always shown.
  */
-export const SECTION_IDS = ["bands", "fleet", "routes", "steps", "about", "contact", "faqs"] as const;
+// How it works comes first: the steps from request to truck, then what we carry.
+export const SECTION_IDS = ["steps", "bands", "fleet", "routes", "about", "contact", "faqs"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 type SectionDefault = {
@@ -28,11 +29,11 @@ export const SECTION_DEFAULTS: Record<SectionId, SectionDefault> = {
     visible: true,
   },
   fleet: {
-    name: "Fleet",
-    about: "Truck sizes, full and part loads, and your photos.",
-    eyebrow: "Our fleet",
-    title: null,
-    intro: "The quote form suggests the smallest truck that carries your weight. Dispatch confirms the vehicle when they quote.",
+    name: "Full and part loads",
+    about: "A dedicated truck or a shared one, and your photos.",
+    eyebrow: "Full or part load",
+    title: "A truck of your own, or a share of one",
+    intro: "The quote form suggests the right one for your weight. Dispatch confirms the vehicle when they quote.",
     visible: true,
   },
   routes: {

@@ -18,7 +18,7 @@ function defaults(id: SectionId): Pick<Row, "eyebrow" | "title" | "intro"> {
 
 /** Switch sections on and off, put them in order, and change their headings. */
 export function SectionsEditor({ setting, fleetTitle }: { setting: SectionsSetting; fleetTitle: string }) {
-  const [showFacts, setShowFacts] = useState(setting.showFacts);
+  const showFacts = setting.showFacts;
   const [rows, setRows] = useState<Row[]>(() =>
     setting.list.map((entry) => {
       const fallback = defaults(entry.id);
@@ -53,19 +53,10 @@ export function SectionsEditor({ setting, fleetTitle }: { setting: SectionsSetti
     <ActionForm action={saveSectionsAction} submitLabel="Save sections">
       <input type="hidden" name="sections" value={JSON.stringify({ showFacts, list: rows })} />
 
+      {/* The key facts under the old headline are gone from the page; the stored choice is kept as it was. */}
       <section className={cn(card, "p-6")}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="font-semibold text-ink-950">Key facts under the headline</h2>
-            <p className="mt-1 text-sm text-ink-500">Truck sizes, temperature bands and reply time, in three small cards.</p>
-          </div>
-          <Switch checked={showFacts} onChange={setShowFacts} label="Show key facts" />
-        </div>
-      </section>
-
-      <section className={cn(card, "mt-6 p-6")}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-semibold text-ink-950">Sections below the headline</h2>
+          <h2 className="font-semibold text-ink-950">Sections below the opening photo</h2>
           <p className="text-sm text-ink-500">
             {shown} of {rows.length} shown, top to bottom. The quote form is always on.
           </p>

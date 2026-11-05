@@ -3,7 +3,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import type { Prisma, QuoteActivityType } from "@/generated/prisma/client";
 import type { Role } from "@/features/auth/roles";
 import { ADMIN_DATA_TAG, ADMIN_PAGE_CACHE, requireAdmin, requireUser } from "@/features/auth/session";
-import { startOfDayInIndia, startOfNextDayInIndia } from "@/lib/dates";
+import { formatIsoDate, startOfDayInIndia, startOfNextDayInIndia, toIsoDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatInr } from "@/lib/format";
 import type { TruckPlan } from "@/lib/truck-plan";
@@ -33,6 +33,7 @@ const inboxSelect = {
   loadType: true,
   truckPlan: true,
   contactName: true,
+  companyName: true,
   phone: true,
   quotedAmount: true,
   pickupDate: true,
@@ -153,6 +154,7 @@ function matching(filters: Omit<InboxFilters, "status" | "sort" | "page">): Pris
     where.OR = [
       { reference: contains },
       { contactName: contains },
+      { companyName: contains },
       { email: contains },
       { originCity: contains },
       { originState: contains },
@@ -238,7 +240,8 @@ function tally(
 }
 
 /** Requests on the pipeline board: the newest in each open stage. */
-export const BOARD_STAGES = ["NEW", "CONTACTED", "QUOTED", "CONFIRMED"] as const satisfies readonly QuoteStatusId[];
+// Quoted is booked: the board ends there, and Completed, Lost and Spam are in the list.
+export const BOARD_STAGES = ["NEW", "CONTACTED", "QUOTED"] as const satisfies readonly QuoteStatusId[];
 export type BoardStage = (typeof BOARD_STAGES)[number];
 /** Most cards loaded per column. The column links to the full list beyond that. */
 export const BOARD_COLUMN_LIMIT = 30;
@@ -261,7 +264,7 @@ export async function listBoard(filters: InboxFilters): Promise<{
     loadTeam(),
     db().truckAssignment.groupBy({
       by: ["quoteRequestId"],
-      where: { quoteRequest: { status: "CONFIRMED", ...visibleTo(user) } },
+      where: { quoteRequest: { status: "QUOTED", ...visibleTo(user) } },
       _sum: { loadKg: true },
     }),
     db().quoteRequest.groupBy({
@@ -403,24 +406,47 @@ function describePriceChange(from: number | null, to: number | null): string {
   return `Quote changed from ${formatInr(from)} to ${formatInr(to)}`;
 }
 
+export type QuoteUpdate = {
+  status: QuoteStatusId;
+  /** Whole rupees, or null to clear. Left out, the saved price stays. */
+  quotedAmount?: number | null;
+  /** "YYYY-MM-DD", or null to clear. Left out, the saved date stays. */
+  pickupDate?: string | null;
+};
+
+export type QuoteUpdateOutcome =
+  | { result: "not-found" }
+  | { result: "unchanged" }
+  /** Quoted means booked, so it needs the price and the pickup date first. */
+  | { result: "needs-quote"; missing: Array<"price" | "pickup"> }
+  /** `quoted`: it has just become Quoted, so the customer gets the quote by email. */
+  | { result: "updated"; quoted: boolean };
+
 /**
- * Saves the status and quoted amount, logging each change in the request's timeline.
- * Leave `quotedAmount` out to keep the current price. A confirmed request that goes back to
- * an earlier stage, or is lost, is taken off its trucks; a completed one keeps them as a record.
+ * Saves the status, the quoted amount and the pickup date, logging each change in the
+ * request's timeline. A request can only be Quoted (booked) with a price and a pickup date. A
+ * quoted request that goes back to an earlier stage, or is lost, comes off its trucks; one
+ * marked Completed has its loads delivered. A new pickup date sends the truck notice again.
  */
-export async function updateQuoteRequest(
-  id: string,
-  update: { status: QuoteStatusId; quotedAmount?: number | null },
-): Promise<"updated" | "unchanged" | "not-found"> {
+export async function updateQuoteRequest(id: string, update: QuoteUpdate): Promise<QuoteUpdateOutcome> {
   const admin = await requireUser();
 
-  return db().$transaction(async (tx) => {
+  return db().$transaction(async (tx): Promise<QuoteUpdateOutcome> => {
     const current = await tx.quoteRequest.findFirst({
       where: { id, ...visibleTo(admin) },
-      select: { status: true, quotedAmount: true },
+      select: { status: true, quotedAmount: true, pickupDate: true },
     });
-    if (!current) return "not-found";
+    if (!current) return { result: "not-found" };
     const quotedAmount = update.quotedAmount === undefined ? current.quotedAmount : update.quotedAmount;
+    const savedPickup = current.pickupDate ? toIsoDate(current.pickupDate) : null;
+    const pickupDate = update.pickupDate === undefined ? savedPickup : update.pickupDate;
+
+    if (update.status === "QUOTED" && (quotedAmount === null || pickupDate === null)) {
+      const missing: Array<"price" | "pickup"> = [];
+      if (quotedAmount === null) missing.push("price");
+      if (pickupDate === null) missing.push("pickup");
+      return { result: "needs-quote", missing };
+    }
 
     const changes: Array<{ type: QuoteActivityType; body: string }> = [];
     if (current.status !== update.status) {
@@ -435,11 +461,22 @@ export async function updateQuoteRequest(
         body: describePriceChange(current.quotedAmount, quotedAmount),
       });
     }
-    if (changes.length === 0) return "unchanged";
+    if (savedPickup !== pickupDate) {
+      changes.push({
+        type: "PICKUP_CHANGE",
+        body:
+          pickupDate === null
+            ? "Pickup date removed"
+            : savedPickup === null
+              ? `Pickup set for ${formatIsoDate(pickupDate)}`
+              : `Pickup moved from ${formatIsoDate(savedPickup)} to ${formatIsoDate(pickupDate)}`,
+      });
+    }
+    if (changes.length === 0) return { result: "unchanged" };
 
     // Loads still on board follow the request: delivered when it is marked Completed, taken
     // off their trucks when it goes back to an earlier stage or is lost.
-    if (current.status === "CONFIRMED" && update.status === "COMPLETED") {
+    if (current.status === "QUOTED" && update.status === "COMPLETED") {
       const { count } = await tx.truckAssignment.updateMany({
         where: { quoteRequestId: id, deliveredAt: null },
         data: { deliveredAt: new Date() },
@@ -447,14 +484,14 @@ export async function updateQuoteRequest(
       if (count > 0) {
         changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Delivered; its truck is free" : `Delivered; its ${count} trucks are free` });
       }
-    } else if (current.status === "CONFIRMED" && update.status !== "CONFIRMED") {
+    } else if (current.status === "QUOTED" && update.status !== "QUOTED") {
       const { count } = await tx.truckAssignment.deleteMany({ where: { quoteRequestId: id, deliveredAt: null } });
       if (count > 0) {
         changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Taken off its truck" : `Taken off its ${count} trucks` });
       }
     }
-    // Only confirmed requests go on trucks, so asks still waiting for an admin lapse.
-    if (current.status === "CONFIRMED" && update.status !== "CONFIRMED") {
+    // Only quoted requests go on trucks, so asks still waiting for an admin lapse.
+    if (current.status === "QUOTED" && update.status !== "QUOTED") {
       const { count } = await tx.loadRequest.updateMany({
         where: { quoteRequestId: id, status: "PENDING" },
         data: { status: "CANCELLED", decidedAt: new Date() },
@@ -463,16 +500,21 @@ export async function updateQuoteRequest(
         changes.push({ type: "ASSIGNMENT", body: count === 1 ? "Truck request withdrawn" : `${count} truck requests withdrawn` });
       }
     }
+    // The customer is told which truck is coming the day before pickup: a new date, a new notice.
+    if (savedPickup !== pickupDate) {
+      await tx.truckAssignment.updateMany({ where: { quoteRequestId: id, deliveredAt: null }, data: { noticeSentAt: null } });
+    }
 
     await tx.quoteRequest.update({
       where: { id },
       data: {
         status: update.status,
         quotedAmount,
+        pickupDate: pickupDate ? new Date(`${pickupDate}T00:00:00Z`) : null,
         activities: { create: changes.map((change) => ({ ...change, authorId: admin.id })) },
       },
     });
-    return "updated";
+    return { result: "updated", quoted: current.status !== "QUOTED" && update.status === "QUOTED" };
   });
 }
 

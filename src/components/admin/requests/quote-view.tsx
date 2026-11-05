@@ -73,7 +73,7 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
   if (!quote) notFound();
   const askedKg = asks.reduce((sum, ask) => sum + ask.loadKg, 0);
   const placedKg = assignments.reduce((sum, assignment) => sum + assignment.loadKg, 0);
-  const showTrucks = quote.status === "CONFIRMED" || assignments.length > 0;
+  const showTrucks = quote.status === "QUOTED" || assignments.length > 0;
 
   const band = bands[quote.material];
   const bandLabels = Object.fromEntries(MATERIAL_IDS.map((key) => [key, bands[key].label])) as Record<
@@ -148,6 +148,7 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
         <section className={cn(card, "flex flex-col p-5 sm:p-6")}>
           <h2 className={sectionTitle}>Customer</h2>
           <p className="mt-3 text-xl font-semibold text-ink-950">{quote.contactName}</p>
+          {quote.companyName ? <p className="text-sm font-medium text-ink-600">{quote.companyName}</p> : null}
           <dl className="mt-4 space-y-4">
             <Field label="Mobile">
               <span className="font-mono">+91 {phone}</span>
@@ -198,7 +199,12 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
 
         <section className={cn(card, "p-5 sm:p-6")}>
           <h2 className={cn(sectionTitle, "mb-4")}>Status and quote</h2>
-          <QuoteUpdateForm id={quote.id} status={quote.status} quotedAmount={quote.quotedAmount} />
+          <QuoteUpdateForm
+            id={quote.id}
+            status={quote.status}
+            quotedAmount={quote.quotedAmount}
+            pickupDate={quote.pickupDate ? toIsoDate(quote.pickupDate) : null}
+          />
         </section>
       </div>
 
@@ -267,7 +273,7 @@ export async function QuoteView({ id, inPanel = false }: { id: string; inPanel?:
               ))}
             </ul>
           ) : null}
-          {quote.status === "CONFIRMED" ? (
+          {quote.status === "QUOTED" ? (
             <ChooseTruckButton
               quoteId={quote.id}
               label={

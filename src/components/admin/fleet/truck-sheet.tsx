@@ -13,6 +13,7 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { secondaryButton } from "../ui";
 import { LoadRows } from "./load-rows";
 import { NumberPlate } from "./number-plate";
+import { TrackingLinkSection } from "./tracking-link";
 import { TripButton, tripSince } from "./trip-button";
 import { TruckForm } from "./truck-form";
 import { TruckGraphic } from "./truck-graphic";
@@ -132,13 +133,15 @@ export function TruckSheetBody({
         ) : null}
       </section>
 
+      <TrackingLinkSection truck={truck} canManage={canManage} notify={notify} />
+
       <section>
         <h3 className="caption text-ink-500">
           On board {truck.loads.length > 0 ? <span className="font-mono">({truck.loads.length})</span> : null}
         </h3>
         {truck.loads.length === 0 ? (
           <p className="mt-2 rounded-lg border border-dashed border-frost-300 px-4 py-5 text-center text-sm text-ink-500">
-            {canManage ? "Empty. Choose this truck for a confirmed request on the fleet page." : "Empty."}
+            {canManage ? "Empty. Choose this truck for a quoted request on the fleet page." : "Empty."}
           </p>
         ) : (
           <LoadRows loads={truck.loads} bandLabels={bandLabels} canManage={canManage} onMove={onMove} onRemove={onRemove} className="mt-1" />

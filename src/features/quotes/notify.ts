@@ -2,10 +2,14 @@ import "server-only";
 import { siteUrl } from "@/config/site";
 import { PANEL_HOME } from "@/features/auth/cookie";
 import { getSiteContent } from "@/features/content/data";
+import { toIsoDate } from "@/lib/dates";
+import { db } from "@/lib/db";
 import { sendEmail, type EmailOutcome } from "@/lib/email";
+import { parseTruckPlan } from "@/lib/truck-plan";
 import { recordNotification } from "./data";
 import {
   customerConfirmationEmail,
+  customerQuoteEmail,
   dispatchNotificationEmail,
   type QuoteEmailData,
 } from "./emails";
@@ -58,5 +62,42 @@ export async function notifyNewQuoteRequest(
     if (quote.email && toCustomer) await log(quoteId, "Confirmation", quote.email, toCustomer);
   } catch (error) {
     console.error("[email] Could not send notifications for a quote request", error);
+  }
+}
+
+/**
+ * Emails the customer their quote when a request becomes Quoted (booked). Runs after the
+ * panel has saved, and never throws: the timeline records whether it went.
+ */
+export async function notifyQuoted(quoteId: string) {
+  try {
+    const [quote, { business, bands }] = await Promise.all([
+      db().quoteRequest.findUnique({ where: { id: quoteId } }),
+      getSiteContent(),
+    ]);
+    if (!quote || quote.status !== "QUOTED" || quote.quotedAmount === null || !quote.email) return;
+    const data: QuoteEmailData & { quotedAmount: number } = {
+      reference: quote.reference,
+      originCity: quote.originCity,
+      originState: quote.originState,
+      destinationCity: quote.destinationCity,
+      destinationState: quote.destinationState,
+      material: quote.material,
+      quantityKg: quote.quantityKg,
+      loadType: quote.loadType,
+      trucks: parseTruckPlan(quote.truckPlan),
+      pickupDate: quote.pickupDate ? toIsoDate(quote.pickupDate) : null,
+      notes: quote.notes,
+      contactName: quote.contactName,
+      companyName: quote.companyName,
+      phone: quote.phone,
+      email: quote.email,
+      quotedAmount: quote.quotedAmount,
+    };
+    const dispatchAddress = business.alertEmail ?? business.email;
+    const outcome = await sendEmail({ to: quote.email, replyTo: dispatchAddress, ...customerQuoteEmail(data, { business, bands }) });
+    await log(quoteId, "Quote", quote.email, outcome);
+  } catch (error) {
+    console.error("[email] Could not send the quote for a request", error);
   }
 }

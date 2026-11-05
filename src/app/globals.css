@@ -259,6 +259,29 @@
   }
 }
 
+/*
+ * iOS draws date fields its own way, as wide as it likes, so on a phone the pickup field ran
+ * off the screen. Only there (the touch-callout test matches iOS Safari alone) it loses that
+ * drawing, and its date is put back to the left and in the middle of the field's height.
+ */
+.date-field {
+  max-width: 100%;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .date-field {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-block: 0;
+    line-height: 2.75rem;
+  }
+
+  .date-field::-webkit-date-and-time-value {
+    margin: 0;
+    text-align: left;
+  }
+}
+
 /* The page behind an open sheet or dialog does not scroll. */
 html:has(dialog[open]:modal) {
   overflow: hidden;
@@ -296,10 +319,35 @@ html:has(dialog[open]:modal) {
   column-gap: 0.24em;
   row-gap: 0.1em;
   font-size: clamp(2.6rem, 6vw, 5.5rem);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.045em;
-  line-height: 1;
-  text-shadow: 0 2px 30px rgb(0 0 0 / 0.35);
+  line-height: 1.05;
+}
+
+/* The name in the flag's colours: saffron, white and green, top to bottom, like the flag. */
+.intro-bands .intro-band {
+  padding-bottom: 0.04em;
+  background: linear-gradient(180deg, #ff9933 22%, #ffffff 44%, #ffffff 58%, #22b14c 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 14px rgb(0 0 0 / 0.45));
+}
+
+/* The slogan in blue, from ice to royal. */
+.intro-slogan {
+  /* As wide as the words, so the colours run across them rather than the screen. */
+  width: fit-content;
+  margin: 0.9rem auto 0;
+  background: linear-gradient(90deg, #d6ebff 0%, #8fc2ff 45%, #4f95ea 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: clamp(1.6rem, 3.4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
 }
 
 .intro-cue {
@@ -378,13 +426,14 @@ html:has(dialog[open]:modal) {
     transform: translateY(calc((1 - var(--copy)) * 2.5rem));
   }
 
-  /* The bands light up one after another. */
+  /* The name lights up word by word, then the slogan. */
   .intro-band {
     opacity: clamp(0.2, calc(var(--copy) * 3.4 - var(--i)), 1);
   }
 
+  /* After the name and the slogan; full by the end of the scroll. */
   .intro-line {
-    opacity: clamp(0, calc(var(--copy) * 3 - 1.8), 1);
+    opacity: clamp(0, calc(var(--copy) * 4 - 3), 1);
   }
 
   .intro-cta {

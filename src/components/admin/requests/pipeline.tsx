@@ -7,9 +7,9 @@ import { IntentLink } from "../intent-link";
 import { PendingHint } from "../pending-hint";
 import { STAGE_ACCENT } from "./stage-styles";
 
-const FLOW = ["NEW", "CONTACTED", "QUOTED", "CONFIRMED", "COMPLETED"] as const satisfies readonly QuoteStatusId[];
+const FLOW = ["NEW", "CONTACTED", "QUOTED", "COMPLETED"] as const satisfies readonly QuoteStatusId[];
 const OTHERS = ["ALL", "LOST", "SPAM"] as const;
-const PRICED = new Set<QuoteStatusId>(["QUOTED", "CONFIRMED", "COMPLETED"]);
+const PRICED = new Set<QuoteStatusId>(["QUOTED", "COMPLETED"]);
 
 /**
  * The pipeline in one slim row: how many requests sit at each stage and what the quoted ones
@@ -17,7 +17,8 @@ const PRICED = new Set<QuoteStatusId>(["QUOTED", "CONFIRMED", "COMPLETED"]);
  */
 export function Pipeline({ filters, counts, values }: { filters: InboxFilters; counts: StatusCounts; values: StatusValues }) {
   const board = filters.view === "board";
-  const won = counts.CONFIRMED + counts.COMPLETED;
+  // Quoted means booked: won, like delivered.
+  const won = counts.QUOTED + counts.COMPLETED;
   const decided = won + counts.LOST;
 
   const chip = (active: boolean) =>
@@ -76,10 +77,10 @@ export function Pipeline({ filters, counts, values }: { filters: InboxFilters; c
       {decided > 0 ? (
         <p className="hidden shrink-0 text-xs text-ink-500 2xl:block">
           Won <span className="font-mono font-semibold text-ink-950">{Math.round((won / decided) * 100)}%</span>
-          {values.CONFIRMED + values.COMPLETED > 0 ? (
+          {values.QUOTED + values.COMPLETED > 0 ? (
             <>
               {" · "}
-              <span className="font-mono font-semibold text-ink-950">{formatInrShort(values.CONFIRMED + values.COMPLETED)}</span> booked
+              <span className="font-mono font-semibold text-ink-950">{formatInrShort(values.QUOTED + values.COMPLETED)}</span> booked
             </>
           ) : null}
         </p>

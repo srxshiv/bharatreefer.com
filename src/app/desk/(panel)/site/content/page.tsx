@@ -71,7 +71,7 @@ async function CopyForm() {
 
         <section className={`${card} p-6`}>
           <h2 className={sectionTitle}>How it works</h2>
-          <p className="mt-1 text-sm text-ink-500">The short steps shown next to the quote form.</p>
+          <p className="mt-1 text-sm text-ink-500">The steps from a request to delivery, shown first on the page, each with when it happens.</p>
           <div className="mt-4">
             <AutomaticToggle
               name="automaticSteps"
@@ -80,6 +80,7 @@ async function CopyForm() {
                 <ol className="list-decimal space-y-2 pl-5">
                   {autoSteps.map((step) => (
                     <li key={step.title}>
+                      {step.when ? <span className="text-ink-500">{step.when}: </span> : null}
                       <span className="font-semibold text-ink-950">{step.title}.</span> {step.body}
                     </li>
                   ))}
@@ -89,11 +90,12 @@ async function CopyForm() {
               <ListEditor
                 prefix="steps"
                 max={MAX_STEPS}
-                initial={custom.steps ? copy.steps : autoSteps}
+                initial={(custom.steps ? copy.steps : autoSteps).map((step) => ({ when: step.when ?? "", title: step.title, body: step.body }))}
                 addLabel="Add a step"
                 emptyLabel="No steps yet."
                 rowLabel="step"
                 fields={[
+                  { name: "when", label: "When (optional)", maxLength: 40, placeholder: "e.g. The day before pickup", width: "sm:max-w-56" },
                   { name: "title", label: "Title", maxLength: 60 },
                   { name: "body", label: "Detail", kind: "textarea", maxLength: 200 },
                 ]}

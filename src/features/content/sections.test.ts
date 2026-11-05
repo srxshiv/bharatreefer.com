@@ -28,19 +28,19 @@ describe("readSectionsSetting", () => {
       ],
     });
     expect(setting.showFacts).toBe(false);
-    expect(setting.list.map((entry) => entry.id)).toEqual(["fleet", "routes", "steps", "about", "contact", "bands", "faqs"]);
+    expect(setting.list.map((entry) => entry.id)).toEqual(["steps", "fleet", "routes", "about", "contact", "bands", "faqs"]);
     expect(setting.list.find((entry) => entry.id === "bands")).toMatchObject({ visible: true, eyebrow: "Cold chain" });
   });
 });
 
 describe("resolveSections", () => {
-  it("fills in default text, hides empty text and keeps automatic titles", () => {
+  it("fills in default text and hides empty text", () => {
     const sections = resolveSections(
       readSectionsSetting({ list: [{ id: "bands", visible: true, eyebrow: "", title: "  ", intro: "" }] }),
     );
     const bands = sections.find((section) => section.id === "bands")!;
     expect(bands).toMatchObject({ eyebrow: "", title: SECTION_DEFAULTS.bands.title, intro: "" });
-    expect(sections.find((section) => section.id === "fleet")!.title).toBeNull();
+    expect(sections.find((section) => section.id === "fleet")!.title).toBe(SECTION_DEFAULTS.fleet.title);
   });
 });
 

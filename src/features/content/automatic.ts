@@ -28,19 +28,28 @@ export function automaticHeading(fleet: FleetConfig): string {
   return `Reefer trucks from ${formatCapacity(smallestTruckKg(fleet))} to ${largestText}.`;
 }
 
+/** How a load goes from a request to delivered, in the order the customer sees it happen. */
 export function automaticSteps(business: BusinessInfo): Step[] {
   return [
     {
-      title: "Send the load details",
-      body: "Route, temperature band and weight. The form takes about a minute.",
+      when: "Today",
+      title: "Tell us about the load",
+      body: "The route, the temperature and the weight, on the form here or on WhatsApp. It takes a minute, and you get a reference by email.",
     },
     {
-      title: "Get your quote",
-      body: `Dispatch checks the route and the vehicle, then calls or emails you within ${business.responseTime}.`,
+      when: `Within ${business.responseTime}`,
+      title: "Agree the price and the date",
+      body: "Dispatch calls you with a price for the right truck. Once you agree, we email the quote with your pickup date: your truck is booked.",
     },
     {
-      title: "We load and move",
-      body: "Confirm the quote and the truck reports to your loading point, set to your temperature band.",
+      when: "The day before pickup",
+      title: "Meet your truck",
+      body: "We email the truck number and the driver's name and phone. It reaches your loading point already cooled to your temperature.",
+    },
+    {
+      when: "On the road",
+      title: "Track it to delivery",
+      body: "Follow the truck live with the tracking link we send, all the way until your load is delivered.",
     },
   ];
 }

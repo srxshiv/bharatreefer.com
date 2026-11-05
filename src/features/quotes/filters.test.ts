@@ -72,7 +72,7 @@ describe("inboxQuery", () => {
   it("round-trips through parseInboxFilters", () => {
     const filters = {
       ...DEFAULT_INBOX_FILTERS,
-      status: "CONFIRMED" as const,
+      status: "QUOTED" as const,
       material: "AMBIENT" as const,
       loadType: "FULL_LOAD" as const,
       quoted: "YES" as const,

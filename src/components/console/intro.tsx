@@ -1,14 +1,12 @@
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import { ChevronRight } from "lucide-react";
-import { largestTruckKg, smallestTruckKg, type FleetConfig } from "@/config/fleet";
-import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
 import type { BusinessInfo } from "@/config/site";
-import { formatCapacity } from "@/lib/format";
 import truck from "../../../public/brand/bharat-reefer-truck.jpg";
 import { IntroMotion } from "./intro-motion";
 
 const SCENE_ID = "intro";
+const SLOGAN = "Linking Bharat.";
 
 /**
  * The truck photo, fixed behind the whole home page: full screen when the page opens, then, as
@@ -37,40 +35,39 @@ export function IntroBackdrop({ business }: { business: BusinessInfo }) {
 }
 
 /**
- * The opening scene over that photo, told as you scroll: the bands light up one by one, then
- * the truck sizes and the buttons. IntroMotion turns the scroll into the CSS variables that
- * drive it (globals.css, "opening scene"). Shown whole, without motion, for anyone who asks
- * their device for less motion.
+ * The opening scene over that photo, told as you scroll: the name lights up word by word,
+ * then the slogan in the tricolour, the promise and the buttons. IntroMotion turns the scroll
+ * into the CSS variables that drive it (globals.css, "opening scene"). Shown whole, without
+ * motion, for anyone who asks their device for less motion.
  */
 export function Intro({
-  fleet,
-  bands,
+  business,
   showStory,
 }: {
-  fleet: FleetConfig;
-  bands: Record<MaterialId, TemperatureBandInfo>;
+  business: BusinessInfo;
   /** Links to the About section when it is shown. */
   showStory: boolean;
 }) {
-  // "22 t" stays on one line.
-  const capacity = (kg: number) => formatCapacity(kg).replace(" ", "\u00a0");
-  const sizes = `${capacity(smallestTruckKg(fleet))} to ${capacity(largestTruckKg(fleet))}`;
+  const words = business.name.split(" ");
 
   return (
-    <section id={SCENE_ID} aria-label="What we carry" className="intro relative">
+    <section id={SCENE_ID} aria-label={`${business.name}: ${SLOGAN}`} className="intro relative">
       <div className="intro-stage relative h-svh overflow-hidden">
         <div aria-hidden="true" className="intro-shade pointer-events-none absolute inset-0" />
 
         <div className="intro-statement absolute inset-x-0 bottom-[8svh] px-5 text-center text-white portrait:bottom-[12svh]">
           <p className="intro-bands">
-            {MATERIAL_IDS.map((id, index) => (
-              <span key={id} className="intro-band" style={{ "--i": index } as CSSProperties}>
-                {bands[id].label}.
+            {words.map((word, index) => (
+              <span key={word} className="intro-band" style={{ "--i": index } as CSSProperties}>
+                {word}
               </span>
             ))}
           </p>
-          <p className="intro-line mx-auto mt-5 max-w-2xl text-lg/8 text-balance text-white/80 sm:text-xl/9">
-            Refrigerated trucks from {sizes}, city to city across India.
+          <p className="intro-band intro-slogan" style={{ "--i": words.length } as CSSProperties}>
+            {SLOGAN}
+          </p>
+          <p className="intro-line mx-auto mt-5 max-w-2xl text-lg/8 text-balance text-white/85 sm:text-xl/9">
+            Your reliable cold chain partners.
           </p>
           <div className="intro-cta mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
             <a
