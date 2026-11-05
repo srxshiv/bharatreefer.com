@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
   experimental: {
     // Fleet photo uploads go through a Server Action. The default limit is 1 MB.
     serverActions: { bodySizeLimit: "8mb" },
+    // Every build starts cold. With the cache Vercel restores between deployments, a build
+    // shipped the new Tailwind classes but the previous globals.css (the home page's opening
+    // scene had no styles), while a clean build of the same commit was right.
+    turbopackFileSystemCacheForBuild: false,
   },
   turbopack: {
     rules: {
