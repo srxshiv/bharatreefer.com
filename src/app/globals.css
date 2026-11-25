@@ -289,15 +289,10 @@ html:has(dialog[open]:modal) {
 
 /*
  * The opening scene of the home page (src/components/console/intro.tsx): the truck photo full
- * screen, then, as you scroll, the bands light up one by one and the buttons follow. IntroMotion
- * sets --copy and --cta (0 to 1) from the scroll position. Without motion the scene shows whole:
+ * screen, with the name, the slogan, the promise and the buttons rising in one after another as
+ * the page opens (--i is each one's place in that order). Without motion the scene shows whole:
  * the rules outside the media query below.
  */
-.intro {
-  --copy: 1;
-  --cta: 1;
-}
-
 .intro-shade {
   background: linear-gradient(180deg, rgb(0 0 0 / 0.4) 0%, transparent 20%, transparent 42%, rgb(0 0 0 / 0.82) 100%);
 }
@@ -350,22 +345,20 @@ html:has(dialog[open]:modal) {
   filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
 }
 
-.intro-cue {
-  display: none;
-}
-
+/* Without motion the cue shows still: a faint line. */
 .intro-cue-track {
   position: relative;
   width: 1px;
-  height: 2.75rem;
+  height: 2.5rem;
   overflow: hidden;
-  background: rgb(255 255 255 / 0.25);
+  background: rgb(255 255 255 / 0.3);
 }
 
 .intro-cue-dot {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, transparent, #fff, transparent);
+  opacity: 0;
 }
 
 /* The photo settles in when the page opens, then keeps a slow breath. */
@@ -380,6 +373,38 @@ html:has(dialog[open]:modal) {
   }
 }
 
+/* Each line of the statement fades up into place, slowly, coming to rest gently. */
+@keyframes intro-rise {
+  from {
+    opacity: 0;
+    transform: translateY(2.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes intro-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes intro-cue {
+  from {
+    opacity: 1;
+    transform: translateY(-110%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(110%);
+  }
+}
+
 @keyframes intro-drift {
   from {
     transform: none;
@@ -389,70 +414,30 @@ html:has(dialog[open]:modal) {
   }
 }
 
-@keyframes intro-cue {
-  from {
-    transform: translateY(-110%);
-  }
-  to {
-    transform: translateY(110%);
-  }
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  /* The scene stays on screen while the page scrolls this far past it. */
-  .intro {
-    --copy: 0;
-    --cta: 0;
-    height: 210svh;
-  }
-
-  .intro-stage {
-    position: sticky;
-    top: 0;
-  }
-
   .intro-photo {
     animation:
       intro-in 1.8s cubic-bezier(0.16, 1, 0.3, 1) both,
       intro-drift 24s ease-in-out 1.8s infinite alternate;
   }
 
+  /* The shade darkens under the words as they arrive, so they stay readable. */
   .intro-shade {
-    opacity: calc(0.35 + 0.65 * var(--copy));
+    animation: intro-fade 1.4s ease-out 0.2s both;
   }
 
-  .intro-statement {
-    opacity: clamp(0, calc(var(--copy) * 5), 1);
-    transform: translateY(calc((1 - var(--copy)) * 2.5rem));
+  .intro-rise {
+    animation: intro-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(0.5s + var(--i) * 0.22s);
   }
 
-  /* The name lights up word by word, then the slogan. */
-  .intro-band {
-    opacity: clamp(0.2, calc(var(--copy) * 3.4 - var(--i)), 1);
-  }
-
-  /* After the name and the slogan; full by the end of the scroll. */
-  .intro-line {
-    opacity: clamp(0, calc(var(--copy) * 4 - 3), 1);
-  }
-
-  .intro-cta {
-    opacity: var(--cta);
-    transform: translateY(calc((1 - var(--cta)) * 1rem));
-    pointer-events: none;
-  }
-
-  .intro[data-cta] .intro-cta {
-    pointer-events: auto;
-  }
-
+  /* In once the buttons have settled. */
   .intro-cue {
-    display: flex;
-    opacity: clamp(0, calc(1 - var(--copy) * 6), 1);
+    animation: intro-fade 1s ease-out 2.6s both;
   }
 
   .intro-cue-dot {
-    animation: intro-cue 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    animation: intro-cue 2s cubic-bezier(0.65, 0, 0.35, 1) 3s infinite;
   }
 }
 

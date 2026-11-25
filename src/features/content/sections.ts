@@ -2,8 +2,8 @@
  * The sections of the public page below the headline, which the business can switch off,
  * reorder and retitle. The headline and the quote card are always shown.
  */
-// How it works comes first: the steps from request to truck, then what we carry.
-export const SECTION_IDS = ["steps", "bands", "fleet", "routes", "about", "contact", "faqs"] as const;
+// How a quote becomes a truck, then quick-commerce positioning, then what we carry.
+export const SECTION_IDS = ["steps", "specialists", "bands", "fleet", "routes", "about", "contact", "faqs"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 type SectionDefault = {
@@ -20,6 +20,15 @@ type SectionDefault = {
 };
 
 export const SECTION_DEFAULTS: Record<SectionId, SectionDefault> = {
+  specialists: {
+    name: "Modern trade & quick commerce",
+    about: "Who you serve and how shared-load refrigerated runs work.",
+    eyebrow: "",
+    title: "Modern Trade & Quick Commerce Specialists",
+    intro:
+      "Bharat Reefer runs scheduled, shared-load refrigerated transport for manufacturers supplying quick-commerce, modern trade and organised retail. Multiple shippers share vehicle space on the same warehouse run, making cold-chain logistics more accessible and cost-effective.",
+    visible: true,
+  },
   bands: {
     name: "Temperature bands",
     about: "Frozen, chilled and normal, with their ranges and examples.",
@@ -50,7 +59,7 @@ export const SECTION_DEFAULTS: Record<SectionId, SectionDefault> = {
     about: "The short steps from request to pickup.",
     eyebrow: "How it works",
     title: "From request to a truck at your dock",
-    intro: "",
+    intro: "Request a quote on the form or on WhatsApp; dispatch confirms price and pickup once you agree.",
     visible: true,
   },
   about: {

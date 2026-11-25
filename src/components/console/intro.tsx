@@ -35,10 +35,10 @@ export function IntroBackdrop({ business }: { business: BusinessInfo }) {
 }
 
 /**
- * The opening scene over that photo, told as you scroll: the name lights up word by word,
- * then the slogan in the tricolour, the promise and the buttons. IntroMotion turns the scroll
- * into the CSS variables that drive it (globals.css, "opening scene"). Shown whole, without
- * motion, for anyone who asks their device for less motion.
+ * The opening scene over that photo, one screen tall: as the page opens the name fades up word
+ * by word, then the slogan, the promise and the buttons, and a cue to scroll (globals.css,
+ * "opening scene"). The first scroll goes straight on to the page. Shown whole, without motion, for anyone who asks
+ * their device for less motion.
  */
 export function Intro({
   business,
@@ -52,24 +52,32 @@ export function Intro({
 
   return (
     <section id={SCENE_ID} aria-label={`${business.name}: ${SLOGAN}`} className="intro relative">
-      <div className="intro-stage relative h-svh overflow-hidden">
+      {/* The window less the site header above it (h-16 or h-20, plus its borders), plus the 2rem
+          the page overlaps it by: the page's edge starts just below the screen. */}
+      <div className="relative h-[calc(100svh-2.25rem)] overflow-hidden lg:h-[calc(100svh-3.25rem)]">
         <div aria-hidden="true" className="intro-shade pointer-events-none absolute inset-0" />
 
-        <div className="intro-statement absolute inset-x-0 bottom-[8svh] px-5 text-center text-white portrait:bottom-[12svh]">
+        <div className="absolute inset-x-0 bottom-[calc(2rem+9svh)] px-5 text-center text-white portrait:bottom-[calc(2rem+14svh)]">
           <p className="intro-bands">
             {words.map((word, index) => (
-              <span key={word} className="intro-band" style={{ "--i": index } as CSSProperties}>
+              <span key={word} className="intro-band intro-rise" style={{ "--i": index } as CSSProperties}>
                 {word}
               </span>
             ))}
           </p>
-          <p className="intro-band intro-slogan" style={{ "--i": words.length } as CSSProperties}>
+          <p className="intro-slogan intro-rise" style={{ "--i": words.length } as CSSProperties}>
             {SLOGAN}
           </p>
-          <p className="intro-line mx-auto mt-5 max-w-2xl text-lg/8 text-balance text-white/85 sm:text-xl/9">
+          <p
+            className="intro-rise mx-auto mt-5 max-w-2xl text-lg/8 text-balance text-white/85 sm:text-xl/9"
+            style={{ "--i": words.length + 1 } as CSSProperties}
+          >
             Your reliable cold chain partners.
           </p>
-          <div className="intro-cta mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
+          <div
+            className="intro-rise mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3"
+            style={{ "--i": words.length + 2 } as CSSProperties}
+          >
             <a
               href="#quote"
               className="inline-flex h-12 items-center rounded-full bg-white px-7 text-[15px] font-semibold text-navy-950 transition-colors hover:bg-ice-100"
@@ -88,9 +96,8 @@ export function Intro({
           </div>
         </div>
 
-        {/* Over the buttons once it has faded, so it must let clicks through. */}
-        <div aria-hidden="true" className="intro-cue pointer-events-none absolute inset-x-0 bottom-[4svh] flex flex-col items-center gap-2.5">
-          <span className="caption text-white/70">Scroll</span>
+        {/* There is more below: a line with a light running down it, once the words are in. */}
+        <div aria-hidden="true" className="intro-cue pointer-events-none absolute inset-x-0 bottom-[calc(2rem+2svh)] flex justify-center">
           <span className="intro-cue-track">
             <span className="intro-cue-dot" />
           </span>

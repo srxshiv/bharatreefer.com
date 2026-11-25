@@ -13,13 +13,18 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { DeskStatus } from "./desk-status";
 import { Intro, IntroBackdrop } from "./intro";
 import { QuoteCard } from "./quote-card";
-import { About, Bands, Contact, Faqs, Fleet, Routes, Steps, formatAddress } from "./sections";
+import { About, Bands, Contact, Faqs, Fleet, Routes, Specialists, Steps, formatAddress } from "./sections";
 import { primaryButton } from "./ui";
 
+// The sections about the service, which sit beside the quote card. The ones after the last of
+// these (about us, contact, questions) take the full width once the card has scrolled away.
+const BESIDE_CARD: readonly SectionId[] = ["steps", "specialists", "bands", "fleet", "routes"];
+
 /**
- * The public site: the opening scene, then the sections in one column and the quote card in
- * the other. On large screens the card stays in view while the column scrolls; on phones it
- * comes first, right after the scene.
+ * The public site: the opening scene, then the service sections in one column and the quote card
+ * in the other. On large screens the card stays in view while that column scrolls, then scrolls
+ * up with it, and the rest of the sections take the full width. On phones the card comes first,
+ * right after the scene.
  */
 export function Home({ content }: { content: SiteContent }) {
   const { business, fleet, bands, copy, photos, routes, sections, announcement } = content;
@@ -28,6 +33,7 @@ export function Home({ content }: { content: SiteContent }) {
   // Each section the business has switched on, in their order. A section with nothing to
   // show (no routes yet, no questions) is left out rather than shown empty.
   const render: Record<SectionId, (section: PageSection) => ReactNode> = {
+    specialists: (section) => <Specialists section={section} />,
     bands: (section) => <Bands section={section} bands={bands} />,
     fleet: (section) => <Fleet section={section} fleet={fleet} photos={photos} />,
     routes: (section) => (routes.length > 0 ? <Routes section={section} routes={routes} /> : null),
@@ -40,6 +46,9 @@ export function Home({ content }: { content: SiteContent }) {
     .filter((section) => section.visible)
     .map((section) => ({ id: section.id, node: render[section.id](section) }))
     .filter((item) => item.node !== null);
+  const split = shown.findLastIndex((item) => BESIDE_CARD.includes(item.id)) + 1;
+  const beside = shown.slice(0, split);
+  const below = shown.slice(split);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -102,14 +111,22 @@ export function Home({ content }: { content: SiteContent }) {
             <QuoteCard business={business} fleet={fleet} bands={bands} className="lg:max-h-[calc(100dvh-7.5rem)]" />
           </div>
 
-          {shown.length > 0 ? (
+          {beside.length > 0 ? (
             <div className="mt-14 space-y-16 lg:col-start-1 lg:row-start-1 lg:mt-0">
-              {shown.map((item) => (
+              {beside.map((item) => (
                 <div key={item.id}>{item.node}</div>
               ))}
             </div>
           ) : null}
         </div>
+
+        {below.length > 0 ? (
+          <div className="shell space-y-16 pt-8 pb-12 lg:pt-14 lg:pb-16">
+            {below.map((item) => (
+              <div key={item.id}>{item.node}</div>
+            ))}
+          </div>
+        ) : null}
       </main>
 
       <footer className="bg-navy-950 text-ice-200/80">

@@ -40,6 +40,8 @@ export const ABOUT = {
     title: "Who We Serve",
     lead: "We aim to support businesses across India's temperature-controlled supply chain, including:",
     list: [
+      "Quick Commerce Platforms",
+      "Modern Trade & Organised Retail",
       "Frozen Food Manufacturers",
       "Chilled & Dairy Product Manufacturers",
       "Ice Cream Manufacturers",

@@ -237,7 +237,7 @@ model SiteSettings {
   /// "HH:MM", 24-hour, India time.
   hoursOpen    String @map("hours_open")
   hoursClose   String @map("hours_close")
-  /// How quickly dispatch commits to replying, e.g. "24 hours".
+  /// How quickly dispatch commits to replying, e.g. "30 minutes".
   responseTime String @map("response_time")
 
   /// Null means the automatic heading built from the fleet, e.g. "Reefer trucks from 900 kg to 22 tonnes."

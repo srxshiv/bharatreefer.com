@@ -26,7 +26,16 @@ describe("parseSectionsForm", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.showFacts).toBe(false);
-    expect(result.value.list.map((item) => item.id)).toEqual(["contact", "steps", "bands", "fleet", "routes", "about", "faqs"]);
+    expect(result.value.list.map((item) => item.id)).toEqual([
+      "contact",
+      "steps",
+      "specialists",
+      "bands",
+      "fleet",
+      "routes",
+      "about",
+      "faqs",
+    ]);
     expect(result.value.list.find((item) => item.id === "bands")).toEqual({ id: "bands", visible: false, eyebrow: null, title: "Cold, colder, coldest", intro: null });
   });
 

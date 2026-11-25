@@ -12,12 +12,12 @@ describe("automatic copy", () => {
 
   it("quotes the current limits, hours and phone number in the answers", () => {
     const faqs = automaticFaqs(
-      { ...DEFAULT_BUSINESS, responseTime: "one working day", phone: "+919000000001" },
+      { ...DEFAULT_BUSINESS, responseTime: "1 hour", phone: "+919000000001" },
       { ...DEFAULT_FLEET, minQuantityKg: 25, maxQuantityKg: 40_000 },
     );
     expect(faqs[0].answer).toContain("25 kg");
     expect(faqs[1].answer).toContain("40,000 kg");
-    expect(faqs[2].answer).toContain("one working day");
+    expect(faqs[2].answer).toContain("1 hour");
     expect(faqs[2].answer).toContain("Mon to Sat, 8:00 AM to 8:00 PM");
     expect(faqs[3].answer).toContain("90000 00001");
   });

@@ -45,7 +45,7 @@ describe("businessSchema", () => {
     hoursDays: ["Saturday", "Monday", "Funday"],
     hoursOpen: "08:00",
     hoursClose: "20:00",
-    responseTime: "24 hours",
+    responseTime: "30 minutes",
   };
 
   it("normalises phone numbers, emails and days", () => {

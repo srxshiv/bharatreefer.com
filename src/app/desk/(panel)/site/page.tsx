@@ -118,7 +118,7 @@ async function BusinessForm() {
               title="Reply time promised"
               value={business.responseTime}
               maxLength={40}
-              help='For example "24 hours" or "one working day".'
+              help='For example "30 minutes" or "1 hour".'
             />
           </div>
         </section>

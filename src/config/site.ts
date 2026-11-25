@@ -39,7 +39,7 @@ export const DEFAULT_BUSINESS: BusinessInfo = {
     opens: "08:00",
     closes: "20:00",
   },
-  responseTime: "24 hours",
+  responseTime: "30 minutes",
 };
 
 /** Public origin of the site, without a trailing slash. */

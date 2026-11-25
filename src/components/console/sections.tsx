@@ -17,6 +17,7 @@ import {
   Truck,
 } from "lucide-react";
 import { ABOUT } from "@/config/about";
+import { SPECIALISTS } from "@/config/specialists";
 import { BAND_STYLES } from "@/components/band-styles";
 import { largestTruckKg, type FleetConfig } from "@/config/fleet";
 import { MATERIAL_IDS, type MaterialId, type TemperatureBandInfo } from "@/config/materials";
@@ -152,6 +153,50 @@ export function Fleet({
 
 /** One picture per step, in order; more steps than pictures reuse the last. */
 const STEP_ICONS = [ClipboardList, Handshake, Truck, MapPin, PackageCheck, CircleCheck];
+
+/** Shared-load runs for quick commerce, modern trade and organised retail. */
+export function Specialists({ section }: { section: PageSection }) {
+  return (
+    <section id="specialists" aria-labelledby="specialists-title" className="scroll-mt-24 lg:scroll-mt-28">
+      <SectionHeading section={section} />
+      <p className="-mt-4 mb-6 text-lg font-medium text-ice-800">{SPECIALISTS.tagline}</p>
+      <p className="caption mb-4 text-ink-400">How it works</p>
+      <ol className="relative">
+        {SPECIALISTS.steps.map((step, index) => {
+          const Icon = STEP_ICONS[Math.min(index, STEP_ICONS.length - 1)];
+          const last = index === SPECIALISTS.steps.length - 1;
+          return (
+            <li key={step.title} className={cn("relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-5", !last && "pb-5")}>
+              {last ? null : (
+                <span aria-hidden="true" className="absolute top-12 bottom-0 left-6 w-0.5 -translate-x-1/2 rounded-full bg-linear-to-b from-ice-400 to-frost-300 sm:top-14 sm:left-7" />
+              )}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "relative z-10 grid size-12 place-items-center rounded-2xl text-white shadow-[0_10px_24px_-12px_rgb(1_39_84/0.6)] sm:size-14",
+                  last ? "bg-success" : "bg-navy-900",
+                )}
+              >
+                <Icon className="size-5.5 sm:size-6" strokeWidth={1.75} />
+                <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-surface font-mono text-[0.625rem] font-semibold text-ink-950 ring-1 ring-frost-300">
+                  {index + 1}
+                </span>
+              </span>
+              <div className={cn(card, "p-4 sm:p-5")}>
+                <p className="text-lg/7 font-semibold text-ink-950">{step.title}</p>
+                <p className="mt-1 text-[15px] leading-6 text-ink-600">{step.body}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-6 text-center text-lg font-semibold tracking-tight text-ink-950">
+        {SPECIALISTS.closing.lead}{" "}
+        <span className="text-ice-700">{SPECIALISTS.closing.emphasis}</span>
+      </p>
+    </section>
+  );
+}
 
 /**
  * How it works as a timeline: each step on a line from request to delivery, with when it

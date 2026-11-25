@@ -100,7 +100,7 @@ describe("customerConfirmationEmail", () => {
   it("confirms the reference and what happens next", () => {
     expect(email.subject).toBe("We received your quote request BR-7K3Q9F");
     expect(email.text).toContain("Reference: BR-7K3Q9F");
-    expect(email.text).toContain("within 24 hours");
+    expect(email.text).toContain("within 30 minutes");
     expect(email.text).toContain("98710 94268");
     expect(email.text).toContain("Mon to Sat, 8:00 AM to 8:00 PM");
   });
